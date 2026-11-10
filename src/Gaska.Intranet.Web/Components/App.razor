@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pl" class="@HtmlClass">
+
+<head>
+    <meta charset="utf-8" />
+    @* viewport-fit=cover: the installed app (PWA, full screen) draws behind the notch; app.css pads with the safe areas. *@
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="@(IsDark ? "#161616" : "#FFFFFF")" />
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="icon" type="image/png" href="@Assets["img/favicon.png"]" />
+    @* Installable app: "Dodaj do ekranu głównego" opens the intranet without the browser's address bar. *@
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/img/app/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Intranet" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+    <link rel="stylesheet" href="@Assets["css/app.css"]" />
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    <Routes @rendermode="PageRenderMode" />
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+    <script src="@Assets["js/boot.js"]"></script>
+    <script src="@Assets["js/forms.js"]"></script>
+    @if (HttpContext.User.Identity?.IsAuthenticated == true)
+    {
+        <script src="@Assets["js/session.js"]" data-idle-minutes="@Session.Value.IdleTimeoutMinutes"
+                data-ping-url="@AccountRoutes.SessionPing"></script>
+    }
+</body>
+
+</html>
+
+@inject Microsoft.Extensions.Options.IOptions<Gaska.Intranet.Web.Security.SessionOptions> Session
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // Account pages are rendered statically (plain forms + cookies),
+    // the rest of the application is interactive (Blazor Server).
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+
+    private bool IsDark => ThemeCookies.ReadMode(HttpContext) == ThemeMode.Dark;
+
+    // gaska-booting: no entry animations until Blazor took over (js/boot.js); gaska-dark: dark theme chosen (cookie).
+    private string? HtmlClass
+    {
+        get
+        {
+            var dark = IsDark;
+            var classes = string.Join(' ', new[] { PageRenderMode is null ? null : "gaska-booting", dark ? "gaska-dark" : null }
+                .Where(c => c is not null));
+            return classes.Length == 0 ? null : classes;
+        }
+    }
+}

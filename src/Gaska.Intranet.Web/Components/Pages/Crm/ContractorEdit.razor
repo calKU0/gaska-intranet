@@ -1,0 +1,653 @@
+@page "/kontrahenci/nowy"
+@page "/kontrahenci/{Id:int}/edycja"
+@attribute [ModuleAuthorize(ModuleKeys.Contractors)]
+@using Gaska.Intranet.Core.Auditing
+@inject IContractorService Contractors
+@inject ICrmTaskService Tasks
+@inject ICrmDirectory Directory
+@inject ICompanyRegistry Registry
+@inject CrmSession Session
+@inject IAuditLog Audit
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>@(IsNew ? "Nowy kontrahent" : "Edycja kontrahenta") · Gąska Intranet</PageTitle>
+
+<PageHeader Title="@(IsNew ? "Nowy kontrahent" : "Edycja kontrahenta")"
+            Subtitle="Po zapisaniu kontrahent trafi do kolejki eksportu do Comarch ERP XL.">
+    <Actions>
+        @if (IsNew)
+        {
+            @* Same flow as on the list: the scan page first looks for the company in GoNet, then fills this form. *@
+            <MudButton Href="/kontrahenci/wizytowka" Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Outlined.DocumentScanner">Wizytówka</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+<CrmOperatorNotice />
+
+<FormError Message="@(_error == Session.UnavailableReason ? null : _error)" Class="mb-4" />
+
+@if (_loading)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.Details" ShowTitle="false" />
+}
+else
+{
+    @if (_matches.Count > 0)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4">
+            W GoNet są już podobni kontrahenci – sprawdź, czy nie dodajesz duplikatu:
+            @foreach (var m in _matches)
+            {
+                <MudLink Href="@($"/kontrahenci/{m.Id}")" Class="ml-2">@m.ShortName@(m.City is null ? "" : $" ({m.City})")</MudLink>
+            }
+        </MudAlert>
+    }
+
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" OnInvalidSubmit="() => JS.RevealInvalidFieldAsync()" class="gaska-form">
+        <DataAnnotationsValidator />
+        <MudGrid Spacing="4">
+            <MudItem xs="12" lg="8">
+                <MudPaper Elevation="0" Class="gaska-card pa-4 pa-sm-5">
+                    <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Firma</MudText>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_input.Nip" For="() => _input.Nip" Label="NIP" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Immediate="true" DebounceInterval="500" OnDebounceIntervalElapsed="LookupByNipAsync" InputMode="InputMode.numeric"
+                                          Adornment="Adornment.End" AdornmentIcon="@(_lookingUp ? Icons.Material.Outlined.HourglassTop : Icons.Material.Outlined.TravelExplore)"
+                                          AdornmentAriaLabel="Szukaj w GUS" OnAdornmentClick="() => LookupByNipAsync(_input.Nip)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_input.Regon" For="() => _input.Regon" Label="REGON" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Immediate="true" DebounceInterval="500" OnDebounceIntervalElapsed="LookupByRegonAsync" InputMode="InputMode.numeric" />
+                        </MudItem>
+                        @if (_suggestion is { } found)
+                        {
+                            <MudItem xs="12">
+                                <div class="gaska-suggestion">
+                                    <MudIcon Icon="@Icons.Material.Outlined.Verified" Color="Color.Success" />
+                                    <div class="flex-grow-1">
+                                        <div class="gaska-person-name">@found.Name</div>
+                                        <div class="gaska-person-title">
+                                            @($"{found.Address}, {found.PostalCode} {found.City}".Trim(' ', ','))
+                                            @(found.Voivodeship is null ? "" : $" · woj. {found.Voivodeship.ToLowerInvariant()}")
+                                            · źródło: @found.Source
+                                        </div>
+                                    </div>
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplySuggestion">Uzupełnij</MudButton>
+                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Close" aria-label="Ukryj" OnClick="() => _suggestion = null" />
+                                </div>
+                            </MudItem>
+                        }
+                        <MudItem xs="12" md="5">
+                            <MudTextField @bind-Value="_input.ShortName" For="() => _input.ShortName" Label="Nazwa skrócona (kod w XL)" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" MaxLength="30" Counter="30" />
+                        </MudItem>
+                        <MudItem xs="12" md="7">
+                            <MudTextField @bind-Value="_input.FullName" For="() => _input.FullName" Label="Pełna nazwa" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <SearchSelect TValue="int?" @bind-Value="_input.TypeId" Label="Typ"
+                                          Options="@(_types.Select(t => new SelectOption<int?>(t.Id, TaskFields.Pretty(t.Name))).ToList())" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <SearchSelect TValue="int?" @bind-Value="_input.StatusId" Label="Status"
+                                          Options="@(_statuses.Select(s => new SelectOption<int?>(s.Id, TaskFields.Pretty(s.Name))).ToList())" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-6">Adres</MudText>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_input.Address" For="() => _input.Address" Label="Ulica i numer" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <SearchSelect TValue="int?" Value="_input.CountryId" ValueChanged="SetCountry" Label="Kraj"
+                                          Options="@(_countries.Select(c => new SelectOption<int?>(c.Id, TaskFields.Title(c.Name))).ToList())" />
+                        </MudItem>
+                        <MudItem xs="5" sm="3">
+                            @if (IsPoland)
+                            {
+                                <MudTextField @key="@("pl")" @bind-Value="_input.PostalCode" For="() => _input.PostalCode" Label="Kod" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Mask="@(new PatternMask("00-000"))" InputMode="InputMode.numeric" />
+                            }
+                            else
+                            {
+                                <MudTextField @key="@("foreign")" @bind-Value="_input.PostalCode" For="() => _input.PostalCode" Label="Kod" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              MaxLength="10" />
+                            }
+                        </MudItem>
+                        <MudItem xs="7" sm="@(IsPoland ? 4 : 9)">
+                            <MudTextField @bind-Value="_input.City" For="() => _input.City" Label="Miejscowość" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        @if (IsPoland)
+                        {
+                            <MudItem xs="12" sm="5">
+                                <SearchSelect TValue="int?" @bind-Value="_input.VoivodeshipId" Label="Województwo" Clearable="true"
+                                              Options="@(_voivodeships.Select(v => new SelectOption<int?>(v.Id, v.Name.ToLowerInvariant())).ToList())" />
+                            </MudItem>
+                        }
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_input.Notes" Label="Uwagi" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Sizing="InputSizing.Auto" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" lg="4">
+                <MudPaper Elevation="0" Class="gaska-card pa-4 pa-sm-5">
+                    <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Kontakt</MudText>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6" lg="12">
+                            <MudTextField @bind-Value="_input.Phone1" For="() => _input.Phone1" Label="Telefon" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="12">
+                            <MudTextField @bind-Value="_input.Mobile" For="() => _input.Mobile" Label="Telefon komórkowy" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="12">
+                            <MudTextField @bind-Value="_input.Email" For="() => _input.Email" Label="E-mail" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" lg="12">
+                            <MudTextField @bind-Value="_input.Www" For="() => _input.Www" Label="WWW" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <SearchSelect TValue="int?" @bind-Value="_input.ManagerId" Label="Osoba prowadząca"
+                                          Options="@(_operators.Select(o => new SelectOption<int?>(o.Id, o.FullName)).ToList())" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+
+            @if (IsNew)
+            {
+                <MudItem xs="12" lg="8">
+                    <MudPaper Elevation="0" Class="gaska-card pa-4 pa-sm-5">
+                        <div class="d-flex align-center mb-2">
+                            <MudText Typo="Typo.subtitle2" Class="gaska-section-title mb-0 flex-grow-1">Osoby kontaktowe</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                                       OnClick="AddContactRow">Dodaj osobę</MudButton>
+                        </div>
+                        @if (_contacts.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak osób – dodaj je teraz albo później na karcie kontrahenta.</MudText>
+                        }
+                        @for (var i = 0; i < _contacts.Count; i++)
+                        {
+                            var index = i;
+                            var contact = _contacts[index];
+                            <div class="gaska-contact-row">
+                                <MudGrid Spacing="2">
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="contact.Name" Label="Imię i nazwisko" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="contact.Position" Label="Stanowisko" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="contact.Mobile" Label="Telefon" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="6">
+                                        <MudTextField @bind-Value="contact.Email" Label="E-mail" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email" />
+                                    </MudItem>
+                                </MudGrid>
+                                <div class="gaska-contact-row-actions">
+                                    <MudCheckBox T="bool" Value="contact.IsMain" ValueChanged="v => SetMainContact(index, v)" Label="Główna" Color="Color.Primary" Dense="true" />
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń osobę" OnClick="() => RemoveContactRow(index)" />
+                                </div>
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" lg="4">
+                    <MudPaper Elevation="0" Class="gaska-card pa-4 pa-sm-5">
+                        <div class="d-flex align-center mb-2">
+                            <MudText Typo="Typo.subtitle2" Class="gaska-section-title mb-0 flex-grow-1">Zadania</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddTask"
+                                       OnClick="AddTaskRow">Dodaj zadanie</MudButton>
+                        </div>
+                        @if (_tasks.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak zadań – dodaj je teraz albo później na karcie kontrahenta.</MudText>
+                        }
+                        @for (var i = 0; i < _tasks.Count; i++)
+                        {
+                            var index = i;
+                            <div class="gaska-contact-row">
+                                <div class="d-flex align-center mb-2">
+                                    <MudText Typo="Typo.body2" Class="flex-grow-1"><strong>Zadanie @(index + 1)</strong></MudText>
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń zadanie" OnClick="() => _tasks.RemoveAt(index)" />
+                                </div>
+                                <TaskFields @key="_tasks[index]" Task="_tasks[index]" Contacts="ContactOptions" Compact="true" />
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+        @* Direct child of the (tall) form, not of a grid cell – only then can it stay "sticky" at the bottom of the screen. *@
+        <div class="gaska-form-actions mt-4">
+            <MudButton Href="@(IsNew ? "/kontrahenci" : $"/kontrahenci/{Id}")" Variant="Variant.Text" Disabled="_saving">Anuluj</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving || _operator is null"
+                       StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                Zapisz w GoNet
+            </MudButton>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private ContractorInput _input = new();
+    private readonly List<ContactInput> _contacts = [];
+    private readonly List<TaskInput> _tasks = [];
+    private IReadOnlyList<DictionaryItem> _voivodeships = [];
+    private IReadOnlyList<DictionaryItem> _countries = [];
+    private IReadOnlyList<DictionaryItem> _types = [];
+    private IReadOnlyList<DictionaryItem> _statuses = [];
+    private IReadOnlyList<GoNetOperator> _operators = [];
+    private IReadOnlyList<ContractorListItem> _matches = [];
+    private GoNetOperator? _operator;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private CompanyInfo? _suggestion;
+    private string? _lastLookup;
+    private bool _lookingUp;
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool IsNew => Id is null;
+
+    /// <summary>Polish address: "00-000" postal code and voivodeship. Contractors without a country count as Polish.</summary>
+    private bool IsPoland => _input.CountryId is null || _input.CountryId == PolandId;
+
+    private int? PolandId => _countries.FirstOrDefault(c => TextSearch.Normalize(c.Name) == "polska")?.Id;
+
+    private void SetCountry(int? countryId)
+    {
+        _input.CountryId = countryId;
+        if (!IsPoland)
+        {
+            _input.VoivodeshipId = null; // Polish voivodeships only
+        }
+    }
+
+    /// <summary>"Włochy" from a business card → GoNet country id.</summary>
+    private int? FindCountryId(string? name) =>
+        name is null ? null : _countries.FirstOrDefault(c => TextSearch.Normalize(c.Name) == TextSearch.Normalize(name))?.Id;
+
+    /// <summary>Contacts of the new contractor for the task's person selector (index = temporary id).</summary>
+    private IReadOnlyList<(int Id, string Name)> ContactOptions =>
+        _contacts.Select((c, i) => (i, c.Name)).Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Loaded once by the interactive render (the pre-render only shows the skeleton) – the business card
+        // prefill would otherwise call GUS and GoNet twice.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        try
+        {
+            _operator = await Session.GetOperatorAsync();
+            _voivodeships = await Directory.GetVoivodeshipsAsync();
+            _countries = await Directory.GetCountriesAsync();
+            _types = await Directory.GetContractorTypesAsync();
+            _statuses = await Directory.GetContractorStatusesAsync();
+            _operators = await Directory.GetOperatorsAsync();
+
+            if (IsNew)
+            {
+                // Defaults: ODBIORCA / KLIENT (as configured in GoNet options).
+                _input = new ContractorInput
+                {
+                    ManagerId = _operator?.Id,
+                    CountryId = PolandId,
+                    TypeId = _types.FirstOrDefault(t => t.Name.Equals("ODBIORCA", StringComparison.OrdinalIgnoreCase))?.Id,
+                    StatusId = _statuses.FirstOrDefault(s => s.Name.Equals("KLIENT", StringComparison.OrdinalIgnoreCase))?.Id,
+                };
+
+                if (Session.Draft is { } card && Session.DraftContractorId is null)
+                {
+                    await PrefillFromCardAsync(card);
+                }
+            }
+            else if (await Contractors.GetAsync(Id!.Value) is { } existing)
+            {
+                _input = ContractorInput.From(existing);
+            }
+            else
+            {
+                _error = "Nie znaleziono kontrahenta.";
+            }
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Fills empty fields from the card (typed values are kept) and adds the person to the contacts.</summary>
+    private async Task PrefillFromCardAsync(BusinessCardData card)
+    {
+        _input.Nip = Fill(_input.Nip, card.Nip);
+        _input.FullName = Fill(_input.FullName, card.CompanyName) ?? string.Empty;
+        _input.Address = Fill(_input.Address, card.Address);
+        _input.City = Fill(_input.City, card.City);
+        if (card.IsForeign && FindCountryId(card.Country) is { } countryId && IsPoland)
+        {
+            SetCountry(countryId);
+        }
+
+        _input.PostalCode = Fill(_input.PostalCode, card.PostalCode);
+
+        _input.Email = Fill(_input.Email, card.Emails.FirstOrDefault());
+        _input.Phone1 = Fill(_input.Phone1, card.Phones.FirstOrDefault());
+        _input.Www = Fill(_input.Www, card.Www);
+
+        // Official data from GUS / the VAT white list wins over OCR guesses.
+        if (card.Nip is not null && await Registry.FindByNipAsync(card.Nip) is { } company)
+        {
+            ApplyCompany(company);
+            _lastLookup = $"nip:{card.Nip}";
+        }
+
+        if (string.IsNullOrWhiteSpace(_input.ShortName))
+        {
+            _input.ShortName = SuggestShortName(_input.FullName);
+        }
+
+        // The person – also when only their e-mail/phone was read (the name is then typed in by hand).
+        var hasPerson = !string.IsNullOrWhiteSpace(card.PersonName) || card.Emails.Count > 0 || card.Phones.Count > 0;
+        var alreadyListed = _contacts.Any(c =>
+            (!string.IsNullOrWhiteSpace(card.PersonName) && TextSearch.Normalize(c.Name) == TextSearch.Normalize(card.PersonName)) ||
+            (c.Email is not null && card.Emails.Contains(c.Email, StringComparer.OrdinalIgnoreCase)));
+        if (hasPerson && !alreadyListed)
+        {
+            var contact = ContactDialog.FromCard(card);
+            contact.IsMain = _contacts.Count == 0;
+            _contacts.Add(contact);
+            if (string.IsNullOrWhiteSpace(card.PersonName))
+            {
+                Snackbar.Add("Nie odczytano imienia i nazwiska z wizytówki – wpisz je w sekcji „Osoby kontaktowe”.", Severity.Warning);
+            }
+        }
+
+        _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(card.Nip, card.Emails, card.Phones, _input.FullName, card.Www));
+    }
+
+    /// <summary>Everything typed in the form (company and its people) – checked against GoNet before a new contractor is saved.</summary>
+    private ContractorMatchQuery CurrentMatchQuery()
+    {
+        var people = _contacts.Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
+        return new ContractorMatchQuery(
+            _input.Nip,
+            new[] { _input.Email }.Concat(people.Select(c => c.Email)).OfType<string>().Where(e => e.Contains('@')).ToList(),
+            new[] { _input.Phone1, _input.Phone2, _input.Mobile }.Concat(people.SelectMany(c => new[] { c.Mobile, c.Phone1 }))
+                .OfType<string>().Where(p => !string.IsNullOrWhiteSpace(p)).ToList(),
+            _input.FullName,
+            _input.Www);
+    }
+
+    /// <summary>Possible duplicates must be confirmed before saving – the same company must not be added twice.</summary>
+    private async Task<bool> ConfirmNoDuplicateAsync()
+    {
+        _matches = await Contractors.FindMatchesAsync(CurrentMatchQuery());
+        if (_matches.Count == 0)
+        {
+            return true;
+        }
+
+        var list = string.Join(", ", _matches.Take(5).Select(m => $"{m.ShortName} ({m.FullName})"));
+        var more = _matches.Count > 5 ? $" i {_matches.Count - 5} innych" : string.Empty;
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Ten kontrahent może już istnieć w GoNet",
+            $"Podobni kontrahenci (ten sam NIP, nazwa, telefon, e-mail lub strona WWW): {list}{more}. " +
+            "Sprawdź ich na liście powyżej formularza – zamiast dodawać nowego, otwórz istniejącego i dodaj tam osobę lub zadanie.",
+            yesText: "Zapisz mimo to", cancelText: "Anuluj");
+        return confirmed == true;
+    }
+
+    private static string? Fill(string? current, string? value) => string.IsNullOrWhiteSpace(current) ? value : current;
+
+    private void AddContactRow() => _contacts.Add(new ContactInput { IsMain = _contacts.Count == 0 });
+
+    private void AddTaskRow() => _tasks.Add(new TaskInput());
+
+    private void RemoveContactRow(int index)
+    {
+        _contacts.RemoveAt(index);
+
+        // Tasks refer to contacts by their position on the list – keep those references valid.
+        foreach (var task in _tasks)
+        {
+            if (task.ContactId == index)
+            {
+                task.ContactId = null;
+            }
+            else if (task.ContactId > index)
+            {
+                task.ContactId--;
+            }
+        }
+
+        if (_contacts.Count > 0 && !_contacts.Any(c => c.IsMain))
+        {
+            _contacts[0].IsMain = true;
+        }
+    }
+
+    private void SetMainContact(int index, bool isMain)
+    {
+        for (var i = 0; i < _contacts.Count; i++)
+        {
+            _contacts[i].IsMain = isMain && i == index;
+        }
+    }
+
+    /// <summary>Valid NIP typed → look the company up in GUS (then the VAT white list) and suggest its data.</summary>
+    private Task LookupByNipAsync(string? value) =>
+        Nip.Normalize(value) is { } nip ? LookupAsync($"nip:{nip}", () => Registry.FindByNipAsync(nip)) : Task.CompletedTask;
+
+    private Task LookupByRegonAsync(string? value) =>
+        Regon.Normalize(value) is { } regon ? LookupAsync($"regon:{regon}", () => Registry.FindByRegonAsync(regon)) : Task.CompletedTask;
+
+    private async Task LookupAsync(string key, Func<Task<CompanyInfo?>> lookup)
+    {
+        if (key == _lastLookup || _lookingUp)
+        {
+            return;
+        }
+
+        _lastLookup = key;
+        _lookingUp = true;
+        StateHasChanged();
+        try
+        {
+            var company = await lookup();
+            if (company is null)
+            {
+                _suggestion = null;
+                Snackbar.Add("Nie znaleziono firmy w GUS ani na białej liście VAT – uzupełnij dane ręcznie.", Severity.Info);
+            }
+            else if (!TextSearch.Matches(company.Name, _input.FullName) || string.IsNullOrWhiteSpace(_input.FullName))
+            {
+                // Suggest only when it would change something.
+                _suggestion = company;
+            }
+        }
+        finally
+        {
+            _lookingUp = false;
+        }
+    }
+
+    private void ApplySuggestion()
+    {
+        if (_suggestion is { } company)
+        {
+            ApplyCompany(company);
+            Snackbar.Add($"Uzupełniono dane ({company.Source}).", Severity.Success);
+            _suggestion = null;
+        }
+    }
+
+    private void ApplyCompany(CompanyInfo company)
+    {
+        _input.Nip = Nip.Normalize(company.Nip) ?? _input.Nip;
+        _input.FullName = company.Name;
+        SetCountry(PolandId); // GUS / VAT white list = Polish companies
+        _input.Regon = company.Regon ?? _input.Regon;
+        _input.Address = company.Address ?? _input.Address;
+        _input.PostalCode = company.PostalCode ?? _input.PostalCode;
+        _input.City = company.City ?? _input.City;
+
+        if (company.Voivodeship is { } voivodeship &&
+            _voivodeships.FirstOrDefault(v => TextSearch.Normalize(v.Name) == TextSearch.Normalize(voivodeship)) is { } match)
+        {
+            _input.VoivodeshipId = match.Id;
+        }
+
+        if (string.IsNullOrWhiteSpace(_input.ShortName))
+        {
+            _input.ShortName = SuggestShortName(company.Name);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        // The same error again: hide it for a moment, so it appears (and scrolls into view) once more.
+        if (_error is not null)
+        {
+            _error = null;
+            await Task.Yield();
+        }
+
+        if (_operator is null)
+        {
+            return;
+        }
+
+        // A person row with an e-mail/phone but no name would be skipped silently – ask for the name instead.
+        if (IsNew && _contacts.FindIndex(c => string.IsNullOrWhiteSpace(c.Name) &&
+                (!string.IsNullOrWhiteSpace(c.Email) || !string.IsNullOrWhiteSpace(c.Mobile) || !string.IsNullOrWhiteSpace(c.Phone1))) is var unnamed and >= 0)
+        {
+            _error = $"Osoba kontaktowa {unnamed + 1} ma e-mail lub telefon, ale nie ma imienia i nazwiska – uzupełnij je albo usuń wiersz.";
+            return;
+        }
+
+        if (IsNew && _tasks.FindIndex(t => t.IsDone(DateTime.Now) && string.IsNullOrWhiteSpace(t.Notes)) is var missing and >= 0)
+        {
+            _error = $"Zadanie {missing + 1} ma termin w przeszłości i zapisze się jako wykonane – opisz jego przebieg w notatce.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var user = (await AuthState).User.Identity?.Name;
+            if (!IsNew)
+            {
+                await Contractors.UpdateAsync(Id!.Value, _input, _operator.Id);
+                await Audit.WriteAsync(AuditEvents.CrmContractorUpdated, user, $"GoNet #{Id} {_input.ShortName}");
+                Snackbar.Add("Zapisano w GoNet i dodano do eksportu do XL.", Severity.Success);
+                Navigation.NavigateTo($"/kontrahenci/{Id}");
+                return;
+            }
+
+            if (!await ConfirmNoDuplicateAsync())
+            {
+                return;
+            }
+
+            var contacts = _contacts.Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
+            var id = await Contractors.CreateAsync(_input, contacts, _operator.Id);
+            await Audit.WriteAsync(AuditEvents.CrmContractorCreated, user, $"GoNet #{id} {_input.ShortName}, osób: {contacts.Count}");
+            Session.ClearDraft();
+
+            if (_tasks.Count > 0)
+            {
+                await AddTasksAfterCreateAsync(id, user);
+            }
+
+            Snackbar.Add("Zapisano w GoNet i dodano do eksportu do XL.", Severity.Success);
+            Navigation.NavigateTo($"/kontrahenci/{id}");
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    /// <summary>The contractor is already saved – a failing task must not hide that.</summary>
+    private async Task AddTasksAfterCreateAsync(int contractorId, string? user)
+    {
+        ContractorDetails? saved = null;
+        for (var i = 0; i < _tasks.Count; i++)
+        {
+            var task = _tasks[i];
+            try
+            {
+                // The task form referred to a contact by its position on the list – map it to the saved contact's id.
+                if (task.ContactId is { } index && index >= 0 && index < _contacts.Count)
+                {
+                    saved ??= await Contractors.GetAsync(contractorId);
+                    var name = TextSearch.Normalize(_contacts[index].Name);
+                    task.ContactId = saved?.Contacts.FirstOrDefault(c => TextSearch.Normalize(c.Name) == name)?.Id;
+                }
+                else
+                {
+                    task.ContactId = null;
+                }
+
+                var taskId = await Tasks.AddTaskAsync(contractorId, task, _operator!.Id);
+                await Audit.WriteAsync(AuditEvents.CrmTaskAdded, user, $"GoNet kontrahent #{contractorId}, zadanie #{taskId}");
+            }
+            catch (CrmException ex)
+            {
+                Snackbar.Add($"Kontrahent zapisany, ale nie udało się dodać zadania {i + 1}: {ex.Message}", Severity.Warning);
+            }
+        }
+    }
+
+    /// <summary>"Przedsiębiorstwo Handlowe AGRO-MAX Jan Kowalski" → "AGRO-MAX" style short code (max 30 chars).</summary>
+    private static string SuggestShortName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return string.Empty;
+        }
+
+        var stop = new[] { "SP.", "Z", "O.O.", "O.O", "SPÓŁKA", "SPOLKA", "S.A.", "SA", "SP.J.", "SP.K.", "S.C.", "PPHU", "P.P.H.U.", "PHU", "P.H.U.", "FHU", "F.H.U.", "PRZEDSIĘBIORSTWO", "HANDLOWE", "HANDLOWO-USŁUGOWE", "FIRMA", "OGRANICZONĄ", "ODPOWIEDZIALNOŚCIĄ", "KOMANDYTOWA", "JAWNA", "CYWILNA" };
+        var words = fullName.ToUpperInvariant().Replace("\"", string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => !stop.Contains(w))
+            .ToList();
+        var code = string.Join(' ', words.Take(2));
+        return code.Length > 30 ? code[..30].Trim() : code;
+    }
+}

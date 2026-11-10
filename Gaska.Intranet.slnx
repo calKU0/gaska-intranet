@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Gaska.Intranet.Core/Gaska.Intranet.Core.csproj" />
+    <Project Path="src/Gaska.Intranet.Infrastructure/Gaska.Intranet.Infrastructure.csproj" />
+    <Project Path="src/Gaska.Intranet.Web/Gaska.Intranet.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Gaska.Intranet.Tests/Gaska.Intranet.Tests.csproj" />
+  </Folder>
+</Solution>

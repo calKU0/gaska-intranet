@@ -1,0 +1,176 @@
+@* Wraps a text box: files can be picked, pasted into it (Ctrl+V – screenshots) or dropped onto it. *@
+@using Gaska.Intranet.Core.Helpdesk
+@implements IAsyncDisposable
+@inject IHelpdeskService Helpdesk
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<div @ref="_container" class="gaska-attach-target">
+    @ChildContent
+</div>
+
+@if (Helpdesk.CanAttachFiles)
+{
+    <div class="gaska-attach">
+        <InputFile @ref="_input" OnChange="OnFilesAsync" multiple id="@_inputId" class="gaska-attach-input" disabled="@(Disabled || _reading)" />
+        <div class="gaska-attach-bar">
+            <MudButton HtmlTag="label" Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.AttachFile"
+                       Disabled="Disabled || _reading || Attachments.Count >= Helpdesk.MaxAttachments" for="@_inputId">
+                Dodaj pliki
+            </MudButton>
+            @if (_reading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            @* Paste / drag & drop exist only with a mouse and keyboard – phones pick files (or take a photo) with the button. *@
+            <MudText Typo="Typo.caption" Class="mud-text-secondary gaska-pointer-only">
+                Zrzut ekranu wklej do pola tekstowego (Ctrl+V) albo przeciągnij plik.
+            </MudText>
+        </div>
+
+        @if (Attachments.Count > 0)
+        {
+            <div class="gaska-attach-list">
+                @foreach (var file in Attachments)
+                {
+                    <div class="gaska-attach-item" title="@file.FileName">
+                        @if (file.IsImage && file.Content.Length <= PreviewLimit)
+                        {
+                            <img src="@Preview(file)" alt="@file.FileName" class="gaska-attach-thumb" />
+                        }
+                        else
+                        {
+                            <div class="gaska-attach-thumb is-file">
+                                <MudIcon Icon="@(file.IsImage ? Icons.Material.Outlined.Image : Icons.Material.Outlined.InsertDriveFile)" />
+                            </div>
+                        }
+                        <div class="gaska-attach-name">@file.FileName</div>
+                        <div class="gaska-attach-size">@FormatSize(file.Content.LongLength)</div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Class="gaska-attach-remove" Disabled="Disabled"
+                                       aria-label="@($"Usuń {file.FileName}")" OnClick="() => RemoveAsync(file)" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const int PreviewLimit = 2 * 1024 * 1024;
+
+    private readonly string _inputId = "attach-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly Dictionary<HelpdeskAttachment, string> _previews = [];
+    private ElementReference _container;
+    private InputFile? _input;
+    private IJSObjectReference? _module;
+    private bool _reading;
+
+    [Parameter, EditorRequired]
+    public List<HelpdeskAttachment> Attachments { get; set; } = [];
+
+    [Parameter]
+    public EventCallback AttachmentsChanged { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_module is null && Helpdesk.CanAttachFiles && _input?.Element is { } input)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/helpdesk-attachments.js");
+                await _module.InvokeVoidAsync("attach", _container, input);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private async Task OnFilesAsync(InputFileChangeEventArgs e)
+    {
+        _reading = true;
+        try
+        {
+            var room = Helpdesk.MaxAttachments - Attachments.Count;
+            var files = e.GetMultipleFiles(Math.Max(e.FileCount, 1));
+            if (files.Count > room)
+            {
+                Snackbar.Add($"Można dodać najwyżej {Helpdesk.MaxAttachments} plików.", Severity.Warning);
+            }
+
+            foreach (var file in files.Take(Math.Max(room, 0)))
+            {
+                if (file.Size > Helpdesk.MaxAttachmentBytes)
+                {
+                    Snackbar.Add($"{file.Name} jest za duży (limit {FormatSize(Helpdesk.MaxAttachmentBytes)}).", Severity.Warning);
+                    continue;
+                }
+
+                using var memory = new MemoryStream();
+                await using var stream = file.OpenReadStream(Helpdesk.MaxAttachmentBytes);
+                await stream.CopyToAsync(memory);
+                var type = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+                Attachments.Add(new HelpdeskAttachment(file.Name, type, memory.ToArray()));
+            }
+
+            await AttachmentsChanged.InvokeAsync();
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("Nie udało się wczytać pliku.", Severity.Error);
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    private async Task RemoveAsync(HelpdeskAttachment file)
+    {
+        Attachments.Remove(file);
+        _previews.Remove(file);
+        await AttachmentsChanged.InvokeAsync();
+    }
+
+    private string Preview(HelpdeskAttachment file)
+    {
+        if (!_previews.TryGetValue(file, out var url))
+        {
+            var type = file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? file.ContentType : "image/png";
+            url = $"data:{type};base64,{Convert.ToBase64String(file.Content)}";
+            _previews[file] = url;
+        }
+
+        return url;
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0} KB",
+        _ => $"{bytes / 1024.0 / 1024.0:0.#} MB",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("detach", _container);
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

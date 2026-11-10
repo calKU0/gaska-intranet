@@ -1,0 +1,115 @@
+@page "/konto/weryfikacja/metoda"
+@inject ILoginCodeService LoginCodes
+@inject IAuditLog Audit
+@inject NavigationManager Navigation
+
+<PageTitle>Weryfikacja · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Jak wysłać kod?</h1>
+<p class="auth-subtitle">Wybierz, gdzie mamy wysłać jednorazowy kod logowania.</p>
+
+@if (_error is not null)
+{
+    <div class="auth-alert auth-alert-error" role="alert">@_error</div>
+}
+
+@if (_options.Count > 0)
+{
+    <EditForm Model="Input" method="post" OnValidSubmit="SendAsync" FormName="choose-method" class="auth-form" data-busy-on-submit>
+        <InputRadioGroup @bind-Value="Input.Channel">
+            @foreach (var option in _options)
+            {
+                <label class="auth-option">
+                    <InputRadio Value="option.Channel" />
+                    <span class="auth-option-icon">@(option.Channel == DeliveryChannel.Sms ? "📱" : "✉️")</span>
+                    <span class="auth-option-text">
+                        <strong>@(option.Channel == DeliveryChannel.Sms ? "SMS" : "E-mail")</strong>
+                        <span>@option.MaskedDestination</span>
+                    </span>
+                </label>
+            }
+        </InputRadioGroup>
+
+        <button type="submit" class="auth-button">Wyślij kod</button>
+    </EditForm>
+}
+
+<a href="@AccountRoutes.Login" class="auth-link">← Zaloguj się na inne konto</a>
+
+@code {
+    private string? _error;
+    private IReadOnlyList<DeliveryOption> _options = [];
+    private PendingLoginState? _state;
+    private DirectoryUser? _user;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private ChooseInput Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new ChooseInput();
+
+        _state = await PendingLoginState.ReadAsync(HttpContext);
+        _user = _state?.User;
+
+        if (_state is null || _user is null)
+        {
+            Navigation.NavigateTo(AccountRoutes.Login);
+            return;
+        }
+
+        _options = LoginCodes.GetDeliveryOptions(_user);
+        if (_options.Count == 0)
+        {
+            _error = "Twoje konto nie ma przypisanego numeru telefonu komórkowego ani adresu e-mail. Skontaktuj się z działem IT.";
+        }
+        else if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Input.Channel = _state.Channel ?? _options[0].Channel;
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (_state is null || _user is null)
+        {
+            return;
+        }
+
+        var result = await LoginCodes.IssueAsync(_user, Input.Channel);
+        switch (result.Status)
+        {
+            case IssueCodeStatus.Sent:
+                await Audit.WriteAsync(AuditEvents.CodeSent, _user.AccountName, $"{Input.Channel} → {result.MaskedDestination}");
+                await (_state with
+                {
+                    ChallengeId = result.ChallengeId,
+                    Channel = Input.Channel,
+                    MaskedDestination = result.MaskedDestination,
+                }).SaveAsync(HttpContext);
+                Navigation.NavigateTo(AccountRoutes.Verify);
+                break;
+
+            case IssueCodeStatus.TooManyRequests:
+                _error = "Kod został wysłany przed chwilą. Odczekaj chwilę przed wysłaniem kolejnego.";
+                break;
+
+            case IssueCodeStatus.ChannelUnavailable:
+                _error = "Wybrana metoda jest niedostępna dla Twojego konta.";
+                break;
+
+            default:
+                await Audit.WriteAsync(AuditEvents.CodeSendFailed, _user.AccountName, Input.Channel.ToString());
+                _error = "Nie udało się wysłać kodu. Spróbuj inną metodą lub za chwilę.";
+                break;
+        }
+    }
+
+    private sealed class ChooseInput
+    {
+        public DeliveryChannel Channel { get; set; } = DeliveryChannel.Sms;
+    }
+}

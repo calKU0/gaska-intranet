@@ -1,0 +1,328 @@
+<!-- Single source of the user manual (for employees): shown on /instrukcja and turned into the PDF by tools/build-manual.py.
+     Plain HTML, no scripts. Screenshots in wwwroot/img/instrukcja from demo data: "d-…" desktop, "m-…" phone.
+     A figure with both (img.shot-d + img.shot-m) shows the desktop picture on a computer and the phone one on a phone;
+     .only-m / .only-d figures appear on one kind of device only. Chapters are numbered by CSS. -->
+<article class="manual">
+
+<section id="wprowadzenie">
+<h2>Czym jest intranet</h2>
+<p>Intranet Gąski to jedno miejsce na codzienne sprawy firmowe. Składa się z kilku zakładek (dostępnych w menu):</p>
+<ul>
+    <li><strong>Pracownicy</strong> – telefony, numery wewnętrzne i e-maile współpracowników,</li>
+    <li><strong>RCP</strong> – rozpoczęcie i zakończenie pracy oraz przerwy (zamiast odbijania karty),</li>
+    <li><strong>Helpdesk IT</strong> – zgłoszenia do działu IT,</li>
+    <li><strong>Kontrahenci</strong> – karty klientów i dostawców, osoby kontaktowe i wizyty,</li>
+    <li>przydatne linki – portal pracownika HRM, strona firmowa, sklepy.</li>
+</ul>
+<p>Intranet działa w przeglądarce na komputerze i na telefonie, a można go też zainstalować jako aplikację.
+Logujesz się <strong>tym samym loginem i hasłem co do komputera</strong>.</p>
+<p class="manual-tip"><strong>Długie listy wyboru</strong> (np. „Przypisz do”, „Kraj”, „Dział”) możesz zawęzić, wpisując część nazwy –
+nie trzeba przewijać całej listy.</p>
+<p class="manual-tip"><strong>Nie widzisz którejś zakładki?</strong> Każdy widzi tylko te zakładki, do których ma dostęp.
+Jeśli czegoś Ci brakuje, zapytaj przełożonego lub dział IT.</p>
+</section>
+
+<section id="logowanie">
+<h2>Logowanie</h2>
+
+<h3>Krok 1 – login i hasło</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-login.jpg" alt="Ekran logowania" />
+    <img class="shot-m" src="img/instrukcja/m-login.jpg" alt="Ekran logowania" />
+    <figcaption>Ekran logowania</figcaption>
+</figure>
+<ol>
+    <li>Otwórz intranet w przeglądarce (albo aplikację, jeśli intranet jest zainstalowany na urządzeniu).</li>
+    <li>Wpisz <strong>login</strong> (np. <em>jkowalski</em>) i <strong>hasło do komputera</strong>.</li>
+    <li>Kliknij <strong>Dalej</strong>.</li>
+</ol>
+<p>Po kilku błędnych próbach logowanie zostaje na chwilę zablokowane – odczekaj kilkanaście minut.
+Gdy zmienisz hasło do komputera, w intranecie od razu używasz nowego.</p>
+
+<h3>Krok 2 – kod z aplikacji w telefonie</h3>
+<p>Każde logowanie potwierdzasz 6-cyfrowym kodem z aplikacji <strong>Google Authenticator</strong> lub
+<strong>Microsoft Authenticator</strong> (konto „Gaska Intranet”). Kod zmienia się co 30 sekund – wpisz ten aktualny.</p>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-2fa-app.jpg" alt="Kod z aplikacji" />
+    <img class="shot-m" src="img/instrukcja/m-2fa-app.jpg" alt="Kod z aplikacji" />
+    <figcaption>Wpisywanie kodu z aplikacji</figcaption>
+</figure>
+
+<h3>Pierwsze logowanie – ustawienie aplikacji</h3>
+<p>Za pierwszym razem (albo po zmianie telefonu) intranet poprowadzi Cię krok po kroku:</p>
+<ol>
+    <li><strong>Wybierz, gdzie wysłać jednorazowy kod</strong> – SMS na służbowy numer albo e-mail.</li>
+    <li><strong>Wpisz otrzymany kod</strong> (ważny 5 minut). Nie dotarł? Kliknij „Wyślij ponownie lub wybierz inną metodę”.</li>
+    <li><strong>Ustaw aplikację:</strong> zainstaluj w telefonie Google Authenticator lub Microsoft Authenticator (Sklep Play / App Store),
+        wybierz w niej „+” → „Zeskanuj kod QR”, zeskanuj kod widoczny w intranecie i wpisz kod, który pokaże aplikacja.</li>
+</ol>
+<div class="manual-figs">
+    <figure>
+        <img class="shot-d" src="img/instrukcja/d-2fa-method.jpg" alt="Wybór SMS lub e-mail" />
+        <img class="shot-m" src="img/instrukcja/m-2fa-method.jpg" alt="Wybór SMS lub e-mail" />
+        <figcaption>1. SMS albo e-mail</figcaption>
+    </figure>
+    <figure>
+        <img class="shot-d" src="img/instrukcja/d-2fa-code.jpg" alt="Kod jednorazowy" />
+        <img class="shot-m" src="img/instrukcja/m-2fa-code.jpg" alt="Kod jednorazowy" />
+        <figcaption>2. Kod jednorazowy</figcaption>
+    </figure>
+    <figure>
+        <img class="shot-d" src="img/instrukcja/d-2fa-setup.jpg" alt="Kod QR dla aplikacji" />
+        <img class="shot-m" src="img/instrukcja/m-2fa-setup.jpg" alt="Kod QR dla aplikacji" />
+        <figcaption>3. Kod QR dla aplikacji</figcaption>
+    </figure>
+</div>
+
+<h3>„Zapamiętaj to urządzenie”</h3>
+<p>Gdy to pole jest zaznaczone, przez <strong>5 dni</strong> na tym urządzeniu i w tej samej sieci nie trzeba wpisywać kodu
+(hasło nadal tak). Po zmianie hasła do komputera kod będzie potrzebny ponownie. <strong>Nie zaznaczaj go na wspólnym lub cudzym komputerze.</strong> Z innej sieci – np. z domu zamiast
+z biura – kod i tak będzie potrzebny.</p>
+
+<h3>Wylogowanie</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-user-menu.jpg" alt="Menu z inicjałami" />
+    <img class="shot-m" src="img/instrukcja/m-user-menu.jpg" alt="Menu z inicjałami" />
+    <figcaption>Kliknij swoje inicjały w prawym górnym rogu</figcaption>
+</figure>
+<ul>
+    <li><strong>Wyloguj</strong> – kończy pracę w intranecie.</li>
+    <li><strong>Wyloguj i zapomnij to urządzenie</strong> – przy następnym logowaniu intranet znów poprosi o kod
+        (używaj na wspólnym komputerze).</li>
+</ul>
+<p>Po <strong>godzinie bez aktywności</strong> intranet wyloguje Cię sam. Niezależnie od tego po 12 godzinach trzeba zalogować się ponownie.</p>
+
+<h3>Coś nie działa?</h3>
+<ul>
+    <li><strong>„Nieprawidłowy kod”</strong> – sprawdź, czy telefon ma automatycznie ustawioną datę i godzinę, i wpisz najnowszy kod.</li>
+    <li><strong>Zgubiony lub nowy telefon</strong> – zgłoś się do działu IT. Przy następnym logowaniu ustawisz aplikację od nowa.</li>
+    <li><strong>Nie dostajesz SMS-a ani e-maila</strong> – zgłoś to do działu IT.</li>
+</ul>
+</section>
+
+<section id="nawigacja">
+<h2>Strona główna i menu</h2>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-home.jpg" alt="Strona główna" />
+    <img class="shot-m" src="img/instrukcja/m-home.jpg" alt="Strona główna" />
+    <figcaption>Strona główna</figcaption>
+</figure>
+<ul>
+    <li><strong>Kafelki</strong> prowadzą do zakładek intranetu. Niżej są przydatne linki – otwierają się w nowej karcie.</li>
+    <li><strong>Menu</strong> – na komputerze zawsze po lewej stronie (ikona ☰ je chowa i pokazuje).
+        Na telefonie stuknij ☰ w lewym górnym rogu, a menu się wysunie.</li>
+    <li><strong>Jasny lub ciemny wygląd</strong> – przełącznik ☀ / ☾ w górnym pasku (na telefonie ikona słońca lub księżyca).
+        Twój wybór zostanie zapamiętany.</li>
+    <li><strong>Pomoc</strong> w menu – ta instrukcja i instalacja aplikacji.</li>
+</ul>
+<figure class="only-m">
+    <img src="img/instrukcja/m-menu.jpg" alt="Menu na telefonie" />
+    <figcaption>Wysunięte menu na telefonie</figcaption>
+</figure>
+</section>
+
+<section id="aplikacja">
+<h2>Intranet jako aplikacja</h2>
+<p>Intranet możesz zainstalować jako aplikację na telefonie lub komputerze. Ma wtedy własną ikonę i uruchamiasz go jak każdą
+inną aplikację – bez szukania adresu w przeglądarce. To ten sam intranet: te same dane i to samo logowanie, a aktualizuje się sam.</p>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-install.jpg" alt="Zainstaluj aplikację" />
+    <img class="shot-m" src="img/instrukcja/m-install.jpg" alt="Zainstaluj aplikację" />
+    <figcaption>Menu → Pomoc → Zainstaluj aplikację</figcaption>
+</figure>
+<ul>
+    <li><strong>Telefon z Androidem</strong> (Chrome, Edge): przycisk <em>Zainstaluj</em> na stronie głównej albo
+        menu przeglądarki ⋮ → <em>Zainstaluj aplikację</em>.</li>
+    <li><strong>iPhone / iPad</strong> (Safari): przycisk <em>Udostępnij</em> → <em>Do ekranu początkowego</em> → <em>Dodaj</em>.</li>
+    <li><strong>Komputer</strong> (Chrome, Edge): ikona instalacji w pasku adresu albo menu → <em>Aplikacje</em> → <em>Zainstaluj</em>.</li>
+</ul>
+<p>Zaproszenie do instalacji widać tylko w przeglądarce – w zainstalowanej aplikacji znika.</p>
+</section>
+
+<section id="pracownicy">
+<h2>Pracownicy</h2>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-employees.jpg" alt="Pracownicy" />
+    <img class="shot-m" src="img/instrukcja/m-employees.jpg" alt="Pracownicy" />
+    <figcaption>Książka adresowa</figcaption>
+</figure>
+<ul>
+    <li><strong>Szukaj</strong> – wpisz imię, nazwisko, dział, stanowisko, numer telefonu lub wewnętrzny; lista zawęża się w trakcie pisania.</li>
+    <li><strong>Dział</strong> – pokazuje osoby z wybranego działu.</li>
+    <li>Kliknięcie numeru komórki dzwoni (na telefonie), kliknięcie e-maila otwiera nową wiadomość.</li>
+    <li><strong>Kliknij osobę</strong>, aby zobaczyć szczegóły z przyciskami <em>Zadzwoń</em> i <em>E-mail</em>.</li>
+</ul>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-employee.jpg" alt="Szczegóły osoby" />
+    <img class="shot-m" src="img/instrukcja/m-employee.jpg" alt="Szczegóły osoby" />
+    <figcaption>Szczegóły osoby</figcaption>
+</figure>
+<p class="manual-tip">Twój numer lub stanowisko są nieaktualne? Zgłoś to do działu IT.</p>
+</section>
+
+<section id="rcp">
+<h2>RCP – czas pracy</h2>
+<p>RCP zastępuje odbijanie karty – odbicia trafiają do tego samego systemu co czytnik przy wejściu.</p>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-rcp.jpg" alt="RCP" />
+    <img class="shot-m" src="img/instrukcja/m-rcp.jpg" alt="RCP" />
+    <figcaption>Rejestracja czasu pracy</figcaption>
+</figure>
+<ul>
+    <li><strong>Rozpocznij pracę</strong> – na początku dnia.</li>
+    <li><strong>Rozpocznij przerwę</strong> i <strong>Zakończ przerwę</strong> – wyjście na przerwę i powrót.</li>
+    <li><strong>Zakończ pracę</strong> – na koniec dnia (intranet poprosi o potwierdzenie).</li>
+</ul>
+<p>Odbicie zapisuje się od razu, z aktualną godziną. Widoczne są tylko przyciski, których można teraz użyć – np. w trakcie
+przerwy tylko „Zakończ przerwę”. Niżej widzisz <strong>czas pracy dziś</strong> (obecność bez przerw), godziny rozpoczęcia
+i zakończenia, przerwy, dzisiejsze odbicia i <strong>podsumowanie ostatnich 7 dni</strong>.</p>
+<p class="manual-tip"><strong>Pomyłka w odbiciu?</strong> Odbicia nie da się poprawić w intranecie – zgłoś korektę tak samo jak przy pomyłce z kartą.</p>
+</section>
+
+<section id="helpdesk">
+<h2>Helpdesk IT</h2>
+<p>Tu zgłaszasz problemy i prośby do działu IT oraz śledzisz, co się z nimi dzieje.</p>
+
+<h3>Twoje zgłoszenia</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-helpdesk-list.jpg" alt="Lista zgłoszeń" />
+    <img class="shot-m" src="img/instrukcja/m-helpdesk-list.jpg" alt="Lista zgłoszeń" />
+    <figcaption>Lista zgłoszeń</figcaption>
+</figure>
+<ul>
+    <li><strong>Moje</strong> – zgłoszenia, w których jesteś zgłaszającym. <strong>Obserwowane</strong> – zgłoszenia innych osób, do których dodano Cię jako obserwatora.</li>
+    <li><strong>Otwarte / Zamknięte / Wszystkie</strong> – które zgłoszenia pokazać.</li>
+    <li>Kliknij zgłoszenie, aby zobaczyć rozmowę z działem IT i odpowiedzieć.</li>
+</ul>
+
+<h3>Nowe zgłoszenie</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-helpdesk-new.jpg" alt="Nowe zgłoszenie" />
+    <img class="shot-m" src="img/instrukcja/m-helpdesk-new.jpg" alt="Nowe zgłoszenie" />
+    <figcaption>Nowe zgłoszenie</figcaption>
+</figure>
+<ol>
+    <li>Wybierz <strong>Problem – coś nie działa</strong> albo <strong>Prośba – potrzebuję czegoś</strong> (np. dostęp, nowy sprzęt).</li>
+    <li>Wybierz <strong>kategorię</strong> i <strong>pilność</strong>, a jeśli trzeba – <strong>lokalizację</strong> (np. biuro, magazyn).</li>
+    <li>Możesz dodać <strong>obserwatorów</strong> – np. przełożonego, który też będzie dostawał powiadomienia.</li>
+    <li>Wpisz <strong>tytuł</strong> i <strong>opis</strong>: co się dzieje, od kiedy, na którym komputerze lub w jakim programie,
+        jaki komunikat się pojawia. Jeśli jest przycisk <em>Dodaj pliki</em>, dołącz zrzut ekranu
+        (na komputerze możesz go też wkleić do opisu skrótem Ctrl+V albo przeciągnąć plik).</li>
+    <li>Kliknij <strong>Wyślij zgłoszenie</strong>.</li>
+</ol>
+
+<h3>Rozmowa i odpowiedź</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-helpdesk-thread.jpg" alt="Rozmowa w zgłoszeniu" />
+    <img class="shot-m" src="img/instrukcja/m-helpdesk-thread.jpg" alt="Rozmowa w zgłoszeniu" />
+    <figcaption>Rozmowa w zgłoszeniu</figcaption>
+</figure>
+<ul>
+    <li>Każdy wpis jest osobnym blokiem; kolorowy pasek mówi, czym jest (opis zgłoszenia, odpowiedź, rozwiązanie).</li>
+    <li>Odpowiedź piszesz w polu <strong>Dodaj odpowiedź</strong> pod rozmową (żółty pasek).
+        Przycisk <em>Napisz odpowiedź</em> nad rozmową przenosi do niego od razu.</li>
+    <li>W panelu „Szczegóły” możesz dodać lub usunąć <strong>obserwatorów</strong>.</li>
+</ul>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-helpdesk-reply.jpg" alt="Dodaj odpowiedź" />
+    <img class="shot-m" src="img/instrukcja/m-helpdesk-reply.jpg" alt="Dodaj odpowiedź" />
+    <figcaption>Pole „Dodaj odpowiedź”</figcaption>
+</figure>
+
+<h3>Czy problem został rozwiązany?</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-helpdesk-ticket.jpg" alt="Propozycja rozwiązania" />
+    <img class="shot-m" src="img/instrukcja/m-helpdesk-ticket.jpg" alt="Propozycja rozwiązania" />
+    <figcaption>Dział IT zaproponował rozwiązanie</figcaption>
+</figure>
+<p>Gdy dział IT zaproponuje rozwiązanie, na górze zgłoszenia pojawi się pytanie. Kliknij
+<strong>Tak, zamknij zgłoszenie</strong>, jeśli wszystko działa, albo <strong>Nie, nadal nie działa</strong> i napisz, co dalej jest nie tak.</p>
+</section>
+
+<section id="kontrahenci">
+<h2>Kontrahenci</h2>
+<p>Karty klientów i dostawców z systemu GoNet – dane firmy, osoby kontaktowe, wizyty i zadania. Wszystko, co tu zapiszesz,
+od razu jest w GoNet.</p>
+
+<h3>Lista kontrahentów</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractors.jpg" alt="Lista kontrahentów" />
+    <img class="shot-m" src="img/instrukcja/m-contractors.jpg" alt="Lista kontrahentów" />
+    <figcaption>Lista kontrahentów</figcaption>
+</figure>
+<ul>
+    <li><strong>Szukaj</strong> po nazwie, NIP, mieście, telefonie lub e-mailu. <strong>Tylko moi</strong> – kontrahenci, których prowadzisz.</li>
+    <li><strong>Dodaj kontrahenta</strong> – nowy kontrahent. <strong>Wizytówka</strong> – dodanie ze zdjęcia wizytówki.</li>
+</ul>
+
+<h3>Karta kontrahenta</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractor-card.jpg" alt="Karta kontrahenta" />
+    <img class="shot-m" src="img/instrukcja/m-contractor-card.jpg" alt="Karta kontrahenta" />
+    <figcaption>Karta kontrahenta</figcaption>
+</figure>
+<ul>
+    <li><strong>Dane firmy</strong> – adres, telefony (kliknięcie dzwoni), e-mail, strona WWW, osoba prowadząca.</li>
+    <li><strong>Zadania</strong> – wizyty i zaplanowane zadania. Kliknij zadanie, aby rozwinąć notatkę i korespondencję.</li>
+    <li><strong>Osoby</strong> – osoby kontaktowe; <em>Dodaj osobę</em> albo ołówek przy osobie, aby ją poprawić.</li>
+    <li><strong>Edytuj</strong> – zmiana danych firmy. <strong>Zadanie</strong> (lub <em>Dodaj zadanie</em> w zakładce „Zadania”) – nowa wizyta, telefon, spotkanie.</li>
+</ul>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractor-tasks.jpg" alt="Zadania" />
+    <img class="shot-m" src="img/instrukcja/m-contractor-tasks.jpg" alt="Zadania" />
+    <figcaption>Zakładka „Zadania”</figcaption>
+</figure>
+
+<h3>Nowe zadanie (np. wizyta)</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-task-dialog.jpg" alt="Nowe zadanie" />
+    <img class="shot-m" src="img/instrukcja/m-task-dialog.jpg" alt="Nowe zadanie" />
+    <figcaption>Nowe zadanie</figcaption>
+</figure>
+<ul>
+    <li>Wybierz <strong>temat</strong> (np. wizyta startowa), datę, godzinę, czas trwania i osobę.</li>
+    <li><strong>Przypisz do</strong> – kto ma wykonać zadanie. Domyślnie Ty; możesz wybrać inną osobę, np. gdy umawiasz wizytę dla kolegi.</li>
+    <li>Wizyta, która <strong>już się odbyła</strong>, zapisze się jako wykonana – wtedy notatka z jej przebiegiem jest wymagana.
+        Zadanie z <strong>przyszłą datą</strong> zostanie zaplanowane.</li>
+</ul>
+
+<h3>Nowy kontrahent</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractor-new.jpg" alt="Nowy kontrahent" />
+    <img class="shot-m" src="img/instrukcja/m-contractor-new.jpg" alt="Nowy kontrahent" />
+    <figcaption>Nowy kontrahent</figcaption>
+</figure>
+<ul>
+    <li>Wpisz <strong>NIP</strong> (albo REGON) – dane polskiej firmy uzupełnią się same. Możesz też kliknąć ikonę wyszukiwania przy polu NIP.</li>
+    <li>Jeśli podobny kontrahent już jest w GoNet, intranet pokaże go i zapyta, czy na pewno dodać nowego.</li>
+    <li>Od razu możesz dodać osoby kontaktowe i pierwszą wizytę. Na koniec kliknij <strong>Zapisz w GoNet</strong>.</li>
+</ul>
+
+<h3>Kontrahent z wizytówki</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-business-card.jpg" alt="Wizytówka" />
+    <img class="shot-m" src="img/instrukcja/m-business-card.jpg" alt="Wizytówka" />
+    <figcaption>Zdjęcie wizytówki</figcaption>
+</figure>
+<p>Zrób zdjęcie wizytówki (na telefonie otworzy się aparat) albo wybierz plik ze zdjęciem. Intranet odczyta dane
+i sprawdzi, czy firma jest już w GoNet – jeśli tak, otworzy jej kartę i zaproponuje dodanie nowej osoby; jeśli nie,
+przygotuje formularz nowego kontrahenta. Zdjęcie rób na płasko, z bliska i przy dobrym świetle,
+a przed zapisem zawsze sprawdź odczytane dane.</p>
+<p class="manual-tip">Nie możesz nic zapisać, a na górze widzisz „Nie znaleziono Twojego konta w GoNet”? Zgłoś to do działu IT.</p>
+</section>
+
+<section id="pytania">
+<h2>Bezpieczeństwo i pytania</h2>
+<ul>
+    <li><strong>Nikomu nie podawaj kodu z aplikacji ani z SMS-a</strong> – dział IT nigdy o niego nie prosi.</li>
+    <li>Na wspólnym komputerze nie zaznaczaj „Zapamiętaj to urządzenie” i wylogowuj się przez
+        <em>Wyloguj i zapomnij to urządzenie</em>.</li>
+    <li>Intranet działa także poza firmą, np. z domu. Niektóre zakładki mogą jednak działać tylko z sieci firmowej – wtedy zamiast ich zawartości
+        zobaczysz komunikat „Ta zakładka jest dostępna tylko z sieci firmowej”. Otwórz ją w biurze albo po połączeniu przez VPN.</li>
+    <li><strong>Strona przestała reagować</strong> albo pojawił się komunikat „Wystąpił nieoczekiwany błąd” – odśwież stronę
+        (F5, a na telefonie przeciągnij ekran w dół). Jeśli to się powtarza, utwórz zgłoszenie w Helpdesku i opisz, co się działo tuż przed błędem.</li>
+    <li><strong>Brak internetu</strong> – zainstalowana aplikacja pokaże ekran „Brak połączenia” z przyciskiem „Spróbuj ponownie”.</li>
+</ul>
+</section>
+
+</article>

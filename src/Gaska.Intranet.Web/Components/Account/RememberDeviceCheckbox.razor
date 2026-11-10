@@ -1,0 +1,23 @@
+@inject IntranetSignInService SignIn
+
+@if (SignIn.CanRememberDevice)
+{
+    <label class="auth-checkbox">
+        <InputCheckbox Value="Value" ValueChanged="ValueChanged" ValueExpression="ValueExpression" />
+        <span>
+            Zapamiętaj to urządzenie na @SignIn.RememberDeviceDays dni
+            <small>Nie zaznaczaj na komputerze ogólnodostępnym. Z nowej sieci i tak poprosimy o kod.</small>
+        </span>
+    </label>
+}
+
+@code {
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+
+    [Parameter]
+    public System.Linq.Expressions.Expression<Func<bool>>? ValueExpression { get; set; }
+}

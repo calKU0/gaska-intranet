@@ -1,0 +1,2957 @@
+/* =========================================================================
+   Gąska Intranet – application styles
+   Brand colors: yellow #F9C211, graphite #646363, charcoal #2E2E2E
+   ========================================================================= */
+
+:root {
+    --gaska-yellow: #F9C211;
+    --gaska-yellow-dark: #E0A800;
+    --gaska-yellow-soft: #FFF6D6;
+    --gaska-graphite: #646363;
+    --gaska-charcoal: #2E2E2E;
+    --gaska-bg: #F4F4F3;
+    --gaska-border: #E4E4E2;
+    --gaska-text: #262626;
+    --gaska-muted: #8A8A8A;
+    /* Theme-dependent colours – light values here, dark ones under html.gaska-dark (end of file). */
+    --gaska-surface: #FFFFFF;
+    --gaska-surface-2: #FAFAF9;
+    --gaska-surface-3: #F1F1EF;
+    --gaska-text-2: #6B6B6B;
+    --gaska-faint: #BDBDBB;
+    --gaska-border-strong: #D6D6D4;
+    --gaska-yellow-text: #7A5B00;
+    --gaska-yellow-chip: rgba(249, 194, 17, .22);
+    --gaska-warning-soft: #FFF4E5;
+    --gaska-error-soft: #FDECEC;
+    --gaska-error-text: #A12C2C;
+    --gaska-error-border: #F6CACA;
+    --gaska-success-soft: #F2FAF5;
+    --gaska-success-border: #CDE8D6;
+    --gaska-success-text: #2E7D32;
+    --gaska-success-chip: rgba(46, 125, 50, .12);
+    --gaska-info-soft: #F1F6FD;
+    --gaska-info-border: #CFE0F7;
+    --gaska-focus-border: #E9D27F;
+    --gaska-row-hover: #FFFBEA;
+    --gaska-bg-translucent: rgba(244, 244, 243, .92);
+    --gaska-overlay: rgba(46, 46, 46, .08);
+    --gaska-overlay-soft: rgba(100, 99, 99, .06);
+    --gaska-scrollbar: rgba(46, 46, 46, .18);
+    --gaska-radius: 10px;
+    --gaska-font: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body {
+    margin: 0;
+    font-family: var(--gaska-font);
+    background: var(--gaska-bg);
+    color: var(--gaska-text);
+}
+
+/* ---------- Top bar ---------- */
+
+.gaska-appbar {
+    border-bottom: 1px solid var(--gaska-border);
+}
+
+.gaska-appbar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--gaska-yellow) 0, var(--gaska-yellow) 248px, transparent 248px);
+}
+
+.gaska-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: 8px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.gaska-brand img {
+    height: 34px;
+    display: block;
+}
+
+.gaska-brand-divider {
+    width: 1px;
+    height: 26px;
+    background: var(--gaska-border);
+}
+
+.gaska-brand-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--gaska-graphite);
+    text-transform: uppercase;
+}
+
+.gaska-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    padding: 4px 4px 4px 12px;
+    border-radius: 999px;
+    transition: background .15s;
+}
+
+.gaska-user:hover {
+    background: var(--gaska-surface-3);
+}
+
+.gaska-user-text {
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+}
+
+.gaska-user-name {
+    font-weight: 600;
+    font-size: .9rem;
+}
+
+.gaska-user-role {
+    font-size: .72rem;
+    color: var(--gaska-yellow-dark);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.gaska-logout-form {
+    margin: 0;
+}
+
+.gaska-logout-button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 16px;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--gaska-text);
+    cursor: pointer;
+    text-align: left;
+}
+
+.gaska-logout-button:hover {
+    background: var(--gaska-yellow-soft);
+}
+
+/* ---------- Side menu ---------- */
+
+.gaska-drawer .mud-drawer-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.gaska-nav {
+    padding: 16px 10px;
+    flex: 1;
+}
+
+.gaska-nav .mud-nav-link {
+    border-radius: 8px;
+    margin-bottom: 2px;
+    color: #E8E8E8;
+    font-weight: 500;
+}
+
+.gaska-nav .mud-nav-link:hover:not(.mud-nav-link-disabled) {
+    background: rgba(255, 255, 255, .06);
+}
+
+.gaska-nav .mud-nav-link.active:not(.mud-nav-link-disabled) {
+    background: var(--gaska-yellow);
+    color: #1F1F1F;
+}
+
+.gaska-nav .mud-nav-link.active .mud-nav-link-icon {
+    color: #1F1F1F;
+}
+
+.gaska-nav-section {
+    margin: 18px 12px 6px;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #8C8C8C;
+}
+
+.gaska-nav-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 22px;
+    font-size: .75rem;
+    color: #8C8C8C;
+    border-top: 1px solid rgba(255, 255, 255, .06);
+}
+
+.gaska-nav-footer img {
+    width: 22px;
+    height: 22px;
+    opacity: .85;
+}
+
+/* ---------- Content ---------- */
+
+.gaska-page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.gaska-page-title {
+    font-weight: 700 !important;
+    letter-spacing: -.01em;
+}
+
+.gaska-card {
+    border: 1px solid var(--gaska-border);
+    border-radius: var(--gaska-radius) !important;
+    overflow: hidden;
+}
+
+.gaska-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--gaska-border);
+}
+
+.gaska-search {
+    flex: 1 1 320px;
+    margin: 0 !important;
+}
+
+.gaska-filter {
+    flex: 0 1 240px;
+    margin: 0 !important;
+}
+
+.gaska-count {
+    margin-left: auto !important;
+    color: var(--gaska-muted) !important;
+}
+
+.gaska-grid .mud-table-head th {
+    font-weight: 600;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--gaska-graphite);
+    background: var(--gaska-surface-2);
+}
+
+.gaska-person {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.gaska-person-avatar {
+    background: var(--gaska-yellow-soft) !important;
+    color: var(--gaska-yellow-text) !important;
+    font-weight: 700;
+    font-size: .8rem !important;
+}
+
+.gaska-person-name {
+    font-weight: 600;
+}
+
+.gaska-person-title {
+    font-size: .78rem;
+    color: var(--gaska-muted);
+}
+
+.gaska-phone, .gaska-link {
+    color: var(--gaska-text);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.gaska-phone:hover, .gaska-link:hover {
+    color: var(--gaska-yellow-dark);
+    text-decoration: underline;
+}
+
+.gaska-extension {
+    display: inline-block;
+    min-width: 44px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--gaska-surface-3);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.gaska-muted {
+    color: var(--gaska-faint);
+}
+
+/* ---------- Home page ---------- */
+
+.gaska-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 32px;
+    border-radius: 14px;
+    background: linear-gradient(120deg, var(--gaska-surface) 0%, var(--gaska-surface) 55%, var(--gaska-yellow-soft) 100%);
+    border: 1px solid var(--gaska-border);
+    position: relative;
+    overflow: hidden;
+}
+
+.gaska-hero::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: var(--gaska-yellow);
+}
+
+.gaska-hero-mark {
+    width: 84px;
+    height: 84px;
+    opacity: .9;
+}
+
+.gaska-tile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: var(--gaska-radius);
+    background: var(--gaska-surface);
+    border: 1px solid var(--gaska-border);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.gaska-tile:hover {
+    border-color: var(--gaska-yellow);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
+    transform: translateY(-1px);
+}
+
+.gaska-tile-icon {
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--gaska-yellow-soft);
+    color: var(--gaska-yellow-text);
+}
+
+.gaska-tile-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-tile-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.gaska-tile-desc {
+    font-size: .85rem;
+    color: var(--gaska-muted);
+    margin-top: 2px;
+}
+
+.gaska-tile-arrow {
+    color: var(--gaska-faint);
+}
+
+/* ---------- Admin panel ---------- */
+
+.gaska-module-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.gaska-module-network {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 14px;
+    padding: 6px 6px 6px 12px;
+    border-radius: 8px;
+    background: var(--gaska-overlay-soft);
+    font-size: .875rem;
+}
+
+.gaska-rules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.gaska-principal-search {
+    max-width: 520px;
+}
+
+/* ---------- Empty states / errors ---------- */
+
+.gaska-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 64px 16px;
+}
+
+.gaska-404 {
+    font-weight: 800 !important;
+    color: var(--gaska-yellow);
+}
+
+#blazor-error-ui {
+    background: var(--gaska-warning-soft);
+    border-top: 3px solid var(--gaska-yellow);
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 2000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+/* =========================================================================
+   Account pages (rendered statically, without MudBlazor)
+   ========================================================================= */
+
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(249, 194, 17, .18), transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(100, 99, 99, .14), transparent 45%),
+        var(--gaska-bg);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--gaska-surface);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .08), 0 2px 6px rgba(0, 0, 0, .04);
+    overflow: hidden;
+}
+
+.auth-accent {
+    height: 6px;
+    background: linear-gradient(90deg, var(--gaska-yellow) 0 70%, var(--gaska-graphite) 70% 100%);
+}
+
+.auth-body {
+    padding: 36px 36px 32px;
+}
+
+.auth-logo {
+    display: block;
+    height: 52px;
+    margin: 0 auto;
+}
+
+.auth-app-name {
+    text-align: center;
+    margin: 6px 0 28px;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--gaska-graphite);
+}
+
+.auth-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+}
+
+.auth-subtitle {
+    margin: 0 0 22px;
+    color: var(--gaska-text-2);
+    font-size: .92rem;
+    line-height: 1.45;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-label {
+    font-size: .82rem;
+    font-weight: 600;
+    margin: 0 0 6px;
+    color: var(--gaska-text-2);
+}
+
+.auth-input {
+    font: inherit;
+    font-size: 1rem;
+    padding: 11px 14px;
+    border: 1px solid var(--gaska-border-strong);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.auth-input:focus {
+    border-color: var(--gaska-yellow);
+    box-shadow: 0 0 0 3px rgba(249, 194, 17, .25);
+}
+
+.auth-input.invalid {
+    border-color: #D64545;
+}
+
+.auth-code-input {
+    font-size: 1.6rem;
+    letter-spacing: .5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.auth-validation {
+    color: #D64545;
+    font-size: .8rem;
+    margin: -10px 0 12px;
+}
+
+.auth-button {
+    font: inherit;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--gaska-yellow);
+    color: #1F1F1F;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background .15s, transform .05s;
+}
+
+.auth-button:hover {
+    background: var(--gaska-yellow-dark);
+}
+
+.auth-button:active {
+    transform: translateY(1px);
+}
+
+.auth-button-link {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+}
+
+.auth-alert {
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: .9rem;
+    margin-bottom: 18px;
+}
+
+.auth-alert-error {
+    background: var(--gaska-error-soft);
+    color: var(--gaska-error-text);
+    border: 1px solid var(--gaska-error-border);
+}
+
+.auth-hint {
+    margin: 18px 0 0;
+    font-size: .8rem;
+    color: var(--gaska-muted);
+    text-align: center;
+}
+
+.auth-link {
+    display: block;
+    margin-top: 18px;
+    font-size: .85rem;
+    color: var(--gaska-graphite);
+    text-align: center;
+}
+
+.auth-link:hover {
+    color: var(--gaska-yellow-dark);
+}
+
+.auth-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--gaska-border-strong);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+
+.auth-option:hover {
+    border-color: var(--gaska-yellow);
+}
+
+.auth-option:has(input:checked) {
+    border-color: var(--gaska-yellow);
+    background: var(--gaska-yellow-soft);
+}
+
+.auth-option input {
+    accent-color: var(--gaska-yellow-dark);
+    width: 18px;
+    height: 18px;
+}
+
+.auth-option-icon {
+    font-size: 1.4rem;
+}
+
+.auth-option-text {
+    display: flex;
+    flex-direction: column;
+    font-size: .9rem;
+}
+
+.auth-option-text span {
+    color: var(--gaska-text-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.auth-footer {
+    margin-top: 20px;
+    font-size: .78rem;
+    color: var(--gaska-muted);
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .auth-body {
+        padding: 28px 22px 24px;
+    }
+
+    .gaska-brand-divider, .gaska-brand-name {
+        display: none;
+    }
+
+    .gaska-hero {
+        padding: 22px;
+    }
+}
+
+/* Bot trap – field moved off-screen (not display:none, some bots detect that). */
+.auth-hp {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.auth-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 14px;
+    font-size: .9rem;
+    cursor: pointer;
+}
+
+.auth-checkbox input {
+    accent-color: var(--gaska-yellow-dark);
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    flex: 0 0 auto;
+}
+
+.auth-checkbox small {
+    display: block;
+    color: var(--gaska-muted);
+    font-size: .78rem;
+    margin-top: 2px;
+}
+
+.gaska-logout-form .gaska-logout-button {
+    justify-content: flex-start;
+}
+
+/* Authenticator app setup */
+.auth-steps {
+    margin: 0 0 12px;
+    padding-left: 20px;
+    font-size: .9rem;
+    line-height: 1.5;
+}
+
+.auth-steps li {
+    margin-bottom: 12px;
+}
+
+.auth-qr {
+    display: flex;
+    justify-content: center;
+    margin: 12px 0 8px;
+}
+
+.auth-qr img {
+    border: 1px solid var(--gaska-border);
+    border-radius: 8px;
+    padding: 6px;
+    background: var(--gaska-surface);
+    image-rendering: pixelated;
+}
+
+.auth-manual-key {
+    font-size: .82rem;
+    color: var(--gaska-text-2);
+}
+
+.auth-manual-key summary {
+    cursor: pointer;
+    color: var(--gaska-graphite);
+}
+
+.auth-manual-key code {
+    display: block;
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--gaska-surface-3);
+    font-size: .95rem;
+    letter-spacing: .08em;
+    color: var(--gaska-text);
+    word-break: break-all;
+}
+
+/* Blazor moves focus to the page <h1> after navigation (screen readers) – no visible outline needed. */
+h1:focus,
+h1:focus-visible {
+    outline: none;
+}
+
+/* Submit button while the form is being sent (wwwroot/js/forms.js). */
+.is-busy {
+    position: relative;
+    color: transparent !important;
+    pointer-events: none;
+}
+
+.is-busy::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(31, 31, 31, .25);
+    border-top-color: #1F1F1F;
+    border-radius: 50%;
+    animation: gaska-spin .7s linear infinite;
+}
+
+.gaska-logout-button.is-busy {
+    color: var(--gaska-text) !important;
+}
+
+.gaska-logout-button.is-busy::after {
+    left: auto;
+    right: 16px;
+    margin: auto 0;
+}
+
+@keyframes gaska-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Menu items stay on one line – long names are truncated with an ellipsis. */
+.gaska-nav .mud-nav-link-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---------- CRM (contractors) ---------- */
+
+.gaska-clickable-rows tbody tr {
+    cursor: pointer;
+}
+
+.gaska-section-title {
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .72rem !important;
+    color: var(--gaska-graphite);
+    margin-bottom: 8px !important;
+}
+
+.gaska-details {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    margin: 0;
+    font-size: .9rem;
+}
+
+.gaska-details dt {
+    color: var(--gaska-muted);
+}
+
+.gaska-details dd {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    align-items: baseline;
+}
+
+.gaska-muted-inline {
+    color: var(--gaska-muted);
+    font-size: .82rem;
+}
+
+.gaska-notes {
+    white-space: pre-wrap;
+    font-size: .88rem;
+    line-height: 1.5;
+    background: var(--gaska-surface-2);
+    border: 1px solid var(--gaska-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.gaska-export {
+    margin-bottom: 6px;
+}
+
+.gaska-contact {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--gaska-border);
+}
+
+.gaska-contact:last-child {
+    border-bottom: 0;
+}
+
+.gaska-contact-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 4px;
+    font-size: .88rem;
+}
+
+.gaska-task-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.gaska-correspondence {
+    border-left: 3px solid var(--gaska-yellow);
+    padding: 4px 0 4px 12px;
+    margin-bottom: 12px;
+}
+
+.gaska-correspondence .gaska-notes {
+    margin-top: 6px;
+}
+
+/* Business card scan */
+.gaska-scan {
+    max-width: 640px;
+}
+
+.gaska-scan-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 36px 16px;
+    border: 2px dashed var(--gaska-border-strong);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+}
+
+.gaska-scan-drop:hover {
+    border-color: var(--gaska-yellow);
+    background: var(--gaska-yellow-soft);
+}
+
+.gaska-scan-drop.is-disabled {
+    pointer-events: none;
+    opacity: .8;
+}
+
+.gaska-scan-input {
+    display: none;
+}
+
+.gaska-scan-label {
+    font-weight: 600;
+}
+
+.gaska-ocr-text {
+    white-space: pre-wrap;
+    font-size: .8rem;
+    background: var(--gaska-surface-3);
+    padding: 10px;
+    border-radius: 6px;
+}
+
+/* Company found in GUS / VAT white list – suggestion in the contractor form */
+.gaska-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--gaska-success-border);
+    background: var(--gaska-success-soft);
+    border-radius: 10px;
+}
+
+/* =========================================================================
+   Form inputs – Segoe UI has taller glyphs than Roboto (MudBlazor's design font):
+   with MudBlazor's 1.15 line-height and overflow:hidden, labels were clipped at the bottom
+   and sat too low. Taller line box + re-centred positions for both label states.
+   ========================================================================= */
+
+.mud-input-control > .mud-input-control-input-container > .mud-input-label-inputcontrol,
+.mud-input-control > .mud-input-control-input-container > .mud-input-label-outlined.mud-input-label-inputcontrol {
+    line-height: 1.5rem;
+}
+
+.mud-input-label-outlined {
+    transform: translate(14px, 16px) scale(1);
+}
+
+.mud-input-label-outlined.mud-input-label-margin-dense {
+    transform: translate(14px, 8px) scale(1);
+}
+
+.mud-shrink ~ label.mud-input-label.mud-input-label-inputcontrol.mud-input-label-outlined,
+.mud-input:focus-within ~ label.mud-input-label.mud-input-label-inputcontrol.mud-input-label-outlined,
+.mud-input:has(:-webkit-autofill) ~ label.mud-input-label.mud-input-label-inputcontrol.mud-input-label-outlined {
+    transform: translate(14px, -10px) scale(0.75);
+}
+
+.mud-input-helper-text {
+    line-height: 1.35;
+}
+
+/* =========================================================================
+   Motion – subtle, and switched off for people who asked their OS for less motion.
+   ========================================================================= */
+
+@keyframes gaska-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.gaska-main .mud-container > * {
+    animation: gaska-enter .22s ease-out both;
+}
+
+.gaska-main .mud-container > *:nth-child(2) {
+    animation-delay: .03s;
+}
+
+.gaska-main .mud-container > *:nth-child(3) {
+    animation-delay: .06s;
+}
+
+.gaska-card {
+    transition: box-shadow .2s ease, border-color .2s ease;
+}
+
+.gaska-card:focus-within {
+    border-color: var(--gaska-focus-border);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .05);
+}
+
+.gaska-suggestion,
+.gaska-task-mode,
+.gaska-contact-row {
+    animation: gaska-enter .2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}
+
+/* =========================================================================
+   CRM forms
+   ========================================================================= */
+
+.gaska-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: -8px;
+}
+
+.gaska-contact-row {
+    position: relative;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 10px;
+    background: var(--gaska-surface-2);
+}
+
+.gaska-contact-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+}
+
+.gaska-task-mode {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: .85rem;
+    line-height: 1.45;
+}
+
+.gaska-task-mode.is-done {
+    background: var(--gaska-success-soft);
+    border: 1px solid var(--gaska-success-border);
+}
+
+.gaska-task-mode.is-planned {
+    background: var(--gaska-info-soft);
+    border: 1px solid var(--gaska-info-border);
+}
+
+/* Save bar stays visible at the bottom on long forms (phones especially). */
+.gaska-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    margin: 0 -4px;
+    background: var(--gaska-bg-translucent);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--gaska-border);
+    border-radius: 12px 12px 0 0;
+}
+
+.gaska-file-button {
+    position: relative;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+/* =========================================================================
+   Phones
+   ========================================================================= */
+
+@media (max-width: 600px) {
+    .gaska-main .mud-container {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    .gaska-page-header {
+        align-items: flex-start;
+    }
+
+    .gaska-page-actions {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .gaska-page-actions > * {
+        flex: 1 1 auto;
+    }
+
+    /* Dialogs use the whole screen – easier typing with the on-screen keyboard. */
+    .mud-dialog-container .gaska-dialog {
+        margin: 0;
+        width: 100%;
+        max-width: 100% !important;
+        max-height: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+
+    .gaska-dialog .mud-dialog-content {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .gaska-details {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    .gaska-details dd {
+        margin-bottom: 8px;
+    }
+
+    .gaska-form-actions > * {
+        flex: 1;
+    }
+}
+
+.gaska-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* External links: the title is truncated, the "opens in new tab" icon always stays visible on the right. */
+.gaska-nav .gaska-external-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    width: 100%;
+}
+
+.gaska-nav .gaska-external-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gaska-nav .mud-nav-link .gaska-external {
+    flex: 0 0 auto;
+    margin-left: auto;
+    opacity: .5;
+    font-size: .9rem;
+}
+
+.gaska-section-heading {
+    margin: 28px 0 12px !important;
+    font-weight: 600 !important;
+}
+
+.gaska-link-tile .gaska-tile-icon {
+    background: var(--gaska-surface-3);
+    color: var(--gaska-graphite);
+}
+
+.gaska-details dd.gaska-dd-block {
+    display: block;
+}
+
+/* ---------- RCP (time clock) ---------- */
+.gaska-rcp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.gaska-rcp-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    background: var(--gaska-overlay);
+    color: var(--mud-palette-text-primary);
+}
+
+.gaska-rcp-state.is-working {
+    background: var(--gaska-success-chip);
+    color: var(--gaska-success-text);
+}
+
+.gaska-rcp-state.is-onbreak {
+    background: var(--gaska-yellow-chip);
+    color: var(--gaska-yellow-text);
+}
+
+.gaska-rcp-state.is-finished {
+    background: var(--gaska-overlay);
+}
+
+.gaska-rcp-clock {
+    font-size: 1.5rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--mud-palette-text-secondary);
+}
+
+.gaska-rcp-big {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 24px 0;
+}
+
+.gaska-rcp-big-label {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--mud-palette-text-secondary);
+}
+
+.gaska-rcp-big-value {
+    font-size: 2.6rem;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-rcp-big-value.is-break {
+    color: var(--gaska-yellow-text);
+}
+
+.gaska-rcp-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.gaska-rcp-actions .mud-button-root {
+    min-height: 56px;
+}
+
+.gaska-rcp-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.gaska-rcp-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+}
+
+.gaska-rcp-stat span {
+    font-size: .8rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.gaska-rcp-stat strong {
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-rcp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-rcp-row:last-of-type {
+    border-bottom: none;
+}
+
+.gaska-rcp-history td,
+.gaska-rcp-history th {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-rcp-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .gaska-rcp-big-value {
+        font-size: 2rem;
+    }
+}
+
+/* =========================================================================
+   UI polish – motion, touch and phone layout
+   Motion is short (≤ 250 ms), uses only opacity/transform (GPU, no layout work)
+   and is switched off by "prefers-reduced-motion" (see the Motion section).
+   ========================================================================= */
+
+:root {
+    --gaska-ease: cubic-bezier(.2, .7, .2, 1);
+    --gaska-shadow-hover: 0 8px 24px var(--gaska-overlay);
+}
+
+html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+}
+
+/* Staggered entry of tiles and list cards (home page, panels). */
+.gaska-stagger > * {
+    animation: gaska-enter .25s var(--gaska-ease) both;
+}
+
+.gaska-stagger > *:nth-child(2) { animation-delay: .03s; }
+.gaska-stagger > *:nth-child(3) { animation-delay: .06s; }
+.gaska-stagger > *:nth-child(4) { animation-delay: .09s; }
+.gaska-stagger > *:nth-child(5) { animation-delay: .12s; }
+.gaska-stagger > *:nth-child(n+6) { animation-delay: .15s; }
+
+/* Tiles: lift on hover, settle on press. */
+.gaska-tile {
+    transition: border-color .2s var(--gaska-ease), box-shadow .2s var(--gaska-ease), transform .2s var(--gaska-ease);
+}
+
+.gaska-tile:hover {
+    box-shadow: var(--gaska-shadow-hover);
+    transform: translateY(-2px);
+}
+
+.gaska-tile:active {
+    transform: translateY(0) scale(.99);
+}
+
+.gaska-tile-icon {
+    transition: background .2s var(--gaska-ease), transform .2s var(--gaska-ease);
+}
+
+.gaska-tile:hover .gaska-tile-icon {
+    background: var(--gaska-yellow);
+    color: #1F1F1F;
+    transform: scale(1.04);
+}
+
+.gaska-tile-arrow {
+    transition: transform .2s var(--gaska-ease), color .2s;
+}
+
+.gaska-tile:hover .gaska-tile-arrow {
+    transform: translateX(3px);
+    color: var(--gaska-yellow-dark);
+}
+
+/* Buttons: a barely visible "press". */
+.mud-button-root:not(.mud-disabled):active {
+    transform: scale(.98);
+}
+
+.mud-button-root {
+    transition: background-color .15s, box-shadow .15s, border-color .15s, transform .08s;
+}
+
+/* Menu: smooth hover and active states. */
+.gaska-nav .mud-nav-link {
+    transition: background .15s var(--gaska-ease), color .15s;
+}
+
+.gaska-nav .mud-nav-link .mud-nav-link-icon {
+    transition: transform .15s var(--gaska-ease);
+}
+
+.gaska-nav .mud-nav-link:hover:not(.mud-nav-link-disabled) .mud-nav-link-icon {
+    transform: translateX(2px);
+}
+
+/* Clickable table rows: hover tint and pointer. */
+.gaska-clickable-rows .mud-table-body .mud-table-row {
+    cursor: pointer;
+    transition: background-color .12s;
+}
+
+.gaska-clickable-rows .mud-table-body .mud-table-row:hover {
+    background: var(--gaska-row-hover) !important;
+}
+
+/* Cards: soft shadow on hover where they are interactive. */
+.gaska-card {
+    transition: box-shadow .2s var(--gaska-ease), border-color .2s var(--gaska-ease);
+}
+
+/* Skeleton placeholders match the card look. */
+.gaska-skeleton .mud-skeleton {
+    border-radius: 6px;
+    background-color: var(--gaska-overlay);
+}
+
+/* Compact list rows: main text + secondary line (secondary line shown on phones only). */
+.gaska-row-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.gaska-xs-only,
+.gaska-sm-only {
+    display: none !important;
+}
+
+.gaska-nowrap {
+    white-space: nowrap;
+}
+
+/* Thin custom scrollbars (desktop). */
+@media (hover: hover) {
+    .gaska-drawer ::-webkit-scrollbar,
+    .mud-table-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .gaska-drawer ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, .15);
+        border-radius: 8px;
+    }
+
+    .mud-table-container::-webkit-scrollbar-thumb {
+        background: var(--gaska-scrollbar);
+        border-radius: 8px;
+    }
+}
+
+/* ---------- Tablets and phones ---------- */
+
+@media (max-width: 959.98px) {
+    .gaska-hide-sm {
+        display: none !important;
+    }
+
+    .gaska-sm-only {
+        display: block !important;
+    }
+
+    /* The yellow accent follows the drawer only on desktop; here the drawer overlays the page. */
+    .gaska-appbar::after {
+        background: linear-gradient(90deg, var(--gaska-yellow), var(--gaska-yellow) 40%, transparent 100%);
+        height: 2px;
+    }
+}
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 599.98px) {
+    .gaska-hide-xs {
+        display: none !important;
+    }
+
+    .gaska-xs-only {
+        display: block !important;
+    }
+
+    .gaska-row-chevron.gaska-xs-only {
+        display: inline-block !important;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--gaska-faint);
+    }
+
+    .gaska-clickable-rows .mud-table-body .mud-table-cell:first-child {
+        position: relative;
+        padding-right: 32px !important;
+    }
+
+    /* RCP: only the actions possible right now (the rest are shown disabled on larger screens). */
+    .gaska-rcp-actions .mud-button-root.is-unavailable {
+        display: none;
+    }
+
+    .gaska-rcp-history td,
+    .gaska-rcp-history th {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    /* Phone numbers in lists: no icon, more room for the name. */
+    .gaska-grid .gaska-phone .mud-icon-root {
+        display: none;
+    }
+
+    .gaska-row-main .gaska-person-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: calc(100vw - 96px);
+    }
+
+    /* Headings that fit a phone. */
+    .gaska-page-title.mud-typography-h4 {
+        font-size: 1.6rem !important;
+        line-height: 1.25 !important;
+    }
+
+    .gaska-page-header {
+        margin-bottom: 14px;
+        gap: 10px;
+    }
+
+    /* Header buttons share the width evenly instead of stacking oddly. */
+    .gaska-page-actions {
+        width: 100%;
+    }
+
+    .gaska-page-actions > .mud-button-root {
+        flex: 1 1 0;
+        min-height: 42px;
+    }
+
+    .gaska-hero {
+        padding: 20px 20px 20px 24px;
+    }
+
+    .gaska-hero .gaska-page-title.mud-typography-h4 {
+        font-size: 1.5rem !important;
+    }
+
+    .gaska-tile {
+        padding: 14px 16px;
+        gap: 12px;
+    }
+
+    .gaska-tile-icon {
+        flex-basis: 42px;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+    }
+
+    .gaska-tile:hover {
+        transform: none;
+    }
+
+    .gaska-toolbar {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .gaska-search,
+    .gaska-filter {
+        flex: 1 1 100%;
+    }
+
+    .gaska-count {
+        margin-left: 0 !important;
+    }
+
+    /* Tables: comfortable touch rows. */
+    .gaska-grid .mud-table-cell {
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
+
+    .gaska-grid .mud-table-pagination-toolbar {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 4px 8px !important;
+        height: auto !important;
+    }
+
+    /* Phones: no "rows per page" selector – just the range and the arrows. */
+    .gaska-grid .mud-table-pagination-toolbar .mud-table-pagination-caption:first-of-type,
+    .gaska-grid .mud-table-pagination-toolbar .mud-select {
+        display: none !important;
+    }
+
+    /* Dialogs use the whole phone screen width. */
+    .mud-dialog-container .mud-dialog {
+        margin: 8px !important;
+        width: calc(100% - 16px) !important;
+        max-width: none !important;
+        max-height: calc(100% - 16px) !important;
+    }
+
+    /* Sticky form buttons clear the iPhone home indicator. */
+    .gaska-form-actions {
+        padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .mud-breadcrumbs {
+        padding: 0 0 4px !important;
+        font-size: .85rem;
+    }
+
+    .mud-snackbar-provider.mud-snackbar-location-bottom-right,
+    .mud-snackbar-provider.mud-snackbar-location-top-right {
+        left: 8px;
+        right: 8px;
+    }
+}
+
+/* Opening a dialog locks page scrolling (MudBlazor hides the scrollbar and adds a fixed 8px padding, which does not
+   match the real scrollbar width – the layout jumped sideways). Always reserving the scrollbar's space keeps it still. */
+html {
+    scrollbar-gutter: stable;
+}
+
+.scroll-locked {
+    padding-right: 0 !important;
+}
+
+.scroll-locked .mud-layout .mud-main-content .mud-scroll-to-top {
+    padding-right: 0 !important;
+}
+
+/* Long unbroken text (e-mail addresses) wraps anywhere instead of widening its table/row past the screen. */
+.gaska-break {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Page header with small actions (refresh icon): the actions stay on the title's row, vertically centred, on every width. */
+.gaska-page-header.gaska-page-header--inline {
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.gaska-page-header.gaska-page-header--inline > div:first-child {
+    min-width: 0;
+}
+
+.gaska-page-header.gaska-page-header--inline .gaska-page-actions {
+    width: auto;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+}
+
+.gaska-page-header.gaska-page-header--inline .gaska-page-actions > * {
+    flex: 0 0 auto;
+}
+
+/* First visit: no entry animations until Blazor has swapped the pre-rendered page for the interactive one (js/boot.js) –
+   otherwise everything animated twice. */
+.gaska-booting .gaska-main .mud-container > *,
+.gaska-booting .gaska-stagger > *,
+.gaska-booting .gaska-suggestion,
+.gaska-booting .gaska-task-mode,
+.gaska-booting .gaska-contact-row {
+    animation: none !important;
+}
+
+/* Safety net: nothing (e.g. a dropdown near the right edge) may widen the page sideways on a phone.
+   "clip" – unlike "hidden" – does not create a scroll container, so sticky headers/save bars keep working. */
+html,
+body {
+    overflow-x: clip;
+}
+
+/* =========================================================================
+   Dark theme – html.gaska-dark is set by App.razor (cookie) and by the theme switch (js/boot.js).
+   MudBlazor's own colours switch through MudThemeProvider.IsDarkMode; these cover our CSS.
+   ========================================================================= */
+html.gaska-dark {
+    color-scheme: dark;
+    --gaska-yellow-soft: rgba(249, 194, 17, .14);
+    --gaska-graphite: #B4B4B2;
+    --gaska-bg: #161616;
+    --gaska-border: #333332;
+    --gaska-text: #E8E8E6;
+    --gaska-muted: #9A9A98;
+    --gaska-surface: #1F1F1F;
+    --gaska-surface-2: #242423;
+    --gaska-surface-3: #2A2A29;
+    --gaska-text-2: #B0B0AE;
+    --gaska-faint: #6E6E6C;
+    --gaska-border-strong: #454543;
+    --gaska-yellow-text: #F9C211;
+    --gaska-yellow-chip: rgba(249, 194, 17, .18);
+    --gaska-warning-soft: #3A2C17;
+    --gaska-error-soft: #3A1E1E;
+    --gaska-error-text: #F2A5A5;
+    --gaska-error-border: #6B2E2E;
+    --gaska-success-soft: #18291F;
+    --gaska-success-border: #2C5139;
+    --gaska-success-text: #7FD19A;
+    --gaska-success-chip: rgba(127, 209, 154, .14);
+    --gaska-info-soft: #17222F;
+    --gaska-info-border: #2B4260;
+    --gaska-focus-border: #8A7428;
+    --gaska-row-hover: rgba(249, 194, 17, .08);
+    --gaska-bg-translucent: rgba(22, 22, 22, .92);
+    --gaska-overlay: rgba(255, 255, 255, .08);
+    --gaska-overlay-soft: rgba(255, 255, 255, .05);
+    --gaska-scrollbar: rgba(255, 255, 255, .18);
+}
+
+/* Theme switch in the app bar: sun – switch – moon. */
+.gaska-theme-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 8px;
+}
+
+.gaska-theme-switch .gaska-theme-icon {
+    color: var(--gaska-muted);
+}
+
+.gaska-theme-switch .gaska-theme-toggle {
+    margin: 0;
+}
+
+.gaska-theme-switch .mud-switch {
+    margin: 0;
+}
+
+/* ---------- Helpdesk IT (GLPI) ---------- */
+.gaska-helpdesk-connect {
+    max-width: 640px;
+}
+
+.gaska-helpdesk-connect-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gaska-helpdesk-views .mud-toggle-item {
+    white-space: nowrap;
+}
+
+.gaska-helpdesk-xs-meta {
+    align-items: center;
+    gap: 6px;
+}
+
+.gaska-helpdesk-xs-meta.gaska-xs-only {
+    display: none !important;
+}
+
+.gaska-helpdesk-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-top: 6px;
+    color: var(--gaska-muted);
+    font-size: .875rem;
+}
+
+.gaska-helpdesk-type .gaska-helpdesk-type-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    text-transform: none;
+}
+
+.gaska-helpdesk-timeline {
+    display: flex;
+    flex-direction: column;
+}
+
+.gaska-helpdesk-entry {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--gaska-border);
+    border-left: 3px solid transparent;
+}
+
+.gaska-helpdesk-entry.is-description {
+    background: var(--gaska-surface-2);
+}
+
+.gaska-helpdesk-entry.is-solution {
+    border-left-color: var(--mud-palette-success);
+    background: var(--gaska-success-soft);
+}
+
+.gaska-helpdesk-entry.is-task {
+    border-left-color: var(--gaska-border-strong);
+}
+
+.gaska-helpdesk-entry-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin-bottom: 6px;
+    font-size: .85rem;
+    color: var(--gaska-muted);
+}
+
+.gaska-helpdesk-entry-head strong {
+    color: var(--gaska-text);
+}
+
+.gaska-helpdesk-entry-kind {
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: .7rem;
+}
+
+.gaska-helpdesk-text {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
+.gaska-helpdesk-reply {
+    padding: 14px 18px 16px;
+}
+
+.gaska-helpdesk-solution {
+    border-color: var(--gaska-success-border) !important;
+    background: var(--gaska-success-soft) !important;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-helpdesk-xs-meta.gaska-xs-only {
+        display: flex !important;
+    }
+
+    .gaska-helpdesk-entry,
+    .gaska-helpdesk-reply {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .gaska-helpdesk-type {
+        flex-direction: column;
+        width: 100%;
+    }
+}
+
+.gaska-helpdesk-observers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.gaska-helpdesk-status {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-helpdesk-status {
+        width: 100%;
+    }
+
+    .gaska-helpdesk-status .mud-toggle-item {
+        flex: 1 1 0;
+    }
+}
+
+/* Helpdesk – attachments (picked, pasted with Ctrl+V or dropped onto the text box) */
+.gaska-attach-target {
+    border-radius: 6px;
+    transition: box-shadow .15s ease;
+}
+
+.gaska-attach-target.is-dragging {
+    box-shadow: 0 0 0 2px var(--gaska-yellow);
+}
+
+.gaska-attach-input {
+    display: none;
+}
+
+.gaska-attach-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-top: 6px;
+}
+
+.gaska-attach-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.gaska-attach-item {
+    position: relative;
+    width: 112px;
+    padding: 6px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 8px;
+    background: var(--gaska-surface-2);
+}
+
+.gaska-attach-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--gaska-surface-3);
+    color: var(--gaska-text-2);
+}
+
+.gaska-attach-name {
+    margin-top: 4px;
+    font-size: .75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gaska-attach-size {
+    font-size: .7rem;
+    color: var(--gaska-muted);
+}
+
+.gaska-attach-remove {
+    position: absolute !important;
+    top: 2px;
+    right: 2px;
+    background: var(--gaska-surface) !important;
+}
+
+/* Helpdesk – images in the timeline, private notes (technicians only) */
+.gaska-helpdesk-image {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.gaska-helpdesk-image img {
+    max-width: 100%;
+    max-height: 320px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 6px;
+}
+
+.gaska-helpdesk-entry.is-private {
+    background: var(--gaska-warning-soft);
+}
+
+/* Helpdesk – files inside a reply */
+.gaska-helpdesk-files {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+/* Helpdesk ticket sidebar – room for the outlined label above the people pickers */
+.gaska-helpdesk-picker {
+    margin-top: 16px;
+}
+
+.gaska-helpdesk-manage .mud-button-root + .gaska-helpdesk-picker {
+    margin-top: 4px;
+}
+
+/* Phones: long ticket titles at a smaller size (were 4 lines at full heading size). */
+@media (max-width: 599.98px) {
+    .gaska-helpdesk-title {
+        font-size: 1.35rem !important;
+        line-height: 1.3 !important;
+    }
+}
+
+/* Hints about Ctrl+V / drag & drop – pointless on touch screens. */
+@media (hover: none) and (pointer: coarse) {
+    .gaska-pointer-only {
+        display: none !important;
+    }
+}
+
+/* =========================================================================
+   Readability & responsiveness pass (app-wide)
+   ========================================================================= */
+
+/* Buttons and toggles keep their label on one line; a toggle that cannot fit shortens with "…" instead of wrapping. */
+.mud-button-root .mud-button-label {
+    white-space: nowrap;
+}
+
+.mud-toggle-item {
+    min-height: 34px;
+    white-space: nowrap;
+    text-transform: none !important;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.mud-toggle-item .mud-button-label,
+.mud-toggle-item > * {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Section labels a little stronger – they separate blocks of a card. */
+.gaska-section-title {
+    font-weight: 700 !important;
+}
+
+@media (max-width: 599.98px) {
+    /* MudGrid spacing 4–6 pulls the grid 16–24 px outside its parent, past the 12 px page margin on phones. */
+    .gaska-page .mud-grid-spacing-xs-4,
+    .gaska-page .mud-grid-spacing-xs-5,
+    .gaska-page .mud-grid-spacing-xs-6 {
+        width: calc(100% + 12px);
+        margin-left: -12px;
+        margin-top: -12px;
+    }
+
+    .gaska-page .mud-grid-spacing-xs-4 > .mud-grid-item,
+    .gaska-page .mud-grid-spacing-xs-5 > .mud-grid-item,
+    .gaska-page .mud-grid-spacing-xs-6 > .mud-grid-item {
+        padding-left: 12px;
+        padding-top: 12px;
+    }
+
+    /* Pager: first/last page buttons do not fit next to "1–25 z 340" – previous/next are enough on a phone. */
+    .mud-table-pagination-actions .mud-icon-button:first-child,
+    .mud-table-pagination-actions .mud-icon-button:last-child {
+        display: none;
+    }
+
+    /* Bigger toggles – easier to hit with a finger. */
+    .mud-toggle-item {
+        min-height: 40px;
+    }
+
+    /* Labels that have a short variant for phones. */
+    .gaska-label-long {
+        display: none;
+    }
+}
+
+@media (min-width: 600px) {
+    .gaska-label-short {
+        display: none;
+    }
+}
+
+/* Touch screens: icon buttons in tables and chips' close buttons at least 40 px to tap. */
+@media (pointer: coarse) {
+    .mud-table-cell .mud-icon-button {
+        min-width: 40px;
+        min-height: 40px;
+    }
+}
+
+/* ---------- Helpdesk thread: separate message cards + a distinct composer ---------- */
+.gaska-helpdesk-thread-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gaska-border);
+    color: var(--gaska-muted);
+}
+
+.gaska-helpdesk-thread-title {
+    font-weight: 700;
+    color: var(--gaska-text);
+}
+
+.gaska-helpdesk-thread-count {
+    font-size: .85rem;
+}
+
+/* Messages as cards on a tinted background, with gaps – each one clearly separate. */
+.gaska-helpdesk-thread .gaska-helpdesk-timeline {
+    gap: 10px;
+    padding: 12px;
+    background: var(--gaska-surface-3);
+    border-radius: 0 0 var(--gaska-radius) var(--gaska-radius);
+}
+
+.gaska-helpdesk-thread .gaska-helpdesk-entry {
+    border: 1px solid var(--gaska-border);
+    border-left-width: 4px;
+    border-left-color: var(--gaska-border-strong);
+    border-radius: 10px;
+    background: var(--gaska-surface);
+    padding: 12px 14px;
+}
+
+.gaska-helpdesk-thread .gaska-helpdesk-entry.is-description {
+    border-left-color: var(--gaska-yellow);
+    background: var(--gaska-surface);
+}
+
+.gaska-helpdesk-thread .gaska-helpdesk-entry.is-solution {
+    border-left-color: var(--mud-palette-success);
+    background: var(--gaska-success-soft);
+}
+
+.gaska-helpdesk-thread .gaska-helpdesk-entry.is-private {
+    border-left-color: var(--mud-palette-warning);
+    background: var(--gaska-warning-soft);
+}
+
+.gaska-helpdesk-thread .gaska-helpdesk-entry.is-task {
+    border-left-color: var(--mud-palette-info);
+}
+
+/* Composer: own card, yellow accent bar on top, heading – impossible to miss after a long thread. */
+.gaska-helpdesk-composer {
+    margin-top: 16px;
+    border-top: 3px solid var(--gaska-yellow) !important;
+    scroll-margin-top: 80px;
+}
+
+.gaska-helpdesk-composer .gaska-helpdesk-reply {
+    padding: 14px 16px 16px;
+}
+
+.gaska-helpdesk-composer-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.gaska-helpdesk-composer-head .mud-icon-root {
+    color: var(--gaska-yellow-dark);
+}
+
+@media (max-width: 599.98px) {
+    .gaska-helpdesk-thread .gaska-helpdesk-timeline {
+        padding: 8px;
+        gap: 8px;
+    }
+
+    .gaska-helpdesk-thread .gaska-helpdesk-entry {
+        padding: 10px 12px;
+    }
+
+    .gaska-helpdesk-thread-head .mud-button-root {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    /* Problem / Prośba: stacked, full width – each label on one line. */
+    .gaska-helpdesk-type.mud-toggle-group {
+        display: flex !important;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .gaska-helpdesk-type .mud-toggle-item {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 599.98px) {
+    /* Pager: the spacer gives way so "1–25 z 340" and the arrows fit inside the card. */
+    .mud-table-pagination-toolbar {
+        padding-left: 8px !important;
+        padding-right: 4px !important;
+    }
+
+    /* MudBlazor gives the pager a 100 px minimum height on phones (room for a second row we hide anyway) –
+       one compact row: counter left, arrows right. */
+    .mud-table-pagination-toolbar {
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
+        min-height: 0 !important;
+        height: auto !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+    }
+
+    .mud-table-pagination-toolbar .mud-table-pagination-caption {
+        padding-left: 4px;
+    }
+
+    .mud-table-pagination-toolbar .mud-table-pagination-spacer {
+        display: none;
+    }
+
+    /* MudBlazor pulls the arrows 14 px to the right (negative margin) – out of the card on a phone. */
+    .mud-table-pagination-toolbar .mud-table-pagination-actions {
+        margin-left: auto !important;
+        margin-inline-start: auto !important;
+        margin-right: 0 !important;
+        margin-inline-end: 0 !important;
+    }
+
+    /* Tabs (contractor card): two tabs share the width instead of 160 px each and scrolling. */
+    .mud-tabs-tabbar .mud-tab {
+        min-width: 0 !important;
+        flex: 1 1 0;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}
+
+@media (max-width: 599.98px) {
+    .gaska-theme-button.gaska-xs-only {
+        display: inline-flex !important;
+    }
+}
+
+/* Touch screens: small text buttons ("Dodaj pliki", "Dodaj osobę") get a comfortable height to tap. */
+@media (pointer: coarse) {
+    .mud-button-root.mud-button-text-size-small,
+    .mud-button-root.mud-button-outlined-size-small {
+        min-height: 36px;
+    }
+}
+
+@media (max-width: 599.98px) {
+    /* Short read-only windows (employee details): a bottom sheet sized to the content instead of a full screen
+       with a big empty middle. Forms (contact, task) stay full screen – more room for the keyboard. */
+    .mud-dialog-container:has(.gaska-sheet) {
+        align-items: flex-end;
+    }
+
+    .mud-dialog-container .gaska-dialog.gaska-sheet {
+        position: relative;   /* the close button belongs to the sheet, not to the top of the screen */
+        height: auto;
+        max-height: 92vh;
+        border-radius: 16px 16px 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .gaska-dialog.gaska-sheet .mud-dialog-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .gaska-dialog.gaska-sheet .mud-dialog-actions .mud-button-root {
+        flex: 1 1 auto;
+        margin: 0 !important;
+    }
+}
+
+/* Dialog actions keep a visible separation from the content above. */
+.gaska-dialog .mud-dialog-actions {
+    border-top: 1px solid var(--gaska-border);
+}
+
+/* Phones / tablets: the menu slides with transform (GPU) instead of MudBlazor's animated "left", which re-laid out the
+   whole drawer on every frame and stuttered on weaker phones. js/boot.js starts the slide on the tap itself. */
+@media (max-width: 959.98px) {
+    .gaska-drawer.mud-drawer-responsive {
+        left: 0 !important;
+        transform: translate3d(-100%, 0, 0);
+        will-change: transform;
+        contain: layout paint;
+    }
+
+    .gaska-drawer.mud-drawer-responsive.mud-drawer--open {
+        transform: none;
+        box-shadow: 0 0 32px rgba(0, 0, 0, .35);
+    }
+
+    .gaska-drawer.mud-drawer-responsive:not(.mud-drawer--initial) {
+        transition: transform 220ms cubic-bezier(.2, .8, .2, 1), box-shadow 220ms ease !important;
+    }
+}
+
+@media (max-width: 959.98px) and (prefers-reduced-motion: reduce) {
+    .gaska-drawer.mud-drawer-responsive:not(.mud-drawer--initial) {
+        transition: none !important;
+    }
+}
+
+/* Scroll lock under dialogs. MudBlazor locks <body> (overflow: hidden), but that only stops the page when <html> has
+   no overflow of its own – the overflow-x: clip above makes <html> the scroller, so the page kept scrolling behind
+   dialogs (e.g. "Zadanie"). Lock <html> as well while a dialog is open; the reserved scrollbar gutter keeps the
+   layout from jumping. */
+html:has(> body.scroll-locked),
+html:has(> body.scroll-locked-no-padding),
+html:has(.mud-dialog-container) {
+    overflow: hidden;
+}
+
+/* Phones / tablets: the page under the open side menu stays put too. */
+@media (max-width: 959.98px) {
+    html:has(.gaska-drawer.mud-drawer--open) {
+        overflow: hidden;
+    }
+}
+
+/* Scrolling inside a long dialog or the menu does not "leak" to the page once it reaches the end. */
+.mud-dialog-content,
+.gaska-drawer .mud-drawer-content {
+    overscroll-behavior: contain;
+}
+
+/* =========================================================================
+   Installed app (PWA, full screen): the page draws behind the notch / status bar (viewport-fit=cover).
+   Safe-area insets are 0 in a normal browser tab, so none of this changes the website.
+   ========================================================================= */
+:root {
+    --gaska-safe-top: env(safe-area-inset-top, 0px);
+    --gaska-safe-left: env(safe-area-inset-left, 0px);
+    --gaska-safe-right: env(safe-area-inset-right, 0px);
+    --gaska-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The bar grows by the notch height – its own background fills the status-bar area. */
+.gaska-appbar.mud-appbar {
+    padding-top: var(--gaska-safe-top);
+    padding-left: var(--gaska-safe-left);
+    padding-right: var(--gaska-safe-right);
+}
+
+/* Content and the side menu start below the taller bar. */
+.gaska-main {
+    margin-top: var(--gaska-safe-top);
+}
+
+.gaska-drawer.mud-drawer {
+    margin-top: var(--gaska-safe-top);
+    padding-left: var(--gaska-safe-left);
+}
+
+.gaska-drawer .mud-drawer-content {
+    /* The drawer is pushed down by the notch – keep its last links reachable above the home indicator. */
+    padding-bottom: calc(var(--gaska-safe-top) + var(--gaska-safe-bottom));
+}
+
+/* Landscape on phones with a notch: keep content clear of the sides. */
+.gaska-page {
+    padding-left: max(12px, var(--gaska-safe-left)) !important;
+    padding-right: max(12px, var(--gaska-safe-right)) !important;
+}
+
+@media (min-width: 600px) {
+    .gaska-page {
+        padding-left: max(24px, var(--gaska-safe-left)) !important;
+        padding-right: max(24px, var(--gaska-safe-right)) !important;
+    }
+}
+
+/* Login pages and dialogs. */
+.auth-page {
+    padding-top: calc(24px + var(--gaska-safe-top));
+    padding-bottom: calc(24px + var(--gaska-safe-bottom));
+}
+
+@media (max-width: 599.98px) {
+    .mud-dialog-container .gaska-dialog:not(.gaska-sheet) {
+        padding-top: var(--gaska-safe-top);
+    }
+}
+
+/* Installed app only: no pull-to-refresh "bounce" of the whole page and no text selection on the bar –
+   it should feel like an app, not a web page. */
+@media (display-mode: fullscreen), (display-mode: standalone) {
+    html {
+        overscroll-behavior-y: none;
+    }
+
+    .gaska-appbar {
+        user-select: none;
+        -webkit-user-select: none;
+    }
+}
+
+/* ---------- Installing the app ---------- */
+/* Only in the browser: hidden inside the installed app (class from js/boot.js, media query as a fallback). */
+html.gaska-standalone .gaska-browser-only {
+    display: none !important;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+    .gaska-browser-only {
+        display: none !important;
+    }
+}
+
+html.gaska-install-dismissed .gaska-install-banner {
+    display: none !important;
+}
+
+.gaska-install-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--gaska-border);
+    border-left: 4px solid var(--gaska-yellow);
+    border-radius: var(--gaska-radius);
+    background: var(--gaska-surface);
+}
+
+.gaska-install-banner-icon {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gaska-install-banner-icon img {
+    width: 38px;
+    height: 38px;
+}
+
+.gaska-install-banner-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-install-banner-title {
+    font-weight: 700;
+}
+
+.gaska-install-banner-desc {
+    color: var(--gaska-muted);
+    font-size: .9rem;
+}
+
+.gaska-install-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.gaska-install-banner .gaska-plain-button {
+    border: 0;
+    background: transparent;
+    color: var(--gaska-muted);
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.gaska-install-banner .gaska-plain-button:hover {
+    background: var(--gaska-overlay);
+}
+
+@media (max-width: 599.98px) {
+    .gaska-install-banner {
+        flex-wrap: wrap;
+    }
+
+    .gaska-install-banner-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+.gaska-install-steps {
+    margin: 8px 0 0;
+    padding-left: 22px;
+    line-height: 1.7;
+}
+
+.gaska-install-steps strong {
+    color: var(--gaska-text);
+}
+
+.gaska-install-platform.is-current {
+    border-color: var(--gaska-yellow) !important;
+    box-shadow: 0 0 0 1px var(--gaska-yellow);
+}
+
+/* Columns hidden below 1280 px – laptops with the side menu open have ~780 px for a table. */
+@media (max-width: 1279.98px) {
+    .gaska-hide-md {
+        display: none !important;
+    }
+}
+
+/* Helpdesk list: the title keeps a readable width; on phones the cell takes what is left. */
+@media (min-width: 600px) {
+    .gaska-helpdesk-title-cell {
+        min-width: 240px;
+    }
+}
+
+/* Label / value lists (contractor card, ticket details): values wrap inside their column instead of pushing the grid
+   past the card (long e-mails and addresses were cut off). In a narrow card the labels go above the values. */
+.gaska-details {
+    grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.gaska-details dd,
+.gaska-details dd > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.gaska-card:has(> .gaska-details) {
+    container-type: inline-size;
+}
+
+@container (max-width: 380px) {
+    .gaska-details {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .gaska-details dd {
+        margin-bottom: 8px;
+    }
+}
+
+/* Dialog close button (✕) belongs to the dialog's corner – without this it sat in the corner of the screen. */
+.mud-dialog-container .mud-dialog {
+    position: relative;
+}
+
+/* "Zainstaluj aplikację": the three platform cards are equally tall on a desktop. */
+.gaska-install-platform {
+    width: 100%;
+}
+
+/* ---------- User manual (/instrukcja) ---------- */
+/* Desktop: text + table of contents on the right that stays in view. Narrower: chapters as a sticky chip bar on top. */
+.gaska-manual-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 250px;
+    gap: 24px;
+    align-items: start;
+}
+
+.gaska-manual-content {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.gaska-manual-toc {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--mud-appbar-height) + var(--gaska-safe-top) + 16px);
+    max-height: calc(100vh - var(--mud-appbar-height) - 40px);
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 14px;
+    background: var(--gaska-surface);
+}
+
+.gaska-manual-toc-title {
+    padding: 4px 10px 10px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--gaska-muted);
+}
+
+.gaska-manual-toc-link,
+.gaska-manual-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--gaska-text-2);
+    font: inherit;
+    font-size: .9rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+
+.gaska-manual-toc-link:hover,
+.gaska-manual-chip:hover {
+    background: var(--gaska-overlay);
+    color: var(--gaska-text);
+}
+
+.gaska-manual-toc-link.is-active,
+.gaska-manual-chip.is-active {
+    background: var(--gaska-yellow-soft);
+    color: var(--gaska-text);
+    font-weight: 700;
+}
+
+.gaska-manual-num {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--gaska-overlay);
+    font-size: .75rem;
+    font-weight: 700;
+}
+
+.is-active > .gaska-manual-num {
+    background: var(--gaska-yellow);
+    color: #1F1F1F;
+}
+
+.gaska-manual-chips {
+    display: none;
+}
+
+@media (max-width: 1199.98px) {
+    .gaska-manual-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .gaska-manual-toc {
+        display: none;
+    }
+
+    /* Chapter bar above the text (the content is pinned to row 1 for the desktop layout). */
+    .gaska-manual-content {
+        grid-row: 2;
+    }
+
+    /* Jumping to a chapter: leave room for the app bar and the chapter bar. */
+    .gaska-manual-content .manual > section {
+        scroll-margin-top: calc(var(--mud-appbar-height) + var(--gaska-safe-top) + 72px);
+    }
+
+    .gaska-manual-chips {
+        grid-row: 1;
+        display: flex;
+        gap: 6px;
+        position: sticky;
+        top: calc(var(--mud-appbar-height) + var(--gaska-safe-top));
+        z-index: 3;
+        margin: 0 -12px;
+        padding: 8px 12px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        background: var(--gaska-bg-translucent);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid var(--gaska-border);
+    }
+
+    .gaska-manual-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+    .gaska-manual-chip {
+        width: auto;
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 6px 12px 6px 6px;
+        border: 1px solid var(--gaska-border);
+        border-radius: 999px;
+        background: var(--gaska-surface);
+    }
+}
+
+/* Chapters: each one a card with a numbered header – clearly separate from the next. */
+.manual {
+    counter-reset: chapter;
+    line-height: 1.65;
+}
+
+.manual > section {
+    counter-increment: chapter;
+    margin-bottom: 20px;
+    padding: 0 28px 24px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 14px;
+    background: var(--gaska-surface);
+    scroll-margin-top: calc(var(--mud-appbar-height) + var(--gaska-safe-top) + 16px);
+    overflow: hidden;
+}
+
+.manual > section > h2 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 -28px 20px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--gaska-border);
+    border-left: 5px solid var(--gaska-yellow);
+    background: var(--gaska-surface-2);
+    font-size: 1.35rem;
+    line-height: 1.3;
+}
+
+.manual > section > h2::before {
+    content: counter(chapter);
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--gaska-yellow);
+    color: #1F1F1F;
+    font-size: 1.05rem;
+}
+
+.manual h3 {
+    margin: 24px 0 8px;
+    font-size: 1.1rem;
+    color: var(--gaska-text);
+}
+
+.manual h3::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin: 0 10px 2px 0;
+    border-radius: 2px;
+    background: var(--gaska-yellow);
+}
+
+.manual h4 {
+    margin: 18px 0 6px;
+    font-size: 1rem;
+}
+
+.manual p,
+.manual ul,
+.manual ol {
+    margin: 0 0 12px;
+    color: var(--gaska-text-2);
+}
+
+/* Lists indented under the sentence that introduces them (the base styles reset the padding to 0). */
+.manual ul,
+.manual ol {
+    padding-left: 28px;
+}
+
+.manual strong {
+    color: var(--gaska-text);
+}
+
+.manual li {
+    margin-bottom: 6px;
+}
+
+.manual-tip {
+    margin: 12px 0 !important;
+    padding: 12px 16px;
+    border-left: 4px solid var(--gaska-yellow);
+    border-radius: 10px;
+    background: var(--gaska-yellow-soft);
+}
+
+/* Screenshots: desktop pictures on a computer, phone pictures on a phone (both are in the HTML). */
+.manual figure {
+    margin: 14px 0 18px;
+}
+
+.manual img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--gaska-border);
+    border-radius: 10px;
+}
+
+.manual figcaption {
+    margin-top: 6px;
+    font-size: .85rem;
+    color: var(--gaska-muted);
+}
+
+.manual .shot-m,
+.manual .only-m {
+    display: none;
+}
+
+.manual .shot-d {
+    max-width: 820px;
+}
+
+.manual-figs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.manual-figs > figure {
+    flex: 0 1 260px;
+    margin: 0;
+}
+
+@media (max-width: 599.98px) {
+    .manual > section {
+        padding: 0 16px 16px;
+    }
+
+    .manual > section > h2 {
+        margin: 0 -16px 16px;
+        padding: 14px 16px;
+        font-size: 1.15rem;
+        gap: 10px;
+    }
+
+    .manual > section > h2::before {
+        width: 30px;
+        height: 30px;
+    }
+
+    .manual ul,
+    .manual ol {
+        padding-left: 20px;
+    }
+
+    .manual .shot-d,
+    .manual .only-d {
+        display: none;
+    }
+
+    .manual .shot-m {
+        display: block;
+        width: 100%;
+        max-width: 340px;
+        margin: 0 auto;
+    }
+
+    .manual .only-m {
+        display: block;
+    }
+
+    /* Several phone screenshots: swipe sideways instead of a very long column. */
+    .manual-figs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 6px;
+    }
+
+    .manual-figs > figure {
+        flex: 0 0 78%;
+        scroll-snap-align: start;
+    }
+}
+
+/* Small crop (user menu) – not stretched to the full width. */
+.manual img[src*="user-menu"] {
+    max-width: 360px;
+}
+
+/* Table of contents entries: left-aligned (buttons centre their content by default). */
+.gaska-manual-toc-link,
+.gaska-manual-chip {
+    justify-content: flex-start;
+}
+
+.gaska-manual-toc-link span:last-child {
+    min-width: 0;
+}
+
+/* ---------- Loading: skeletons everywhere, no progress bars ---------- */
+/* Tables show GridSkeleton rows while loading; the grid's own progress bar is hidden. */
+.gaska-grid .mud-table-loading {
+    display: none;
+}
+
+/* A table that already shows rows and reloads (paging, search) – rows fade a little until the new ones arrive. */
+.gaska-grid:has(.mud-table-loading) tbody .mud-table-row {
+    opacity: .45;
+    transition: opacity .15s;
+}
+
+.gaska-grid-skeleton {
+    padding: 4px 16px 12px;
+}
+
+.gaska-grid-skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gaska-border);
+}
+
+.gaska-grid-skeleton-row:last-child {
+    border-bottom: 0;
+}
+
+/* RCP: the punch being saved shows a spinner in its button. */
+.gaska-button-spinner {
+    margin-right: 8px;
+}

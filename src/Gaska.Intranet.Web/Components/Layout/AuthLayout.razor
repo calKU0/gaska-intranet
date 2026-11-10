@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+
+@* Layout of the account pages – rendered statically (no MudBlazor, plain HTML + CSS). *@
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-accent"></div>
+        <div class="auth-body">
+            <img src="img/logo.png" alt="Gąska" class="auth-logo" />
+            <div class="auth-app-name">Intranet</div>
+            @Body
+        </div>
+    </div>
+    <div class="auth-footer">Gąska &copy; @DateTime.Now.Year · Problemy z logowaniem? Skontaktuj się z działem IT.</div>
+</div>

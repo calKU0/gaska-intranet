@@ -1,0 +1,155 @@
+@page "/admin/uprawnienia"
+@attribute [ModuleAuthorize(ModuleKeys.AdminAccess)]
+@inject IModuleAccessService Access
+@inject ISnackbar Snackbar
+
+<PageTitle>Uprawnienia · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Uprawnienia" Subtitle="Decyduj, kto widzi poszczególne moduły intranetu." />
+
+@* <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="mb-4 gaska-card" Dense="true">
+    Administratorzy (grupy z konfiguracji <code>ActiveDirectory:AdministratorGroups</code>) mają dostęp do wszystkiego.
+    Uprawnienia można nadawać pojedynczym osobom lub całym grupom AD (działa też dla grup zagnieżdżonych).
+    Zmiana członkostwa w grupie AD zadziała po ponownym zalogowaniu (lub automatycznie w ciągu ok. 30 minut).
+    Przełącznik „Tylko sieć firmowa” ogranicza moduł do adresów z <code>Security:InternalNetworks</code>.
+</MudAlert> *@
+
+@if (_overview is null)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.List" ShowTitle="false" Rows="4" />
+}
+else
+{
+    <MudStack Spacing="4">
+        @foreach (var item in _overview.Where(o => o.EffectiveMode != ModuleAccessMode.AdministratorsOnly))
+        {
+            <MudPaper Elevation="0" Class="gaska-card pa-5">
+                <div class="gaska-module-head">
+                    <div class="gaska-tile-icon"><MudIcon Icon="@item.Module.Icon" /></div>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.h6">@item.Module.Title</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@item.Module.Description</MudText>
+                    </div>
+                    <MudToggleGroup T="ModuleAccessMode" Value="item.EffectiveMode" ValueChanged="mode => SetModeAsync(item, mode)"
+                                    Color="Color.Primary" Size="Size.Small" Outlined="true" Class="gaska-mode-toggle">
+                        <MudToggleItem Value="ModuleAccessMode.AllEmployees" Text="Wszyscy pracownicy" />
+                        <MudToggleItem Value="ModuleAccessMode.Restricted" Text="Tylko wybrani" />
+                    </MudToggleGroup>
+                </div>
+
+                <div class="gaska-module-network">
+                    <MudIcon Icon="@(item.InternalNetworkOnly ? Icons.Material.Outlined.Lan : Icons.Material.Outlined.Public)" Size="Size.Small"
+                             Color="@(item.InternalNetworkOnly ? Color.Warning : Color.Default)" />
+                    <span class="flex-grow-1">
+                        @if (item.InternalNetworkOnly)
+                        {
+                            <text>Dostępny <strong>tylko z sieci firmowej</strong> – również dla administratorów.</text>
+                        }
+                        else
+                        {
+                            <text>Dostępny z dowolnego adresu IP (także spoza firmy).</text>
+                        }
+                    </span>
+                    <MudSwitch T="bool" Value="item.InternalNetworkOnly" ValueChanged="v => SetNetworkAsync(item, v)" Color="Color.Warning"
+                               Label="Tylko sieć firmowa" Class="ma-0" />
+                </div>
+
+                @if (item.EffectiveMode == ModuleAccessMode.Restricted)
+                {
+                    <MudDivider Class="my-4" />
+
+                    <div class="gaska-rules">
+                        @if (item.Rules.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                Nikt poza administratorami nie ma jeszcze dostępu. Dodaj osoby lub grupy poniżej.
+                            </MudText>
+                        }
+
+                        @foreach (var rule in item.Rules)
+                        {
+                            <MudChip T="string" Icon="@(rule.PrincipalKind == PrincipalKind.Group ? Icons.Material.Outlined.Groups : Icons.Material.Outlined.Person)"
+                                     Color="@(rule.PrincipalKind == PrincipalKind.Group ? Color.Secondary : Color.Default)"
+                                     Variant="Variant.Outlined" OnClose="() => RevokeAsync(rule)">
+                                @rule.PrincipalName
+                            </MudChip>
+                        }
+                    </div>
+
+                    <MudAutocomplete @key="_searchResetKey" T="DirectoryPrincipal" Label="Dodaj osobę lub grupę z AD" Placeholder="Wpisz co najmniej 2 znaki…"
+                                     SearchFunc="SearchAsync" ToStringFunc="@(p => p?.DisplayName)" MinCharacters="2" DebounceInterval="300"
+                                     ValueChanged="p => GrantAsync(item, p)" ShowProgressIndicator="true" ResetValueOnEmptyText="true"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4 gaska-principal-search"
+                                     AdornmentIcon="@Icons.Material.Filled.PersonAdd" Adornment="Adornment.End">
+                        <ItemTemplate Context="principal">
+                            <div class="d-flex align-center gap-3">
+                                <MudIcon Icon="@(principal.Kind == PrincipalKind.Group ? Icons.Material.Outlined.Groups : Icons.Material.Outlined.Person)" Size="Size.Small" />
+                                <div>
+                                    <div>@principal.DisplayName</div>
+                                    <div class="gaska-person-title">@(principal.Kind == PrincipalKind.Group ? "Grupa" : "Użytkownik") · @principal.AccountName</div>
+                                </div>
+                            </div>
+                        </ItemTemplate>
+                    </MudAutocomplete>
+                }
+            </MudPaper>
+        }
+    </MudStack>
+}
+
+@code {
+    [Inject]
+    private IPrincipalSearch PrincipalSearch { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IReadOnlyList<ModuleAccessOverview>? _overview;
+    private string _currentUser = string.Empty;
+    private int _searchResetKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUser = (await AuthState).User.Identity?.Name ?? "?";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _overview = await Access.GetOverviewAsync();
+
+    private async Task<IEnumerable<DirectoryPrincipal>> SearchAsync(string term, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(term) ? [] : await PrincipalSearch.SearchAsync(term, 20, ct);
+
+    private async Task SetModeAsync(ModuleAccessOverview item, ModuleAccessMode mode)
+    {
+        await Access.SetAccessModeAsync(item.Module.Key, mode, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"{item.Module.Title}: {(mode == ModuleAccessMode.AllEmployees ? "dostęp dla wszystkich" : "dostęp tylko dla wybranych")}.", Severity.Success);
+    }
+
+    private async Task SetNetworkAsync(ModuleAccessOverview item, bool internalOnly)
+    {
+        await Access.SetInternalNetworkOnlyAsync(item.Module.Key, internalOnly, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"{item.Module.Title}: {(internalOnly ? "dostęp tylko z sieci firmowej" : "dostęp z dowolnego adresu IP")}.", Severity.Success);
+    }
+
+    private async Task GrantAsync(ModuleAccessOverview item, DirectoryPrincipal? principal)
+    {
+        if (principal is null)
+        {
+            return;
+        }
+
+        await Access.GrantAsync(item.Module.Key, principal, _currentUser);
+        _searchResetKey++; // recreates the search field – clears the typed text
+        await LoadAsync();
+        Snackbar.Add($"Nadano dostęp: {principal.DisplayName} → {item.Module.Title}.", Severity.Success);
+    }
+
+    private async Task RevokeAsync(ModuleAccessRule rule)
+    {
+        await Access.RevokeAsync(rule.Id, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"Odebrano dostęp: {rule.PrincipalName}.", Severity.Info);
+    }
+}

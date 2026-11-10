@@ -1,0 +1,93 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IBrowserViewportService Viewport
+@inject IJSRuntime JS
+
+<MudThemeProvider Theme="GaskaTheme.Theme" IsDarkMode="IsDark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="gaska-appbar" Gutters="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" Class="gaska-menu-button"
+                       OnClick="ToggleDrawer" aria-label="Menu" />
+        <a href="/" class="gaska-brand" aria-label="Strona główna">
+            <img src="img/logo.png" alt="Gąska" />
+            <span class="gaska-brand-divider"></span>
+            <span class="gaska-brand-name">Intranet</span>
+        </a>
+        <MudSpacer />
+        <ThemeSwitch Mode="ThemeMode" ModeChanged="SetThemeAsync" />
+        <UserMenu />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0"
+               Variant="DrawerVariant.Responsive" Class="gaska-drawer">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="gaska-main">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="gaska-page py-4 py-sm-6 px-3 px-sm-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Wystąpił nieoczekiwany błąd.
+    <a href="." class="reload">Odśwież stronę</a>
+    <span class="dismiss">✕</span>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    // Read from the cookie while pre-rendering and carried over to the interactive render,
+    // so MudBlazor's palette matches the <html class="gaska-dark"> the server already sent.
+    [PersistentState]
+    public ThemeMode ThemeMode { get; set; }
+
+    private bool IsDark => ThemeMode == ThemeMode.Dark;
+
+    protected override void OnInitialized()
+    {
+        if (HttpContext is not null)
+        {
+            ThemeMode = ThemeCookies.ReadMode(HttpContext);
+        }
+
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private async Task SetThemeAsync(ThemeMode mode)
+    {
+        ThemeMode = mode;
+        await JS.InvokeVoidAsync("gaskaTheme.set", ThemeCookies.ToCookieValue(mode), IsDark);
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    /// <summary>On phones and tablets the menu covers the page – close it once a link was tapped.</summary>
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        try
+        {
+            if (_drawerOpen && await Viewport.GetCurrentBreakpointAsync() < Breakpoint.Md)
+            {
+                _drawerOpen = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or TaskCanceledException or InvalidOperationException)
+        {
+            // Circuit closing or pre-rendering – nothing to close.
+        }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

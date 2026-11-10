@@ -1,0 +1,48 @@
+@inject NavigationManager Navigation
+@inject IModuleCatalog Catalog
+@inject IModuleAccessService Access
+
+<div class="gaska-empty-state">
+    <MudIcon Icon="@(_networkBlocked ? Icons.Material.Outlined.Lan : Icons.Material.Outlined.Lock)" Style="font-size:4rem" Color="Color.Primary" />
+    <MudText Typo="Typo.h5" Class="mt-4">Brak dostępu</MudText>
+    <MudText Typo="Typo.body1" Class="mt-2 mud-text-secondary">
+        @if (_networkBlocked)
+        {
+            <text>Ta zakładka jest dostępna tylko z sieci firmowej. Otwórz ją w biurze albo po połączeniu przez VPN.</text>
+        }
+        else
+        {
+            <text>Nie masz uprawnień do tej strony. Jeśli potrzebujesz dostępu, skontaktuj się z działem IT.</text>
+        }
+    </MudText>
+    <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" StartIcon="@Icons.Material.Filled.Home">
+        Strona główna
+    </MudButton>
+</div>
+
+@code {
+    private bool _networkBlocked;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null)
+        {
+            return;
+        }
+
+        // The module is recognised by its route – the longest matching prefix wins.
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+        var module = Catalog.All
+            .Where(m => path.Equals(m.Route, StringComparison.OrdinalIgnoreCase) ||
+                        path.StartsWith(m.Route.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
+            .MaxBy(m => m.Route.Length);
+
+        if (module is not null)
+        {
+            _networkBlocked = await Access.IsBlockedByNetworkAsync((await AuthState).User, module.Key);
+        }
+    }
+}

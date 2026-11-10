@@ -1,0 +1,30 @@
+<div class="gaska-page-header @(InlineActions ? "gaska-page-header--inline" : null)">
+    <div>
+        <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title">@Title</MudText>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@Subtitle</MudText>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="gaska-page-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    /// <summary>
+    /// Small actions (e.g. a refresh icon) stay on the title's row on phones instead of taking a full-width row of their own.
+    /// </summary>
+    [Parameter]
+    public bool InlineActions { get; set; }
+}

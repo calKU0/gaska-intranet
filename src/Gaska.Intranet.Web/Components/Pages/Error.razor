@@ -1,0 +1,25 @@
+@page "/blad"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthLayout
+@using System.Diagnostics
+
+<PageTitle>Błąd · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Coś poszło nie tak</h1>
+<p class="auth-subtitle">Wystąpił nieoczekiwany błąd. Spróbuj ponownie za chwilę.</p>
+@if (!string.IsNullOrEmpty(RequestId))
+{
+    <p class="auth-hint">Identyfikator zgłoszenia dla IT: <code>@RequestId</code></p>
+}
+<a href="/" class="auth-button auth-button-link">Strona główna</a>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

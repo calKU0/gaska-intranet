@@ -1,0 +1,127 @@
+@page "/konto/weryfikacja"
+@inject ILoginCodeService LoginCodes
+@inject IntranetSignInService SignIn
+@inject IAuditLog Audit
+@inject NavigationManager Navigation
+
+<PageTitle>Kod logowania · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Wpisz kod</h1>
+@if (_state is not null)
+{
+    <p class="auth-subtitle">
+        Wysłaliśmy kod @(_state.Channel == DeliveryChannel.Email ? "e-mailem na adres" : "SMS-em na numer")
+        <strong>@_state.MaskedDestination</strong>.
+        @if (_mustSetUpAuthenticator)
+        {
+            <span>W następnym kroku skonfigurujesz aplikację uwierzytelniającą.</span>
+        }
+    </p>
+}
+
+@if (_error is not null)
+{
+    <div class="auth-alert auth-alert-error" role="alert">@_error</div>
+}
+
+@if (!_mustRestart)
+{
+    <EditForm Model="Input" method="post" OnValidSubmit="VerifyAsync" FormName="verify" class="auth-form" data-busy-on-submit>
+        <DataAnnotationsValidator />
+        <label class="auth-label" for="code">Kod jednorazowy</label>
+        <InputText id="code" @bind-Value="Input.Code" class="auth-input auth-code-input" autocomplete="one-time-code"
+                   inputmode="numeric" maxlength="10" autofocus placeholder="••••••" />
+        <ValidationMessage For="() => Input.Code" class="auth-validation" />
+
+        <RememberDeviceCheckbox @bind-Value="Input.RememberDevice" />
+
+        <button type="submit" class="auth-button">@(_mustSetUpAuthenticator ? "Dalej" : "Zaloguj")</button>
+    </EditForm>
+}
+
+<a href="@AccountRoutes.ChooseMethod" class="auth-link">Nie dotarł? Wyślij ponownie lub wybierz inną metodę</a>
+
+@code {
+    private string? _error;
+    private bool _mustRestart;
+    private bool _mustSetUpAuthenticator;
+    private PendingLoginState? _state;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private VerifyInput Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new VerifyInput();
+        _state = await PendingLoginState.ReadAsync(HttpContext);
+
+        if (_state is null)
+        {
+            Navigation.NavigateTo(AccountRoutes.Login);
+        }
+        else if (_state.ChallengeId is null)
+        {
+            Navigation.NavigateTo(AccountRoutes.ChooseMethod);
+        }
+        else
+        {
+            _mustSetUpAuthenticator = await SignIn.MustSetUpAuthenticatorAsync(_state.User);
+            if (HttpMethods.IsGet(HttpContext.Request.Method))
+            {
+                Input.RememberDevice = true;
+            }
+        }
+    }
+
+    private async Task VerifyAsync()
+    {
+        if (_state?.ChallengeId is not { } challengeId)
+        {
+            return;
+        }
+
+        var user = _state.User;
+        var status = await LoginCodes.VerifyAsync(challengeId, user.AccountName, Input.Code);
+        if (status != VerifyCodeStatus.Success)
+        {
+            await Audit.WriteAsync(AuditEvents.CodeInvalid, user.AccountName, status.ToString());
+            (_error, _mustRestart) = status switch
+            {
+                VerifyCodeStatus.InvalidCode => ("Nieprawidłowy kod. Sprawdź i spróbuj ponownie.", false),
+                VerifyCodeStatus.Expired => ("Kod wygasł. Wyślij nowy kod.", true),
+                VerifyCodeStatus.TooManyAttempts => ("Zbyt wiele błędnych prób. Wyślij nowy kod.", true),
+                _ => ("Kod jest nieaktualny. Wyślij nowy kod.", true),
+            };
+            return;
+        }
+
+        if (_mustSetUpAuthenticator)
+        {
+            // Identity confirmed – the user is let in only after setting up the authenticator app.
+            await (_state with
+            {
+                ChallengeId = null,
+                IdentityConfirmed = true,
+                RememberDevice = Input.RememberDevice,
+            }).SaveAsync(HttpContext);
+            Navigation.NavigateTo(AccountRoutes.AuthenticatorSetup);
+            return;
+        }
+
+        await SignIn.CompleteSignInAsync(HttpContext, user, Input.RememberDevice, AuditEvents.LoginSucceeded, _state.Channel?.ToString());
+        Navigation.NavigateTo(_state.ReturnUrl, forceLoad: true);
+    }
+
+    private sealed class VerifyInput
+    {
+        [Required(ErrorMessage = "Wpisz kod z wiadomości.")]
+        [RegularExpression(@"^\s*\d[\d\s]*$", ErrorMessage = "Kod składa się z cyfr.")]
+        public string Code { get; set; } = string.Empty;
+
+        // Unchecked checkboxes are not posted, so the default must be false (checked on GET instead).
+        public bool RememberDevice { get; set; }
+    }
+}

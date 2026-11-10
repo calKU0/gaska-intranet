@@ -1,0 +1,87 @@
+@* Details of one address-book entry – opened by tapping a row (on phones the list shows only the essentials). *@
+
+<MudDialog Class="gaska-dialog gaska-sheet gaska-employee-dialog">
+    <TitleContent>
+        <div class="gaska-person">
+            <MudAvatar Class="gaska-person-avatar">@Employee.Initials</MudAvatar>
+            <div>
+                <div class="gaska-person-name">@Employee.FullName</div>
+                @if (!string.IsNullOrWhiteSpace(Employee.JobTitle))
+                {
+                    <div class="gaska-person-title">@Employee.JobTitle</div>
+                }
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <dl class="gaska-details">
+            <dt>Dział</dt>
+            <dd>@Or(Employee.Department)</dd>
+
+            <dt>Komórka</dt>
+            <dd>
+                @if (ContactFormatter.ToTelUri(Employee.MobilePhone) is { } tel)
+                {
+                    <a href="@tel" class="gaska-phone">
+                        <MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" />
+                        @ContactFormatter.FormatPhoneForDisplay(Employee.MobilePhone)
+                    </a>
+                }
+                else
+                {
+                    <span class="gaska-muted">—</span>
+                }
+            </dd>
+
+            <dt>Nr wewnętrzny</dt>
+            <dd>
+                @if (!string.IsNullOrWhiteSpace(Employee.Extension))
+                {
+                    <span class="gaska-extension">@Employee.Extension</span>
+                }
+                else
+                {
+                    <span class="gaska-muted">—</span>
+                }
+            </dd>
+
+            <dt>E-mail</dt>
+            <dd class="gaska-dd-block">
+                @if (!string.IsNullOrWhiteSpace(Employee.Email))
+                {
+                    <a href="mailto:@Employee.Email" class="gaska-link gaska-break">@Employee.Email</a>
+                }
+                else
+                {
+                    <span class="gaska-muted">—</span>
+                }
+            </dd>
+
+            <dt>Login</dt>
+            <dd>@Employee.AccountName</dd>
+        </dl>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close()">Zamknij</MudButton>
+        @if (!string.IsNullOrWhiteSpace(Employee.Email))
+        {
+            <MudButton Href="@($"mailto:{Employee.Email}")" Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Outlined.Email">E-mail</MudButton>
+        }
+        @if (ContactFormatter.ToTelUri(Employee.MobilePhone) is { } call)
+        {
+            <MudButton Href="@call" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Outlined.Phone">Zadzwoń</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Employee Employee { get; set; } = default!;
+
+    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

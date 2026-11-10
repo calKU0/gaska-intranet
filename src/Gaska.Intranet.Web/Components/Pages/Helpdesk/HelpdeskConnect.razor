@@ -1,0 +1,91 @@
+@* Shown when the user has no (valid) GLPI connection – e.g. GLPI was down at login, or the token expired. *@
+@using Gaska.Intranet.Core.Helpdesk
+@inject IHelpdeskConnector Connector
+@inject ILoginThrottle Throttle
+
+<MudPaper Class="gaska-card pa-5 gaska-helpdesk-connect" Elevation="0">
+    <div class="d-flex align-center gap-3 mb-2">
+        <MudIcon Icon="@Icons.Material.Outlined.Link" Color="Color.Primary" />
+        <MudText Typo="Typo.h6">Połącz z Helpdeskiem</MudText>
+    </div>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+        Zgłoszenia są w systemie Helpdesk (GLPI). Podaj hasło do komputera (konto <strong>@AccountName</strong>) –
+        intranet połączy się z Helpdeskiem w Twoim imieniu. Hasło nie jest zapisywane; zwykle łączymy się
+        automatycznie przy logowaniu do intranetu.
+    </MudText>
+
+    <EditForm Model="this" OnSubmit="ConnectAsync">
+        <div class="gaska-helpdesk-connect-row">
+            <MudTextField @bind-Value="_password" InputType="InputType.Password" Label="Hasło" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" autocomplete="current-password" Disabled="_busy" Class="flex-grow-1" />
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy || string.IsNullOrEmpty(_password)">
+                @if (_busy)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                Połącz
+            </MudButton>
+        </div>
+    </EditForm>
+
+    <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-3" />
+</MudPaper>
+
+@code {
+    private string _password = string.Empty;
+    private bool _busy;
+    private string? _error;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnConnected { get; set; }
+
+    private string AccountName { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync() =>
+        AccountName = (await AuthState).User.Identity?.Name ?? string.Empty;
+
+    private async Task ConnectAsync()
+    {
+        var principal = (await AuthState).User;
+        var user = new Gaska.Intranet.Core.Organization.DirectoryUser { AccountName = AccountName, Sid = principal.GetSid() };
+
+        // Wrong passwords here would also count against the AD account – same lockout as the login page.
+        if (Throttle.IsLockedOut(AccountName, "helpdesk"))
+        {
+            _error = "Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Connector.ConnectAsync(user, _password);
+            _password = string.Empty;
+            switch (result)
+            {
+                case ConnectResult.Connected:
+                    Throttle.Reset(AccountName);
+                    await OnConnected.InvokeAsync();
+                    break;
+                case ConnectResult.WrongPassword:
+                    Throttle.RegisterFailure(AccountName, "helpdesk");
+                    _error = "Helpdesk nie przyjął hasła. Sprawdź hasło (to samo co do komputera) i spróbuj ponownie.";
+                    break;
+                case ConnectResult.NotConfigured:
+                    _error = "Integracja z Helpdeskiem nie jest jeszcze skonfigurowana – zgłoś to do działu IT.";
+                    break;
+                default:
+                    _error = "Helpdesk jest chwilowo niedostępny. Spróbuj za chwilę.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

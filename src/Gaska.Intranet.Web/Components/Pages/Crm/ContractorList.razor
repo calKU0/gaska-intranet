@@ -1,0 +1,137 @@
+@page "/kontrahenci"
+@attribute [ModuleAuthorize(ModuleKeys.Contractors)]
+@inject IContractorService Contractors
+@inject CrmSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Kontrahenci · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Kontrahenci" Subtitle="Karty kontrahentów z GoNet.">
+    <Actions>
+        @if (_canEdit)
+        {
+            <MudButton Href="/kontrahenci/wizytowka" Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Outlined.DocumentScanner">Wizytówka</MudButton>
+            <MudButton Href="/kontrahenci/nowy" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add">
+                <span class="gaska-label-long">Dodaj kontrahenta</span><span class="gaska-label-short">Dodaj</span>
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+<CrmOperatorNotice />
+
+@if (_error is not null && _error != Session.UnavailableReason)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField T="string" Value="_search" ValueChanged="SearchChangedAsync"
+                      Placeholder="Szukaj: nazwa, NIP, miasto, telefon, e-mail…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="400" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+
+        @if (_operatorId is not null)
+        {
+            <MudSwitch T="bool" Value="_mineOnly" ValueChanged="MineOnlyChangedAsync" Color="Color.Primary" Label="Tylko moi" />
+        }
+    </div>
+
+    <MudDataGrid @ref="_grid" T="ContractorListItem" ServerData="LoadAsync" Hover="true" Dense="true" Elevation="0"
+                 RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid gaska-clickable-rows" Culture="@GaskaTheme.Polish"
+                 RowClick="@(args => Navigation.NavigateTo($"/kontrahenci/{args.Item.Id}"))">
+        <Columns>
+            @* Phones: one compact column (name + full name and city below); the rest from the "sm" breakpoint up. *@
+            <PropertyColumn Property="c => c.ShortName" Title="Nazwa skrócona" SortBy="@(c => c.ShortName)">
+                <CellTemplate>
+                    <div class="gaska-row-main">
+                        <span class="gaska-person-name">@context.Item.ShortName</span>
+                        <span class="gaska-person-title gaska-xs-only">
+                            @context.Item.FullName@(context.Item.City is null ? "" : $" · {context.Item.City}")
+                        </span>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Class="gaska-row-chevron gaska-xs-only" />
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="c => c.FullName" Title="Pełna nazwa" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
+            <PropertyColumn Property="c => c.Nip" Title="NIP" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
+            <PropertyColumn Property="c => c.City" Title="Miasto" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
+            <PropertyColumn Property="c => c.Phone" Title="Telefon" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md gaska-nowrap" />
+            <PropertyColumn Property="c => c.ManagerName" Title="Prowadzący" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md" />
+        </Columns>
+        <LoadingContent>
+            <GridSkeleton />
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Class="pa-6 mud-text-secondary">Brak kontrahentów spełniających kryteria.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudDataGridPager T="ContractorListItem" PageSizeOptions="[25, 50, 100]" RowsPerPageString="Wierszy na stronę:"
+                              InfoFormat="{first_item}–{last_item} z {all_items}" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<ContractorListItem>? _grid;
+    private string? _search;
+    private bool _mineOnly;
+    private bool _canEdit;
+    private int? _operatorId;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _operatorId = (await Session.GetOperatorAsync())?.Id;
+        _canEdit = _operatorId is not null;
+    }
+
+    private async Task<GridData<ContractorListItem>> LoadAsync(GridState<ContractorListItem> state, CancellationToken ct)
+    {
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var sortBy = sort?.SortBy switch
+        {
+            nameof(ContractorListItem.FullName) => ContractorSort.FullName,
+            nameof(ContractorListItem.City) => ContractorSort.City,
+            nameof(ContractorListItem.Nip) => ContractorSort.Nip,
+            _ => ContractorSort.ShortName,
+        };
+
+        try
+        {
+            _error = null;
+            var result = await Contractors.SearchAsync(new ContractorQuery(
+                _search,
+                _mineOnly ? _operatorId : null,
+                state.Page * state.PageSize,
+                state.PageSize,
+                sortBy,
+                sort?.Descending ?? false), ct);
+
+            return new GridData<ContractorListItem> { Items = result.Items, TotalItems = result.TotalCount };
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+            return new GridData<ContractorListItem> { Items = [], TotalItems = 0 };
+        }
+    }
+
+    private async Task SearchChangedAsync(string? value)
+    {
+        _search = value;
+        await ReloadAsync();
+    }
+
+    private async Task MineOnlyChangedAsync(bool value)
+    {
+        _mineOnly = value;
+        await ReloadAsync();
+    }
+
+    private Task ReloadAsync() => _grid?.ReloadServerData() ?? Task.CompletedTask;
+}

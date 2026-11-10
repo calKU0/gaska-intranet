@@ -1,0 +1,118 @@
+@page "/konto/aplikacja-uwierzytelniajaca"
+@inject IAuthenticatorService Authenticators
+@inject IntranetSignInService SignIn
+@inject NavigationManager Navigation
+
+<PageTitle>Konfiguracja aplikacji · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Skonfiguruj aplikację</h1>
+<p class="auth-subtitle">
+    Od teraz logowanie potwierdzasz kodem z aplikacji w telefonie. To jednorazowa konfiguracja – zajmie minutę.
+</p>
+
+@if (_error is not null)
+{
+    <div class="auth-alert auth-alert-error" role="alert">@_error</div>
+}
+
+@if (_setup is not null)
+{
+    <ol class="auth-steps">
+        <li>
+            <strong>Zainstaluj aplikację</strong> na telefonie, jeśli jej nie masz:
+            Google Authenticator lub Microsoft Authenticator (Sklep Play / App Store).
+        </li>
+        <li>
+            <strong>Dodaj konto:</strong> w aplikacji wybierz „+” → „Zeskanuj kod QR” i zeskanuj kod poniżej.
+            <div class="auth-qr">
+                <img src="@_qrImage" alt="Kod QR do aplikacji uwierzytelniającej" width="200" height="200" />
+            </div>
+            <details class="auth-manual-key">
+                <summary>Nie możesz zeskanować? Wpisz klucz ręcznie</summary>
+                <p>Wybierz „Wpisz klucz konfiguracji”, nazwa konta: <strong>@_state!.User.AccountName</strong>, typ: oparty na czasie.</p>
+                <code>@_setup.FormattedKey</code>
+            </details>
+        </li>
+        <li><strong>Wpisz kod</strong>, który pokaże aplikacja:</li>
+    </ol>
+
+    <EditForm Model="Input" method="post" OnValidSubmit="EnrollAsync" FormName="authenticator-setup" class="auth-form" data-busy-on-submit>
+        <DataAnnotationsValidator />
+        <InputText id="code" @bind-Value="Input.Code" class="auth-input auth-code-input" autocomplete="one-time-code"
+                   inputmode="numeric" maxlength="7" placeholder="••••••" aria-label="Kod z aplikacji" />
+        <ValidationMessage For="() => Input.Code" class="auth-validation" />
+
+        <RememberDeviceCheckbox @bind-Value="Input.RememberDevice" />
+
+        <button type="submit" class="auth-button">Potwierdź i zaloguj</button>
+    </EditForm>
+}
+
+@code {
+    private string? _error;
+    private PendingLoginState? _state;
+    private AuthenticatorSetup? _setup;
+    private string? _qrImage;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private SetupInput Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new SetupInput();
+        _state = await PendingLoginState.ReadAsync(HttpContext);
+
+        // Only reachable after the password AND an SMS/e-mail code were confirmed in this login.
+        if (_state is not { IdentityConfirmed: true })
+        {
+            Navigation.NavigateTo(AccountRoutes.Login);
+            return;
+        }
+
+        // The secret lives in the encrypted pending-login cookie until the user confirms it with a valid code,
+        // so reloading the page shows the same QR code.
+        _setup = Authenticators.CreateSetup(_state.User, _state.AuthenticatorKey);
+        _qrImage = QrCodeImage.ToPngDataUri(_setup.OtpAuthUri);
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Input.RememberDevice = _state.RememberDevice;
+            if (_state.AuthenticatorKey is null)
+            {
+                _state = _state with { AuthenticatorKey = _setup.SecretKey };
+                await _state.SaveAsync(HttpContext);
+            }
+        }
+    }
+
+    private async Task EnrollAsync()
+    {
+        if (_state?.AuthenticatorKey is not { } key)
+        {
+            _error = "Sesja konfiguracji wygasła. Zaloguj się ponownie.";
+            return;
+        }
+
+        if (!await Authenticators.EnrollAsync(_state.User, key, Input.Code))
+        {
+            _error = "Kod się nie zgadza. Upewnij się, że zeskanowałeś kod z tej strony i wpisz aktualny kod z aplikacji.";
+            return;
+        }
+
+        await SignIn.CompleteSignInAsync(HttpContext, _state.User, Input.RememberDevice, AuditEvents.LoginSucceeded, "Skonfigurowano aplikację uwierzytelniającą");
+        Navigation.NavigateTo(_state.ReturnUrl, forceLoad: true);
+    }
+
+    private sealed class SetupInput
+    {
+        [Required(ErrorMessage = "Wpisz kod z aplikacji.")]
+        [RegularExpression(@"^\s*\d{3}\s?\d{3}\s*$", ErrorMessage = "Kod składa się z 6 cyfr.")]
+        public string Code { get; set; } = string.Empty;
+
+        // Unchecked checkboxes are not posted, so the default must be false (set on GET instead).
+        public bool RememberDevice { get; set; }
+    }
+}

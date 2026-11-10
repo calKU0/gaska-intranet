@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Domain model and abstractions – no dependencies on infrastructure (AD, SQL, UI). -->
+
+</Project>

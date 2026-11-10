@@ -1,0 +1,245 @@
+@page "/helpdesk"
+@attribute [ModuleAuthorize(ModuleKeys.Helpdesk)]
+@using Gaska.Intranet.Core.Helpdesk
+@inject IHelpdeskService Helpdesk
+@inject IHelpdeskConnector Connector
+@inject NavigationManager Navigation
+@inject ILogger<HelpdeskList> Logger
+@inject Microsoft.Extensions.Options.IOptions<Gaska.Intranet.Infrastructure.Helpdesk.GlpiOptions> Glpi
+
+<PageTitle>Helpdesk IT · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Helpdesk IT" Subtitle="Zgłoszenia do działu IT – Twoje i obserwowane.">
+    <Actions>
+        @if (_connected)
+        {
+            <MudButton Href="/helpdesk/nowe" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add">Nowe zgłoszenie</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (!Connector.IsConfigured)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+        Integracja z Helpdeskiem nie jest jeszcze skonfigurowana.
+        @if (!string.IsNullOrWhiteSpace(Glpi.Value.BaseUrl))
+        {
+            <text>Zgłoszenia możesz składać w <MudLink Href="@Glpi.Value.BaseUrl" Target="_blank">Helpdesku</MudLink>.</text>
+        }
+    </MudAlert>
+}
+else if (_loading && !_connected)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.List" ShowTitle="false" />
+}
+else if (!_connected)
+{
+    <HelpdeskConnect OnConnected="LoadAsync" />
+}
+else
+{
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">@_error</MudAlert>
+    }
+
+    <MudPaper Class="gaska-card pa-0" Elevation="0">
+        <div class="gaska-toolbar">
+            <MudTextField @bind-Value="_search" Placeholder="Szukaj: numer, tytuł, kategoria…"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" DebounceInterval="150" Clearable="true"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+
+            @* Two independent filters: whose tickets (scope) × which status. Counts follow the chosen status. *@
+            <MudToggleGroup T="string" @bind-Value="_scope" Color="Color.Primary" Size="Size.Small"
+                            SelectionMode="SelectionMode.SingleSelection" CheckMark="false" Class="gaska-helpdesk-status gaska-helpdesk-views">
+                @foreach (var (key, label) in Scopes)
+                {
+                    <MudToggleItem Value="@key">
+                        <span class="gaska-label-long">@label (@Count(key))</span><span class="gaska-label-short">@ShortLabel(label) (@Count(key))</span>
+                    </MudToggleItem>
+                }
+            </MudToggleGroup>
+
+            <MudToggleGroup T="string" @bind-Value="_status" Color="Color.Primary" Size="Size.Small"
+                            SelectionMode="SelectionMode.SingleSelection" CheckMark="false" Class="gaska-helpdesk-status">
+                <MudToggleItem Value="@("open")" Text="Otwarte" />
+                <MudToggleItem Value="@("closed")" Text="Zamknięte" />
+                <MudToggleItem Value="@("all")" Text="Wszystkie" />
+            </MudToggleGroup>
+        </div>
+
+        <MudDataGrid T="HelpdeskTicket" Items="Filtered" Loading="_loading" Hover="true" Dense="true" Elevation="0"
+                     RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid gaska-clickable-rows" Culture="@GaskaTheme.Polish"
+                     RowClick="@(args => Navigation.NavigateTo($"/helpdesk/{args.Item.Id}"))">
+            <Columns>
+                <TemplateColumn T="HelpdeskTicket" Title="Zgłoszenie" SortBy="t => t.Title" CellClass="gaska-helpdesk-title-cell">
+                    <CellTemplate>
+                        <div class="gaska-row-main">
+                            <span class="gaska-person-name">@context.Item.Title</span>
+                            <span class="gaska-person-title">
+                                #@context.Item.Id@(context.Item.Category is null ? "" : $" · {context.Item.Category}")@(context.Item.MyRole.HasFlag(TicketRole.Observer) && !context.Item.MyRole.HasFlag(TicketRole.Requester) ? " · obserwujesz" : "")
+                            </span>
+                            @* Phones and tablets: people under the title (their columns are hidden). *@
+                            <span class="gaska-person-title gaska-sm-only">
+                                @People(context.Item)
+                            </span>
+                            <span class="gaska-xs-only gaska-helpdesk-xs-meta">
+                                <MudChip T="string" Size="Size.Small" Color="@HelpdeskUi.StatusColor(context.Item.Status)" Variant="Variant.Text">
+                                    @HelpdeskUi.StatusLabel(context.Item.Status)
+                                </MudChip>
+                                <span class="gaska-person-title">@HelpdeskUi.Date(context.Item.UpdatedAt)</span>
+                            </span>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Class="gaska-row-chevron gaska-xs-only" />
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="HelpdeskTicket" Title="Status" SortBy="t => (int)t.Status" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                    <CellTemplate>
+                        <MudChip T="string" Size="Size.Small" Color="@HelpdeskUi.StatusColor(context.Item.Status)" Variant="Variant.Text">
+                            @HelpdeskUi.StatusLabel(context.Item.Status)
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="HelpdeskTicket" Title="Zgłaszający" SortBy="t => Requester(t)" HeaderClass="gaska-hide-sm" CellClass="gaska-hide-sm">
+                    <CellTemplate>@NameOrDash(Requester(context.Item))</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="HelpdeskTicket" Title="Przypisane do" SortBy="t => Assignee(t)" HeaderClass="gaska-hide-sm" CellClass="gaska-hide-sm">
+                    <CellTemplate>@NameOrDash(Assignee(context.Item))</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="HelpdeskTicket" Title="Otwarte" SortBy="t => t.OpenedAt" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md gaska-nowrap">
+                    <CellTemplate>@HelpdeskUi.Date(context.Item.OpenedAt)</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="HelpdeskTicket" Title="Ostatnia zmiana" SortBy="t => t.UpdatedAt" InitialDirection="SortDirection.Descending"
+                                HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs gaska-nowrap">
+                    <CellTemplate>@HelpdeskUi.Date(context.Item.UpdatedAt)</CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <LoadingContent>
+                <GridSkeleton />
+            </LoadingContent>
+            <NoRecordsContent>
+                <div class="pa-6 mud-text-secondary">
+                    @(_tickets.Count == 0 ? "Nie masz jeszcze zgłoszeń. Coś nie działa albo czegoś potrzebujesz? Utwórz nowe zgłoszenie." : "Brak zgłoszeń w tym widoku.")
+                </div>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudDataGridPager T="HelpdeskTicket" PageSizeOptions="[25, 50, 100]" RowsPerPageString="Wierszy na stronę:"
+                                  InfoFormat="{first_item}–{last_item} z {all_items}" />
+            </PagerContent>
+        </MudDataGrid>
+    </MudPaper>
+
+    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-3">
+        Wszystko jest też w <MudLink Href="@Glpi.Value.BaseUrl" Target="_blank" Typo="Typo.caption">Helpdesku (GLPI)</MudLink>.
+    </MudText>
+}
+
+@code {
+    private IReadOnlyList<HelpdeskTicket> _tickets = [];
+    private bool _loading = true;
+    private bool _connected;
+    private string? _error;
+    private string? _search;
+    private string _scope = "mine";
+    private string _status = "open";
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    // GLPI staff (technicians, administrators) also see other people's tickets – they work with "assigned to me"
+    // and "all". Everyone else sees only tickets they reported or observe.
+    private bool IsStaff => _tickets.Any(t => t.MyRole == TicketRole.None) || _tickets.Any(t => t.MyRole.HasFlag(TicketRole.Assigned));
+
+    private IEnumerable<(string Key, string Label)> Scopes => IsStaff
+        ? [("assigned", "Przypisane do mnie"), ("all", "Wszystkie")]
+        : [("mine", "Moje"), ("observed", "Obserwowane")];
+
+    /// <summary>Phones: "Przypisane do mnie" does not fit next to "Wszystkie".</summary>
+    private static string ShortLabel(string label) => label == "Przypisane do mnie" ? "Przypisane" : label;
+
+    private IEnumerable<HelpdeskTicket> InScope(string scope) => scope switch
+    {
+        "observed" => _tickets.Where(t => t.MyRole.HasFlag(TicketRole.Observer)),
+        "assigned" => _tickets.Where(t => t.MyRole.HasFlag(TicketRole.Assigned)),
+        "all" => _tickets,
+        _ => _tickets.Where(t => t.MyRole.HasFlag(TicketRole.Requester)),
+    };
+
+    private IEnumerable<HelpdeskTicket> WithStatus(IEnumerable<HelpdeskTicket> tickets) => _status switch
+    {
+        "closed" => tickets.Where(t => !t.IsOpen),
+        "all" => tickets,
+        _ => tickets.Where(t => t.IsOpen),
+    };
+
+    private int Count(string scope) => WithStatus(InScope(scope)).Count();
+
+    private IEnumerable<HelpdeskTicket> Filtered => WithStatus(InScope(_scope)).Where(t =>
+        TextSearch.Matches(_search, t.Id.ToString(), t.Title, t.Category, HelpdeskUi.StatusLabel(t.Status), Requester(t), Assignee(t)));
+
+    private static string? Requester(HelpdeskTicket t) => Join(t.Requesters);
+
+    private static string? Assignee(HelpdeskTicket t) => Join(t.Assignees);
+
+    private static string? Join(IEnumerable<TicketPerson> people)
+    {
+        var names = people.Select(p => p.Name).Distinct().ToList();
+        return names.Count == 0 ? null : string.Join(", ", names);
+    }
+
+    private static RenderFragment NameOrDash(string? name) => builder =>
+    {
+        if (name is null)
+        {
+            builder.AddMarkupContent(0, "<span class=\"gaska-muted\">—</span>");
+        }
+        else
+        {
+            builder.AddContent(1, name);
+        }
+    };
+
+    private static string People(HelpdeskTicket t) =>
+        $"Zgłasza: {Requester(t) ?? "—"} · Przypisane: {Assignee(t) ?? "nikt"}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (RendererInfo.IsInteractive && Connector.IsConfigured)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var sid = (await AuthState).User.GetSid();
+            _tickets = await Helpdesk.GetMyTicketsAsync(sid);
+            _connected = true;
+
+            // Staff start with their open assigned tickets (or everything when none are assigned), others with their own.
+            _scope = IsStaff
+                ? _tickets.Any(t => t.MyRole.HasFlag(TicketRole.Assigned) && t.IsOpen) ? "assigned" : "all"
+                : "mine";
+        }
+        catch (HelpdeskNotConnectedException)
+        {
+            _connected = false;
+        }
+        catch (HelpdeskException ex)
+        {
+            Logger.LogWarning(ex, "Loading helpdesk tickets failed");
+            _connected = true;
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

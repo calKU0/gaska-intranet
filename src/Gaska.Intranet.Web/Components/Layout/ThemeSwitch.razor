@@ -1,0 +1,23 @@
+@* App bar: dark (default) / light. Wider screens: sun – switch – moon; phones: one icon button (no room in the bar). *@
+
+<div class="gaska-theme-switch gaska-hide-xs" title="@(Mode == ThemeMode.Dark ? "Motyw ciemny" : "Motyw jasny")">
+    <MudIcon Icon="@Icons.Material.Outlined.LightMode" Size="Size.Small" Class="gaska-theme-icon" />
+    <MudSwitch T="bool" Value="Mode == ThemeMode.Dark" ValueChanged="dark => SetAsync(dark)"
+               Color="Color.Primary" Class="gaska-theme-toggle" aria-label="Motyw ciemny" />
+    <MudIcon Icon="@Icons.Material.Outlined.DarkMode" Size="Size.Small" Class="gaska-theme-icon" />
+</div>
+
+<MudIconButton Class="gaska-xs-only gaska-theme-button" Color="Color.Inherit"
+               Icon="@(Mode == ThemeMode.Dark ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+               aria-label="@(Mode == ThemeMode.Dark ? "Włącz motyw jasny" : "Włącz motyw ciemny")"
+               OnClick="() => SetAsync(Mode != ThemeMode.Dark)" />
+
+@code {
+    [Parameter]
+    public ThemeMode Mode { get; set; }
+
+    [Parameter]
+    public EventCallback<ThemeMode> ModeChanged { get; set; }
+
+    private Task SetAsync(bool dark) => ModeChanged.InvokeAsync(dark ? ThemeMode.Dark : ThemeMode.Light);
+}

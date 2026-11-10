@@ -1,0 +1,153 @@
+@page "/admin/urzadzenia"
+@attribute [ModuleAuthorize(ModuleKeys.AdminDevices)]
+@inject ITrustedDeviceService Devices
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Zaufane urządzenia · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Zaufane urządzenia"
+            Subtitle="Przeglądarki, które po potwierdzeniu kodem logują się bez kodu (tylko z tego samego adresu IP)." InlineActions="true">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Odśwież" />
+    </Actions>
+</PageHeader>
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField @bind-Value="_search" Placeholder="Szukaj: użytkownik, IP, przeglądarka…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="150" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+    </div>
+
+    <MudDataGrid T="TrustedDevice" Items="Filtered" Loading="_loading" Dense="true" Hover="true" Elevation="0"
+                 RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid" Culture="@GaskaTheme.Polish">
+        <Columns>
+            <PropertyColumn Property="d => d.AccountName" Title="Użytkownik">
+                <CellTemplate>
+                    <span class="gaska-person-name">@context.Item.AccountName</span>
+                    <div class="gaska-person-title gaska-xs-only">
+                        @context.Item.IpAddress · @Browser(context.Item.UserAgent)<br />
+                        do @context.Item.ExpiresAtUtc.ToLocalTime().ToString("dd.MM HH:mm")
+                    </div>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="d => d.IpAddress" Title="Adres IP" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
+            <PropertyColumn Property="d => d.UserAgent" Title="Przeglądarka" Sortable="false" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate><span class="gaska-person-title">@Browser(context.Item.UserAgent)</span></CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="d => d.VerifiedAtUtc" Title="Potwierdzone kodem" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md">
+                <CellTemplate>@context.Item.VerifiedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="d => d.LastUsedAtUtc" Title="Ostatnie użycie" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md">
+                <CellTemplate>@(context.Item.LastUsedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="d => d.ExpiresAtUtc" Title="Wygasa" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>@context.Item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn T="TrustedDevice" Sortable="false" CellClass="d-flex justify-end gap-1">
+                <CellTemplate>
+                    <MudTooltip Text="Unieważnij to urządzenie">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Block" Size="Size.Small" Color="Color.Error"
+                                       OnClick="() => RevokeAsync(context.Item)" aria-label="Unieważnij" />
+                    </MudTooltip>
+                    <MudTooltip Text="Unieważnij wszystkie urządzenia użytkownika">
+                        <MudIconButton Icon="@Icons.Material.Outlined.PersonOff" Size="Size.Small"
+                                       OnClick="() => RevokeAllAsync(context.Item.AccountName)" aria-label="Unieważnij wszystkie" />
+                    </MudTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <LoadingContent>
+            <GridSkeleton Avatar="true" />
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Class="pa-6 mud-text-secondary">Brak zaufanych urządzeń.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudDataGridPager T="TrustedDevice" PageSizeOptions="[50, 100, 500]" RowsPerPageString="Wierszy na stronę:" InfoFormat="{first_item}–{last_item} z {all_items}" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<TrustedDevice> _devices = [];
+    private string? _search;
+    private bool _loading = true;
+    private string _currentUser = "?";
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IEnumerable<TrustedDevice> Filtered =>
+        _devices.Where(d => TextSearch.Matches(_search, d.AccountName, d.IpAddress, d.UserAgent));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUser = (await AuthState).User.Identity?.Name ?? "?";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _devices = await Devices.GetActiveAsync();
+        _loading = false;
+    }
+
+    private async Task RevokeAsync(TrustedDevice device)
+    {
+        await Devices.RevokeAsync(device.Id, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"Unieważniono urządzenie {device.AccountName} ({device.IpAddress}).", Severity.Info);
+    }
+
+    private async Task RevokeAllAsync(string accountName)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Unieważnić wszystkie urządzenia?",
+            $"Użytkownik {accountName} przy następnym logowaniu na każdym urządzeniu będzie musiał podać kod.",
+            yesText: "Unieważnij", cancelText: "Anuluj");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var count = await Devices.RevokeAllAsync(accountName, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"Unieważniono {count} urządzeń użytkownika {accountName}.", Severity.Info);
+    }
+
+    /// <summary>Short browser description from the User-Agent header.</summary>
+    private static string Browser(string? userAgent)
+    {
+        if (string.IsNullOrWhiteSpace(userAgent))
+        {
+            return "—";
+        }
+
+        var browser = userAgent switch
+        {
+            _ when userAgent.Contains("Edg/") => "Edge",
+            _ when userAgent.Contains("OPR/") => "Opera",
+            _ when userAgent.Contains("Chrome/") => "Chrome",
+            _ when userAgent.Contains("Firefox/") => "Firefox",
+            _ when userAgent.Contains("Safari/") => "Safari",
+            _ => "Inna",
+        };
+
+        var os = userAgent switch
+        {
+            _ when userAgent.Contains("Windows") => "Windows",
+            _ when userAgent.Contains("Android") => "Android",
+            _ when userAgent.Contains("iPhone") || userAgent.Contains("iPad") => "iOS",
+            _ when userAgent.Contains("Mac OS") => "macOS",
+            _ when userAgent.Contains("Linux") => "Linux",
+            _ => "?",
+        };
+
+        return $"{browser} · {os}";
+    }
+}

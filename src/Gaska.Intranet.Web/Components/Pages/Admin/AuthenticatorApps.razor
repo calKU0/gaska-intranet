@@ -1,0 +1,104 @@
+@page "/admin/aplikacje-uwierzytelniajace"
+@attribute [ModuleAuthorize(ModuleKeys.AdminAuthenticators)]
+@inject IAuthenticatorService Authenticators
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Aplikacje uwierzytelniające · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Aplikacje uwierzytelniające"
+            Subtitle="Użytkownicy z aplikacją do kodów (TOTP). Po resecie użytkownik potwierdzi się kodem SMS/e-mail i skonfiguruje aplikację od nowa." InlineActions="true">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Odśwież" />
+    </Actions>
+</PageHeader>
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField @bind-Value="_search" Placeholder="Szukaj użytkownika…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="150" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+    </div>
+
+    <MudDataGrid T="UserAuthenticator" Items="Filtered" Loading="_loading" Dense="true" Hover="true" Elevation="0"
+                 RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid" Culture="@GaskaTheme.Polish">
+        <Columns>
+            <PropertyColumn Property="a => a.AccountName" Title="Użytkownik">
+                <CellTemplate>
+                    <span class="gaska-person-name">@context.Item.AccountName</span>
+                    <div class="gaska-person-title gaska-xs-only">
+                        od @context.Item.EnrolledAtUtc.ToLocalTime().ToString("yyyy-MM-dd")
+                        · użyto @(context.Item.LastUsedAtUtc?.ToLocalTime().ToString("dd.MM HH:mm") ?? "—")
+                    </div>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="a => a.EnrolledAtUtc" Title="Skonfigurowano" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>@context.Item.EnrolledAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="a => a.LastUsedAtUtc" Title="Ostatnie użycie" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>@(context.Item.LastUsedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn T="UserAuthenticator" Sortable="false" CellClass="d-flex justify-end">
+                <CellTemplate>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                               StartIcon="@Icons.Material.Outlined.RestartAlt" OnClick="() => ResetAsync(context.Item)">
+                        Resetuj
+                    </MudButton>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <LoadingContent>
+            <GridSkeleton Avatar="true" />
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Class="pa-6 mud-text-secondary">Nikt nie ma jeszcze skonfigurowanej aplikacji.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudDataGridPager T="UserAuthenticator" PageSizeOptions="[50, 100, 500]" RowsPerPageString="Wierszy na stronę:" InfoFormat="{first_item}–{last_item} z {all_items}" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<UserAuthenticator> _items = [];
+    private string? _search;
+    private bool _loading = true;
+    private string _currentUser = "?";
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IEnumerable<UserAuthenticator> Filtered => _items.Where(a => TextSearch.Matches(_search, a.AccountName));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUser = (await AuthState).User.Identity?.Name ?? "?";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _items = await Authenticators.GetAllAsync();
+        _loading = false;
+    }
+
+    private async Task ResetAsync(UserAuthenticator item)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Zresetować aplikację?",
+            $"{item.AccountName} przy następnym logowaniu potwierdzi się kodem SMS/e-mail i skonfiguruje aplikację od nowa. " +
+            "Jego zaufane urządzenia zostaną unieważnione.",
+            yesText: "Resetuj", cancelText: "Anuluj");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await Authenticators.ResetAsync(item.UserSid, _currentUser);
+        await LoadAsync();
+        Snackbar.Add($"Zresetowano aplikację użytkownika {item.AccountName}.", Severity.Info);
+    }
+}

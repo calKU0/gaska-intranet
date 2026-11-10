@@ -1,0 +1,71 @@
+@page "/instrukcja"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>Instrukcja · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Instrukcja obsługi" Subtitle="Jak korzystać z intranetu – krok po kroku, ze zrzutami ekranu.">
+    <Actions>
+        <MudButton Href="@ManualContent.PdfRoute" Target="_blank" Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Outlined.PictureAsPdf">Pobierz PDF</MudButton>
+    </Actions>
+</PageHeader>
+
+<div class="gaska-manual-layout">
+    @* Phones / narrow screens: chapters as chips above the text. *@
+    <nav class="gaska-manual-chips" aria-label="Rozdziały">
+        @foreach (var (id, title, index) in Chapters)
+        {
+            <button type="button" class="gaska-manual-chip" data-manual-target="@id" @onclick="() => GoToAsync(id)">
+                <span class="gaska-manual-num">@index</span>@title
+            </button>
+        }
+    </nav>
+
+    <div class="gaska-manual-content">
+        @((MarkupString)ManualContent.Html)
+    </div>
+
+    @* Wide screens: table of contents on the right, follows the scroll and marks the chapter being read (js/boot.js). *@
+    <aside class="gaska-manual-toc" aria-label="Spis treści">
+        <div class="gaska-manual-toc-title">Spis treści</div>
+        @foreach (var (id, title, index) in Chapters)
+        {
+            <button type="button" class="gaska-manual-toc-link" data-manual-target="@id" @onclick="() => GoToAsync(id)">
+                <span class="gaska-manual-num">@index</span><span>@title</span>
+            </button>
+        }
+        <MudButton Href="@ManualContent.PdfRoute" Target="_blank" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                   StartIcon="@Icons.Material.Outlined.PictureAsPdf" Class="mt-3">Pobierz PDF</MudButton>
+    </aside>
+</div>
+
+@code {
+    private static IEnumerable<(string Id, string Title, int Index)> Chapters =>
+        ManualContent.Sections.Select((s, i) => (s.Id, s.Title, i + 1));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CallAsync("gaskaManual.start");
+        }
+    }
+
+    /// <summary>Jumps to a chapter (an "#id" link would leave the page because of the base href).</summary>
+    private Task GoToAsync(string id) => CallAsync("gaskaManual.go", id);
+
+    private async Task CallAsync(string function, params object?[] args)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(function, args);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // Navigation helpers only.
+        }
+    }
+
+    public async ValueTask DisposeAsync() => await CallAsync("gaskaManual.stop");
+}

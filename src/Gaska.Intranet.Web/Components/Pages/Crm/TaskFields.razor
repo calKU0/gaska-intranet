@@ -1,0 +1,99 @@
+@* Task form fields shared by the "Zadanie" dialog and the new-contractor form. *@
+@inject ICrmDirectory Directory
+@inject CrmSession Session
+
+<MudGrid Spacing="2">
+    <MudItem xs="12">
+        <SearchSelect TValue="int?" @bind-Value="Task.TopicId" Label="Temat"
+                      Options="@(_topics.Select(t => new SelectOption<int?>(t.Id, Pretty(t.Name))).ToList())" />
+    </MudItem>
+    <MudItem xs="12" sm="@(Compact ? 12 : 5)">
+        <MudDatePicker @bind-Date="Task.Date" Label="Data" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       DateFormat="yyyy-MM-dd" Culture="@Pl" FirstDayOfWeek="DayOfWeek.Monday" />
+    </MudItem>
+    <MudItem xs="6" sm="@(Compact ? 6 : 4)">
+        <MudTimePicker @bind-Time="Task.StartTime" Label="Godzina" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" />
+    </MudItem>
+    <MudItem xs="6" sm="@(Compact ? 6 : 3)">
+        <MudNumericField @bind-Value="Task.DurationMinutes" Label="Czas trwania" Variant="Variant.Outlined" Margin="Margin.Dense"
+                         Min="5" Max="600" Step="15" Adornment="Adornment.End" AdornmentText="min" />
+    </MudItem>
+    @if (Contacts.Count > 0)
+    {
+        <MudItem xs="12">
+            <SearchSelect TValue="int?" @bind-Value="Task.ContactId" Label="Osoba" Clearable="true"
+                          Options="@(Contacts.Select(c => new SelectOption<int?>(c.Id, c.Name)).ToList())" />
+        </MudItem>
+    }
+    <MudItem xs="12">
+        @* Who does the task in GoNet (zleceniobiorca) – by default the signed-in user. *@
+        <SearchSelect TValue="int?" @bind-Value="Task.AssigneeId" Label="Przypisz do"
+                      Options="@(_operators.Select(o => new SelectOption<int?>(o.Id, o.Id == _meId ? $"{o.FullName} (Ty)" : o.FullName)).ToList())" />
+    </MudItem>
+    <MudItem xs="12">
+        <MudTextField @bind-Value="Task.Info" Label="Krótki opis (opcjonalnie)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Placeholder="np. Przedstawienie oferty" MaxLength="250" />
+    </MudItem>
+    <MudItem xs="12">
+        <MudTextField @bind-Value="Task.Notes" Label="@(IsDone ? "Notatka (trafi do zadania i korespondencji)" : "Notatka do zadania")"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="5" Sizing="InputSizing.Auto" MaxLines="16"
+                      Placeholder="Podsumowanie, uwagi klienta, ustalenia, kolejne kroki…" />
+    </MudItem>
+    <MudItem xs="12">
+        <div class="gaska-task-mode @(IsDone ? "is-done" : "is-planned")">
+            <MudIcon Icon="@(IsDone ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.Event)" Size="Size.Small" />
+            @if (IsDone)
+            {
+                <span>Termin minął lub trwa – zadanie zostanie zapisane jako <strong>wykonane</strong>, z korespondencją zawierającą notatkę.</span>
+            }
+            else
+            {
+                <span>Termin w przyszłości – zadanie zostanie <strong>zaplanowane</strong>, bez korespondencji.</span>
+            }
+        </div>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Pl = new("pl-PL");
+    private IReadOnlyList<DictionaryItem> _topics = [];
+    private IReadOnlyList<GoNetOperator> _operators = [];
+    private int? _meId;
+
+    [Parameter, EditorRequired]
+    public TaskInput Task { get; set; } = default!;
+
+    /// <summary>People of the contractor (Id may be a temporary index in the new-contractor form).</summary>
+    [Parameter]
+    public IReadOnlyList<(int Id, string Name)> Contacts { get; set; } = [];
+
+    /// <summary>Narrow column (side panel of the contractor form): date on its own row.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    private bool IsDone => Task.IsDone(DateTime.Now);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _topics = await Directory.GetTaskTopicsAsync();
+            Task.TopicId ??= _topics.FirstOrDefault()?.Id;
+
+            _meId = (await Session.GetOperatorAsync())?.Id;
+            _operators = await Directory.GetOperatorsAsync();
+            Task.AssigneeId ??= _meId;
+        }
+        catch (CrmException)
+        {
+            // The page shows the GoNet error; the default topic (Wizyta startowa) is used.
+        }
+    }
+
+    /// <summary>"WIZYTA STARTOWA" → "Wizyta startowa" (GoNet dictionaries are upper case).</summary>
+    public static string Pretty(string name) =>
+        name.Length == 0 ? name : char.ToUpper(name[0]) + name[1..].ToLowerInvariant();
+
+    /// <summary>"WIELKA BRYTANIA" → "Wielka Brytania" (proper names: every word capitalised).</summary>
+    public static string Title(string name) => Pl.TextInfo.ToTitleCase(name.ToLower(Pl));
+}

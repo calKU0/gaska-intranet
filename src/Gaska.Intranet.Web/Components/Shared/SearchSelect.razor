@@ -1,0 +1,66 @@
+@* Drop-down list that becomes searchable when it is long: up to 5 options a plain list, more – typing narrows the
+   list (any part of the text, without Polish letters too). One component, so every list behaves the same. *@
+@typeparam TValue
+
+@if (Options.Count > PlainLimit)
+{
+    <MudAutocomplete T="SelectOption<TValue>" Value="Selected" ValueChanged="PickAsync" Label="@Label" Placeholder="Wpisz, aby zawęzić listę…"
+                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="@Class" HelperText="@HelperText" Disabled="Disabled"
+                     SearchFunc="Search" ToStringFunc="@(o => o?.Text)" Strict="false" CoerceText="true"
+                     Clearable="Clearable" ResetValueOnEmptyText="Clearable" MaxItems="null" MaxHeight="320"
+                     AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" />
+}
+else
+{
+    <MudSelect T="TValue" Value="Value" ValueChanged="ValueChanged" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Class="@Class" HelperText="@HelperText" Disabled="Disabled" Clearable="Clearable" MaxHeight="320"
+               AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+        @foreach (var option in Options)
+        {
+            <MudSelectItem T="TValue" Value="option.Value">@option.Text</MudSelectItem>
+        }
+    </MudSelect>
+}
+
+@code {
+    /// <summary>Lists longer than this get typing.</summary>
+    public const int PlainLimit = 5;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SelectOption<TValue>> Options { get; set; } = [];
+
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>The value may be removed (otherwise clearing the text keeps the previous choice).</summary>
+    [Parameter]
+    public bool Clearable { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private SelectOption<TValue>? Selected => Options.FirstOrDefault(o => EqualityComparer<TValue>.Default.Equals(o.Value, Value));
+
+    private Task PickAsync(SelectOption<TValue>? option) =>
+        option is not null ? ValueChanged.InvokeAsync(option.Value)
+        : Clearable ? ValueChanged.InvokeAsync(default!)
+        : Task.CompletedTask;
+
+    // Opening the list (text = the current choice) shows everything; typing filters.
+    private Task<IEnumerable<SelectOption<TValue>>> Search(string? text, CancellationToken ct) =>
+        Task.FromResult(string.IsNullOrWhiteSpace(text) || text == Selected?.Text
+            ? Options.AsEnumerable()
+            : Options.Where(o => TextSearch.Matches(text, o.Text)));
+}

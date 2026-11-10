@@ -1,0 +1,239 @@
+@page "/helpdesk/nowe"
+@attribute [ModuleAuthorize(ModuleKeys.Helpdesk)]
+@using Gaska.Intranet.Core.Auditing
+@using Gaska.Intranet.Core.Helpdesk
+@inject IHelpdeskService Helpdesk
+@inject IHelpdeskConnector Connector
+@inject IAuditLog Audit
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Nowe zgłoszenie · Gąska Intranet</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="px-0 pt-0" />
+<PageHeader Title="Nowe zgłoszenie" Subtitle="Opisz problem lub potrzebę – dział IT dostanie zgłoszenie w Helpdesku." />
+
+@if (_needsConnection)
+{
+    <HelpdeskConnect OnConnected="LoadCategoriesAsync" />
+}
+else
+{
+    <EditForm Model="_input" OnValidSubmit="SubmitAsync" OnInvalidSubmit="() => JS.RevealInvalidFieldAsync()" Context="form">
+        <DataAnnotationsValidator />
+        <MudPaper Class="gaska-card pa-4 pa-sm-5 gaska-helpdesk-form" Elevation="0">
+            <MudGrid Spacing="3">
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Czego dotyczy zgłoszenie?</MudText>
+                    <MudToggleGroup T="TicketType" Value="_input.Type" ValueChanged="TypeChangedAsync" Color="Color.Primary"
+                                    SelectionMode="SelectionMode.SingleSelection" CheckMark="false" FixedContent="true" Class="gaska-helpdesk-type">
+                        <MudToggleItem Value="TicketType.Incident">
+                            <div class="gaska-helpdesk-type-item">
+                                <MudIcon Icon="@Icons.Material.Outlined.ReportProblem" Size="Size.Small" />
+                                <span>Problem – coś nie działa</span>
+                            </div>
+                        </MudToggleItem>
+                        <MudToggleItem Value="TicketType.Request">
+                            <div class="gaska-helpdesk-type-item">
+                                <MudIcon Icon="@Icons.Material.Outlined.RequestPage" Size="Size.Small" />
+                                <span>Prośba – potrzebuję czegoś</span>
+                            </div>
+                        </MudToggleItem>
+                    </MudToggleGroup>
+                </MudItem>
+
+                <MudItem xs="12" sm="8">
+                    <SearchSelect TValue="int?" @bind-Value="_input.CategoryId" Label="Kategoria" Clearable="true" Disabled="_loadingCategories"
+                                  HelperText="@(_categories.Count == 0 && !_loadingCategories ? "Brak kategorii – pomiń to pole." : "Pomaga trafić do właściwej osoby.")"
+                                  Options="@(_categories.Select(c => new SelectOption<int?>(c.Id, c.Name)).ToList())" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="int" @bind-Value="_input.Urgency" Label="Pilność" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var (value, label) in HelpdeskUi.Urgencies)
+                        {
+                            <MudSelectItem T="int" Value="value">@label</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete T="HelpdeskLocation" Value="_location" ValueChanged="SetLocation" Label="Lokalizacja"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" SearchFunc="SearchLocations"
+                                     ToStringFunc="@(l => l?.Name)" Clearable="true" ResetValueOnEmptyText="true" CoerceText="true"
+                                     MaxItems="50" Disabled="_locations.Count == 0" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                                     HelperText="@(_locations.Count == 0 ? "Brak lokalizacji w Helpdesku." : "Gdzie jest problem (biuro, magazyn…).")" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <ObserverPicker Exclude="_input.Observers.Select(o => o.Id).ToList()" OnPicked="AddObserver" Disabled="_saving" />
+                    @if (_input.Observers.Count > 0)
+                    {
+                        <div class="gaska-helpdesk-observers mt-2">
+                            @foreach (var observer in _input.Observers)
+                            {
+                                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Visibility" OnClose="() => _input.Observers.Remove(observer)">
+                                    @observer.Name
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Obserwatorzy dostają powiadomienia o zgłoszeniu.</MudText>
+                    }
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_input.Title" For="() => _input.Title" Label="Tytuł" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Placeholder="np. Drukarka w biurze nie drukuje" MaxLength="250" Counter="250" />
+                </MudItem>
+                <MudItem xs="12">
+                    <AttachmentInput Attachments="_input.Attachments" AttachmentsChanged="StateHasChanged" Disabled="_saving">
+                        <MudTextField @bind-Value="_input.Description" For="() => _input.Description" Label="Opis" Variant="Variant.Outlined"
+                                      Lines="8" Sizing="InputSizing.Auto" MaxLines="24" Immediate="true"
+                                      Placeholder="Co się dzieje? Od kiedy? Na którym komputerze / w którym programie? Komunikat błędu…" />
+                    </AttachmentInput>
+                </MudItem>
+            </MudGrid>
+
+            <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-4" />
+        </MudPaper>
+
+        <div class="gaska-form-actions">
+            <MudButton Href="/helpdesk" Disabled="_saving">Anuluj</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving"
+                       StartIcon="@(_saving ? null : Icons.Material.Outlined.Send)">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                Wyślij zgłoszenie
+            </MudButton>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private readonly NewTicketInput _input = new();
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Helpdesk IT", "/helpdesk"), new("Nowe zgłoszenie", null, disabled: true)];
+    private IReadOnlyList<HelpdeskCategory> _categories = [];
+    private IReadOnlyList<HelpdeskLocation> _locations = [];
+    private HelpdeskLocation? _location;
+    private bool _loadingCategories = true;
+    private bool _needsConnection;
+    private bool _saving;
+    private string? _error;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private async Task<string> SidAsync() => (await AuthState).User.GetSid();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (RendererInfo.IsInteractive)
+        {
+            await LoadCategoriesAsync();
+            await LoadLocationsAsync();
+        }
+    }
+
+    private async Task LoadLocationsAsync()
+    {
+        try
+        {
+            _locations = await Helpdesk.GetLocationsAsync(await SidAsync());
+        }
+        catch (HelpdeskException)
+        {
+            // Optional field – without the list the ticket is sent without a location.
+            _locations = [];
+        }
+    }
+
+    private Task<IEnumerable<HelpdeskLocation>> SearchLocations(string? text, CancellationToken ct) =>
+        Task.FromResult(string.IsNullOrWhiteSpace(text)
+            ? _locations.AsEnumerable()
+            : _locations.Where(l => TextSearch.Matches(text, l.Name)));
+
+    private void SetLocation(HelpdeskLocation? location)
+    {
+        _location = location;
+        _input.LocationId = location?.Id;
+    }
+
+    private void AddObserver(HelpdeskUser user)
+    {
+        if (_input.Observers.All(o => o.Id != user.Id))
+        {
+            _input.Observers.Add(user);
+        }
+    }
+
+    private async Task TypeChangedAsync(TicketType type)
+    {
+        _input.Type = type;
+        _input.CategoryId = null;
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _loadingCategories = true;
+        try
+        {
+            _categories = await Helpdesk.GetCategoriesAsync(await SidAsync(), _input.Type);
+            _needsConnection = false;
+        }
+        catch (HelpdeskNotConnectedException)
+        {
+            _needsConnection = true;
+        }
+        catch (HelpdeskException)
+        {
+            // Categories are optional – the ticket can still be sent without one.
+            _categories = [];
+        }
+        finally
+        {
+            _loadingCategories = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var result = await Helpdesk.CreateTicketAsync(await SidAsync(), _input);
+            await Audit.WriteAsync(AuditEvents.HelpdeskTicketCreated, (await AuthState).User.Identity?.Name, $"GLPI zgłoszenie #{result.Id}");
+            Snackbar.Add($"Zgłoszenie #{result.Id} zostało wysłane do działu IT.", Severity.Success);
+            if (result.ObserversNotAdded.Count > 0)
+            {
+                Snackbar.Add($"Nie udało się dodać obserwatorów: {string.Join(", ", result.ObserversNotAdded)}. Dodaj ich na stronie zgłoszenia.",
+                    Severity.Warning);
+            }
+
+            if (result.AttachmentsNotAdded.Count > 0)
+            {
+                Snackbar.Add($"Nie udało się dodać plików: {string.Join(", ", result.AttachmentsNotAdded)}. Dodaj je w odpowiedzi do zgłoszenia.",
+                    Severity.Warning);
+            }
+
+            Navigation.NavigateTo($"/helpdesk/{result.Id}");
+        }
+        catch (HelpdeskNotConnectedException)
+        {
+            _needsConnection = true;
+        }
+        catch (HelpdeskException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

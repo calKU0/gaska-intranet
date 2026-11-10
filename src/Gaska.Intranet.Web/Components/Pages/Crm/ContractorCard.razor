@@ -1,0 +1,424 @@
+@page "/kontrahenci/{Id:int}"
+@attribute [ModuleAuthorize(ModuleKeys.Contractors)]
+@using Gaska.Intranet.Core.Auditing
+@inject IContractorService Contractors
+@inject ICrmTaskService Tasks
+@inject CrmSession Session
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_contractor?.ShortName ?? "Kontrahent") · Gąska Intranet</PageTitle>
+
+<FormError Message="@(_error == Session.UnavailableReason ? null : _error)" Class="mb-4" />
+
+@if (_loading && _contractor is null)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.Details" />
+}
+else if (_contractor is null)
+{
+    <div class="gaska-empty-state">
+        <MudText Typo="Typo.h5">Nie znaleziono kontrahenta</MudText>
+        <MudButton Href="/kontrahenci" Variant="Variant.Filled" Color="Color.Primary" Class="mt-4">Wróć do listy</MudButton>
+    </div>
+}
+else
+{
+    <MudBreadcrumbs Items="_breadcrumbs" Class="px-0 pt-0" />
+
+    <PageHeader Title="@_contractor.ShortName" Subtitle="@_contractor.FullName">
+        <Actions>
+            @if (_operator is not null)
+            {
+                <MudButton Href="@($"/kontrahenci/{Id}/edycja")" Variant="Variant.Outlined" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Outlined.Edit">Edytuj</MudButton>
+                <MudButton OnClick="AddTaskAsync" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Outlined.AddTask">Zadanie</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    <div class="gaska-chips mb-4">
+        @if (_contractor.Type is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.Category">@TaskFields.Pretty(_contractor.Type)</MudChip>
+        }
+        @if (_contractor.Status is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Outlined.Flag">@TaskFields.Pretty(_contractor.Status)</MudChip>
+        }
+        @if (_contractor.Latitude is { } lat && _contractor.Longitude is { } lng)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Outlined.Place"
+                     Href="@($"https://www.google.com/maps/search/?api=1&query={lat.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lng.ToString(System.Globalization.CultureInfo.InvariantCulture)}")"
+                     Target="_blank">Pokaż na mapie</MudChip>
+        }
+    </div>
+
+    <CrmOperatorNotice />
+
+    @if (Session.Draft is { } draft && Session.DraftContractorId == Id && HasPerson(draft))
+    {
+        var existing = FindExistingContact(draft);
+        <MudAlert Severity="@(existing is null ? Severity.Info : Severity.Success)" Variant="Variant.Outlined" Class="mb-4"
+                  ContentAlignment="HorizontalAlignment.Left">
+            Z wizytówki: <strong>@(draft.PersonName ?? "osoba bez rozpoznanego imienia i nazwiska")</strong>@(draft.Position is null ? "" : $", {draft.Position}")
+            @if (draft.Emails.Count > 0 || draft.Phones.Count > 0)
+            {
+                <span class="gaska-muted-inline"> · @string.Join(" · ", draft.Emails.Take(1).Concat(draft.Phones.Take(2)))</span>
+            }
+            @if (existing is not null)
+            {
+                <span> – jest już na karcie jako <strong>@existing.Name</strong>.</span>
+            }
+            else if (_operator is not null)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Class="ml-2" OnClick="AddContactFromDraftAsync">
+                    Dodaj jako osobę kontaktową
+                </MudButton>
+            }
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="Session.ClearDraft">Zamknij</MudButton>
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="5" lg="4">
+            <MudPaper Elevation="0" Class="gaska-card pa-5">
+                <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Dane firmy</MudText>
+                <dl class="gaska-details">
+                    <dt>NIP</dt>
+                    <dd>@Value(_contractor.Nip)</dd>
+                    <dt>REGON</dt>
+                    <dd>@Value(_contractor.Regon)</dd>
+                    <dt>Adres</dt>
+                    <dd class="gaska-dd-block">
+                        @Value(_contractor.Address)<br />
+                        @($"{_contractor.PostalCode} {_contractor.City}".Trim())
+                        @if (!string.IsNullOrWhiteSpace(_contractor.Voivodeship))
+                        {
+                            <span class="gaska-muted-inline">· woj. @_contractor.Voivodeship.ToLowerInvariant()</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_contractor.Country))
+                        {
+                            <br />@TaskFields.Title(_contractor.Country)
+                        }
+                    </dd>
+                    <dt>Telefon</dt>
+                    <dd>
+                        <PhoneLink Number="@_contractor.Phone1" />
+                        <PhoneLink Number="@_contractor.Phone2" />
+                        <PhoneLink Number="@_contractor.Mobile" />
+                        @if (_contractor.Phone1 is null && _contractor.Phone2 is null && _contractor.Mobile is null)
+                        {
+                            <span class="gaska-muted">—</span>
+                        }
+                    </dd>
+                    <dt>E-mail</dt>
+                    <dd>
+                        @if (_contractor.Email is { } email)
+                        {
+                            <a href="mailto:@email" class="gaska-link">@email</a>
+                        }
+                        else
+                        {
+                            <span class="gaska-muted">—</span>
+                        }
+                    </dd>
+                    <dt>WWW</dt>
+                    <dd>@Value(_contractor.Www)</dd>
+                    <dt>Osoba prowadząca</dt>
+                    <dd>@Value(_contractor.ManagerName)</dd>
+                    <dt>W GoNet od</dt>
+                    <dd>@(_contractor.CreatedAt?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                </dl>
+
+                @if (!string.IsNullOrWhiteSpace(_contractor.Notes))
+                {
+                    <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-4">Uwagi</MudText>
+                    <div class="gaska-notes">@_contractor.Notes</div>
+                }
+
+                @if (_contractor.Exports.Count > 0)
+                {
+                    <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-4">Eksport do XL</MudText>
+                    @foreach (var export in _contractor.Exports.Take(3))
+                    {
+                        <div class="gaska-export">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                     Color="@(export.Status == 2 ? Color.Success : export.IsError ? Color.Error : export.Status == 0 ? Color.Warning : Color.Default)">
+                                @export.StatusText
+                            </MudChip>
+                            <span class="gaska-person-title">@export.CreatedAt?.ToString("yyyy-MM-dd HH:mm")</span>
+                            @if (!string.IsNullOrWhiteSpace(export.StatusInfo) && export.Status != 2)
+                            {
+                                <div class="gaska-person-title">@export.StatusInfo</div>
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7" lg="8">
+            <MudPaper Elevation="0" Class="gaska-card">
+                <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true" TabPanelsClass="pa-4" Color="Color.Default"
+                         SliderColor="Color.Primary">
+                    <MudTabPanel Text="@($"Osoby ({_contractor.Contacts.Count})")" Icon="@Icons.Material.Outlined.People">
+                        @if (_operator is not null)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Class="mb-2"
+                                       StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="() => EditContactAsync(null)">Dodaj osobę</MudButton>
+                        }
+
+                        @if (_contractor.Contacts.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary pa-2">Brak osób kontaktowych.</MudText>
+                        }
+
+                        @foreach (var contact in _contractor.Contacts)
+                        {
+                            <div class="gaska-contact">
+                                <MudAvatar Size="Size.Small" Class="gaska-person-avatar">@Initials(contact.Name)</MudAvatar>
+                                <div class="flex-grow-1">
+                                    <div class="gaska-person-name">
+                                        @contact.Name
+                                        @if (contact.IsMain)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">główna</MudChip>
+                                        }
+                                    </div>
+                                    @if (contact.Position is not null)
+                                    {
+                                        <div class="gaska-person-title">@contact.Position</div>
+                                    }
+                                    <div class="gaska-contact-links">
+                                        <PhoneLink Number="@contact.Mobile" />
+                                        <PhoneLink Number="@contact.Phone1" />
+                                        @if (contact.Email is { } email)
+                                        {
+                                            <a href="mailto:@email" class="gaska-link">@email</a>
+                                        }
+                                    </div>
+                                </div>
+                                @if (_operator is not null)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" aria-label="Edytuj"
+                                                   OnClick="() => EditContactAsync(contact)" />
+                                }
+                            </div>
+                        }
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="@($"Zadania ({_tasks.Count})")" Icon="@Icons.Material.Outlined.TaskAlt">
+                        @if (_operator is not null)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Class="mb-2"
+                                       StartIcon="@Icons.Material.Filled.AddTask" OnClick="AddTaskAsync">Dodaj zadanie</MudButton>
+                        }
+
+                        @if (_tasks.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary pa-2">Brak zadań.</MudText>
+                        }
+
+                        <MudExpansionPanels Elevation="0" Dense="true" MultiExpansion="true">
+                            @foreach (var task in _tasks)
+                            {
+                                <MudExpansionPanel>
+                                    <TitleContent>
+                                        <div class="gaska-task-title">
+                                            <MudIcon Icon="@(task.IsDone ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.Schedule)"
+                                                     Color="@(task.IsDone ? Color.Success : Color.Warning)" Size="Size.Small" />
+                                            <div class="flex-grow-1">
+                                                <div class="gaska-person-name">@(task.Kind ?? "Zadanie")</div>
+                                                <div class="gaska-person-title">
+                                                    @task.Start?.ToString("yyyy-MM-dd HH:mm") · @task.AssigneeName
+                                                    @if (task.Info is not null && task.Info != task.Kind)
+                                                    {
+                                                        <span> · @task.Info</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            @if (task.Correspondence.Count > 0)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Outlined.Mail">@task.Correspondence.Count</MudChip>
+                                            }
+                                        </div>
+                                    </TitleContent>
+                                    <ChildContent>
+                                        @if (task.Notes is not null)
+                                        {
+                                            <div class="gaska-notes mb-3">@task.Notes</div>
+                                        }
+                                        @if (task.Correspondence.Count == 0)
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak korespondencji.</MudText>
+                                        }
+                                        @foreach (var c in task.Correspondence)
+                                        {
+                                            <div class="gaska-correspondence">
+                                                <div class="gaska-person-title">
+                                                    @c.Date?.ToString("yyyy-MM-dd HH:mm") · @c.AuthorName
+                                                    @if (c.ContactName is not null)
+                                                    {
+                                                        <span> · z: @c.ContactName</span>
+                                                    }
+                                                </div>
+                                                <div class="gaska-person-name">@(c.Subject ?? c.Kind)</div>
+                                                @if (c.Notes is not null)
+                                                {
+                                                    <div class="gaska-notes">@c.Notes</div>
+                                                }
+                                            </div>
+                                        }
+                                    </ChildContent>
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanels>
+                    </MudTabPanel>
+                </MudTabs>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private ContractorDetails? _contractor;
+    private IReadOnlyList<CrmTask> _tasks = [];
+    private GoNetOperator? _operator;
+    private bool _loading = true;
+    private string? _error;
+    private List<BreadcrumbItem> _breadcrumbs = [];
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // GoNet is queried once, by the interactive render – the pre-render only shows the skeleton.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (_contractor?.Id != Id)
+        {
+            _contractor = null; // another contractor – show the skeleton, not the previous card
+        }
+
+        _operator = await Session.GetOperatorAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _error = null;
+            _contractor = await Contractors.GetAsync(Id);
+            _tasks = _contractor is null ? [] : await Tasks.GetForContractorAsync(Id);
+            _breadcrumbs = [new("Kontrahenci", "/kontrahenci"), new(_contractor?.ShortName ?? $"#{Id}", null, disabled: true)];
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task EditContactAsync(ContractorContact? contact)
+    {
+        var parameters = new DialogParameters<ContactDialog>
+        {
+            { d => d.ContractorId, Id },
+            { d => d.Contact, contact },
+        };
+
+        var dialog = await Dialogs.ShowAsync<ContactDialog>(contact is null ? "Nowa osoba kontaktowa" : "Edycja osoby", parameters,
+            CrmDialogs.Options);
+        if (await dialog.Result is { Canceled: false })
+        {
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>The card shows a person: a name, or at least a personal e-mail / phone (the name may not have been read).</summary>
+    private static bool HasPerson(BusinessCardData card) =>
+        !string.IsNullOrWhiteSpace(card.PersonName) || card.Emails.Count > 0 || card.Phones.Count > 0;
+
+    /// <summary>The card's person is already a contact – same name, e-mail or phone (last 7 digits, as GoNet compares).</summary>
+    private ContractorContact? FindExistingContact(BusinessCardData card)
+    {
+        static string? Last7(string? phone)
+        {
+            var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
+            return digits.Length >= 7 ? digits[^7..] : null;
+        }
+
+        // Only the first phone (mobile first) – further ones are often the company's switchboard shared by everyone.
+        var cardPhones = card.Phones.Take(1).Select(Last7).OfType<string>().ToHashSet();
+        return _contractor?.Contacts.FirstOrDefault(c =>
+            (!string.IsNullOrWhiteSpace(card.PersonName) && TextSearch.Normalize(card.PersonName) == TextSearch.Normalize(c.Name)) ||
+            (c.Email is not null && card.Emails.Contains(c.Email, StringComparer.OrdinalIgnoreCase)) ||
+            new[] { c.Mobile, c.Phone1, c.Phone2 }.Select(Last7).Any(p => p is not null && cardPhones.Contains(p)));
+    }
+
+    private async Task AddContactFromDraftAsync()
+    {
+        if (Session.Draft is not { } draft || _operator is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<ContactDialog>
+        {
+            { d => d.ContractorId, Id },
+            { d => d.Prefill, ContactDialog.FromCard(draft) },
+        };
+
+        var dialog = await Dialogs.ShowAsync<ContactDialog>("Osoba z wizytówki", parameters, CrmDialogs.Options);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Session.ClearDraft();
+            await LoadAsync();
+        }
+    }
+
+    private async Task AddTaskAsync()
+    {
+        var parameters = new DialogParameters<TaskDialog>
+        {
+            { d => d.ContractorId, Id },
+            { d => d.Contacts, _contractor?.Contacts ?? [] },
+        };
+
+        var dialog = await Dialogs.ShowAsync<TaskDialog>("Nowe zadanie", parameters, CrmDialogs.Options);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Zadanie zapisane w GoNet.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private static RenderFragment Value(string? value) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            builder.AddMarkupContent(0, "<span class=\"gaska-muted\">—</span>");
+        }
+        else
+        {
+            builder.AddContent(1, value);
+        }
+    };
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

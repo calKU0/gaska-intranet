@@ -1,0 +1,60 @@
+@* Error message of a form or page. When a new message appears it scrolls itself into view – on a phone the save
+   button is often far below the message, which would otherwise stay unseen at the top of the page. *@
+@inject IJSRuntime JS
+
+@if (Message is not null)
+{
+    <div @ref="_box" class="gaska-form-error">
+        <MudAlert Severity="Severity.Error" Variant="Variant" Dense="Dense" Class="@Class"
+                  ShowCloseIcon="OnClose.HasDelegate" CloseIconClicked="() => OnClose.InvokeAsync()">@Message</MudAlert>
+    </div>
+}
+
+@code {
+    private ElementReference _box;
+    private string? _shown;
+    private bool _reveal;
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool Dense { get; set; }
+
+    [Parameter]
+    public Variant Variant { get; set; } = Variant.Outlined;
+
+    /// <summary>Optional close button.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (Message != _shown)
+        {
+            _reveal = Message is not null;
+            _shown = Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_reveal || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _reveal = false;
+        try
+        {
+            await JS.InvokeVoidAsync("gaskaReveal", _box);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The tab was closed.
+        }
+    }
+}

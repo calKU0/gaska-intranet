@@ -1,0 +1,127 @@
+@page "/admin/dziennik"
+@attribute [ModuleAuthorize(ModuleKeys.AdminAudit)]
+@using Gaska.Intranet.Core.Auditing
+@inject IAuditLog Audit
+
+<PageTitle>Dziennik zdarzeń · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Dziennik zdarzeń" Subtitle="Ostatnie 1000 zdarzeń: logowania i zmiany uprawnień." InlineActions="true">
+    <Actions>
+        <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" aria-label="Odśwież" />
+    </Actions>
+</PageHeader>
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField @bind-Value="_search" Placeholder="Szukaj: użytkownik, zdarzenie, IP…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="150" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+    </div>
+
+    <MudDataGrid T="AuditEntry" Items="Filtered" Loading="_loading" Dense="true" Hover="true" Elevation="0"
+                 RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid" Culture="@GaskaTheme.Polish">
+        <Columns>
+            <PropertyColumn Property="e => e.TimestampUtc" Title="Czas" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs gaska-nowrap">
+                <CellTemplate>@context.Item.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="e => e.EventType" Title="Zdarzenie">
+                <CellTemplate>
+                    <MudChip T="string" Size="Size.Small" Color="ColorOf(context.Item.EventType)" Variant="Variant.Text" Class="ma-0">
+                        @Label(context.Item.EventType)
+                    </MudChip>
+                    @* Phones: one row = event, then time, user, details and IP. *@
+                    <div class="gaska-person-title gaska-xs-only">
+                        @context.Item.TimestampUtc.ToLocalTime().ToString("dd.MM HH:mm:ss") · @(context.Item.AccountName ?? "—")
+                        @if (!string.IsNullOrWhiteSpace(context.Item.Details))
+                        {
+                            <br />@context.Item.Details
+                        }
+                        @(context.Item.IpAddress is null ? "" : $" · {context.Item.IpAddress}")
+                    </div>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="e => e.AccountName" Title="Użytkownik" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
+            <PropertyColumn Property="e => e.Details" Title="Szczegóły" Sortable="false" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs gaska-break" />
+            <PropertyColumn Property="e => e.IpAddress" Title="Adres IP" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="AuditEntry" PageSizeOptions="[50, 100, 500]" RowsPerPageString="Wierszy na stronę:" InfoFormat="{first_item}–{last_item} z {all_items}" />
+        </PagerContent>
+        <LoadingContent>
+            <GridSkeleton />
+        </LoadingContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private static readonly Dictionary<string, string> Labels = new()
+    {
+        [AuditEvents.LoginPasswordFailed] = "Błędne hasło",
+        [AuditEvents.LoginPasswordOk] = "Hasło poprawne",
+        [AuditEvents.LoginLockedOut] = "Zablokowano próby",
+        [AuditEvents.CodeSent] = "Wysłano kod",
+        [AuditEvents.CodeSendFailed] = "Błąd wysyłki kodu",
+        [AuditEvents.CodeInvalid] = "Błędny kod",
+        [AuditEvents.LoginSucceeded] = "Zalogowano",
+        [AuditEvents.LoginTrustedDevice] = "Zalogowano (zaufane urządzenie)",
+        [AuditEvents.LoginAuthenticator] = "Zalogowano (aplikacja)",
+        [AuditEvents.AuthenticatorEnrolled] = "Skonfigurowano aplikację",
+        [AuditEvents.AuthenticatorInvalid] = "Błędny kod z aplikacji",
+        [AuditEvents.AuthenticatorReset] = "Reset aplikacji",
+        [AuditEvents.DeviceTrusted] = "Zapamiętano urządzenie",
+        [AuditEvents.DeviceForgotten] = "Zapomniano urządzenie",
+        [AuditEvents.DeviceRevoked] = "Unieważniono urządzenie",
+        [AuditEvents.SessionExpired] = "Sesja wygasła",
+        [AuditEvents.RateLimited] = "Przekroczony limit żądań",
+        [AuditEvents.BotDetected] = "Wykryto bota",
+        [AuditEvents.Logout] = "Wylogowano",
+        [AuditEvents.CrmContractorCreated] = "Dodano kontrahenta",
+        [AuditEvents.CrmContractorUpdated] = "Zmieniono kontrahenta",
+        [AuditEvents.CrmContactSaved] = "Zapisano osobę kontaktową",
+        [AuditEvents.CrmTaskAdded] = "Dodano zadanie",
+        [AuditEvents.SessionRevoked] = "Sesja unieważniona",
+        [AuditEvents.RcpPunch] = "RCP – odbicie",
+        [AuditEvents.HelpdeskTicketCreated] = "Helpdesk: nowe zgłoszenie",
+        [AuditEvents.HelpdeskReply] = "Helpdesk: odpowiedź",
+        [AuditEvents.HelpdeskSolutionAnswered] = "Helpdesk: odpowiedź na rozwiązanie",
+        [AuditEvents.HelpdeskSolutionAdded] = "Helpdesk: rozwiązanie zgłoszenia",
+        [AuditEvents.HelpdeskTicketChanged] = "Helpdesk: zmiana zgłoszenia",
+        [AuditEvents.EmployeeHidden] = "Ukryto w książce adresowej",
+        [AuditEvents.EmployeeShown] = "Przywrócono w książce adresowej",
+        [AuditEvents.AccessModeChanged] = "Zmiana trybu dostępu",
+        [AuditEvents.AccessNetworkChanged] = "Zmiana dostępu z sieci",
+        [AuditEvents.AccessGranted] = "Nadanie dostępu",
+        [AuditEvents.AccessRevoked] = "Odebranie dostępu",
+    };
+
+    private IReadOnlyList<AuditEntry> _entries = [];
+    private string? _search;
+    private bool _loading = true;
+
+    private IEnumerable<AuditEntry> Filtered => _entries.Where(e =>
+        TextSearch.Matches(_search, e.AccountName, e.EventType, Label(e.EventType), e.Details, e.IpAddress));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _entries = await Audit.GetRecentAsync(1000);
+        _loading = false;
+    }
+
+    private static string Label(string eventType) => Labels.GetValueOrDefault(eventType, eventType);
+
+    private static Color ColorOf(string eventType) => eventType switch
+    {
+        AuditEvents.LoginSucceeded or AuditEvents.LoginTrustedDevice or AuditEvents.LoginAuthenticator
+            or AuditEvents.AuthenticatorEnrolled => Color.Success,
+        AuditEvents.LoginPasswordFailed or AuditEvents.CodeInvalid or AuditEvents.LoginLockedOut
+            or AuditEvents.CodeSendFailed or AuditEvents.SessionRevoked or AuditEvents.RateLimited
+            or AuditEvents.BotDetected or AuditEvents.AuthenticatorInvalid => Color.Error,
+        AuditEvents.AccessGranted or AuditEvents.AccessRevoked or AuditEvents.AccessModeChanged
+            or AuditEvents.AccessNetworkChanged or AuditEvents.EmployeeHidden or AuditEvents.EmployeeShown or AuditEvents.DeviceRevoked or AuditEvents.AuthenticatorReset => Color.Warning,
+        _ => Color.Default,
+    };
+}

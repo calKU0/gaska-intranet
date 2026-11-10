@@ -1,0 +1,220 @@
+@page "/pracownicy"
+@attribute [ModuleAuthorize(ModuleKeys.Employees)]
+@inject IEmployeeDirectory Directory
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<EmployeeList> Logger
+
+<PageTitle>Pracownicy · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Pracownicy" Subtitle="Książka adresowa." InlineActions="true">
+    <Actions>
+        <AuthorizeView Roles="@IntranetClaims.AdministratorRole">
+            <MudTooltip Text="Odśwież listę">
+                <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="ReloadAsync" Disabled="_loading" aria-label="Odśwież" />
+            </MudTooltip>
+        </AuthorizeView>
+    </Actions>
+</PageHeader>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+        Nie udało się pobrać listy pracowników. Spróbuj ponownie za chwilę lub zgłoś to do działu IT.
+        @* Technical details (e.g. missing service account) are useful to administrators only. *@
+        <AuthorizeView Roles="@IntranetClaims.AdministratorRole">
+            <div class="mt-2 gaska-person-title">@_loadError</div>
+        </AuthorizeView>
+    </MudAlert>
+}
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField @bind-Value="_search" Placeholder="Szukaj: imię, nazwisko, dział, telefon…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="150" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+
+        <SearchSelect TValue="string" @bind-Value="_department" Label="Dział" Clearable="true" Class="gaska-filter"
+                      Options="@(_departments.Select(d => new SelectOption<string>(d, d)).ToList())" />
+
+        <MudChip T="string" Color="Color.Default" Variant="Variant.Text" Class="gaska-count">
+            @Filtered.Count() z @_employees.Count
+        </MudChip>
+    </div>
+
+    <MudDataGrid T="Employee" Items="Filtered" Loading="_loading" Hover="true" Dense="true" Elevation="0"
+                 SortMode="SortMode.Single" RowsPerPage="50" Breakpoint="Breakpoint.None"
+                 Culture="@GaskaTheme.Polish"
+                 Class="gaska-grid gaska-clickable-rows" RowClick="@(args => OpenAsync(args.Item))">
+        <Columns>
+            <TemplateColumn T="Employee" Title="Imię i nazwisko" SortBy="e => e.LastName + ' ' + e.FirstName" InitialDirection="SortDirection.Ascending">
+                <CellTemplate>
+                    <div class="gaska-person">
+                        <MudAvatar Size="Size.Small" Class="gaska-person-avatar">@context.Item.Initials</MudAvatar>
+                        <div>
+                            <div class="gaska-person-name">@context.Item.FullName</div>
+                            @if (!string.IsNullOrWhiteSpace(context.Item.JobTitle))
+                            {
+                                <div class="gaska-person-title">@context.Item.JobTitle</div>
+                            }
+                            @* Phones: department, extension and e-mail under the name (their columns are hidden). *@
+                            <div class="gaska-person-title gaska-xs-only">
+                                @context.Item.Department@(string.IsNullOrWhiteSpace(context.Item.Extension) ? "" : $" · wew. {context.Item.Extension}")
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(context.Item.Email))
+                            {
+                                <div class="gaska-person-title gaska-sm-only gaska-break">@context.Item.Email</div>
+                            }
+                        </div>
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <PropertyColumn T="Employee" TProperty="string" Property="e => e.Department ?? string.Empty" Title="Dział"
+                            HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>@ValueOrDash(context.Item.Department)</CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn T="Employee" Title="Komórka" SortBy="e => ContactFormatter.NormalizePhoneForSms(e.MobilePhone) ?? string.Empty">
+                <CellTemplate>
+                    @if (ContactFormatter.ToTelUri(context.Item.MobilePhone) is { } tel)
+                    {
+                        <a href="@tel" class="gaska-phone">
+                            <MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" />
+                            @ContactFormatter.FormatPhoneForDisplay(context.Item.MobilePhone)
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="gaska-muted">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="Employee" Title="Nr wewnętrzny" SortBy="e => ExtensionSortKey(e.Extension)"
+                            HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>
+                    @if (!string.IsNullOrWhiteSpace(context.Item.Extension))
+                    {
+                        <span class="gaska-extension">@context.Item.Extension</span>
+                    }
+                    else
+                    {
+                        <span class="gaska-muted">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="Employee" Title="E-mail" SortBy="e => e.Email ?? string.Empty"
+                            HeaderClass="gaska-hide-sm" CellClass="gaska-hide-sm gaska-break">
+                <CellTemplate>
+                    @if (!string.IsNullOrWhiteSpace(context.Item.Email))
+                    {
+                        <a href="mailto:@context.Item.Email" class="gaska-link">@context.Item.Email</a>
+                    }
+                    else
+                    {
+                        <span class="gaska-muted">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+        </Columns>
+
+        <LoadingContent>
+            <GridSkeleton Avatar="true" />
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Class="pa-6 mud-text-secondary">Nie znaleziono pracowników pasujących do wyszukiwania.</MudText>
+        </NoRecordsContent>
+
+        <PagerContent>
+            <MudDataGridPager T="Employee" PageSizeOptions="[25, 50, 100, 500]" RowsPerPageString="Wierszy na stronę:" InfoFormat="{first_item}–{last_item} z {all_items}" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<Employee> _employees = [];
+    private IReadOnlyList<string> _departments = [];
+    private string? _search;
+    private string? _department;
+    private bool _loading = true;
+    private string? _loadError;
+
+    private IEnumerable<Employee> Filtered => _employees.Where(e =>
+        (string.IsNullOrEmpty(_department) || string.Equals(e.Department, _department, StringComparison.CurrentCultureIgnoreCase)) &&
+        TextSearch.Matches(_search, e.FirstName, e.LastName, e.DisplayName, e.Department, e.JobTitle,
+            e.MobilePhone, ContactFormatter.NormalizePhoneForSms(e.MobilePhone), e.Extension, e.Email));
+
+    // Active Directory is queried once, by the interactive render (the pre-render shows the grid's loading state).
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private Task OpenAsync(Employee employee) =>
+        Dialogs.ShowAsync<EmployeeDialog>(null,
+            new DialogParameters<EmployeeDialog> { { d => d.Employee, employee } },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true });
+
+    private async Task ReloadAsync()
+    {
+        Directory.InvalidateCache();
+        await LoadAsync();
+        if (_loadError is null)
+        {
+            Snackbar.Add("Lista pracowników została odświeżona.", Severity.Success);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            _employees = await Directory.GetEmployeesAsync();
+            _departments = _employees
+                .Select(e => e.Department)
+                .Where(d => !string.IsNullOrWhiteSpace(d))
+                .Select(d => d!)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .Order(StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load the employee list");
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static RenderFragment ValueOrDash(string? value) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            builder.AddMarkupContent(0, "<span class=\"gaska-muted\">—</span>");
+        }
+        else
+        {
+            builder.AddContent(1, value);
+        }
+    };
+
+    /// <summary>Extensions sort numerically (2 before 10), empty ones last.</summary>
+    private static string ExtensionSortKey(string? extension) =>
+        string.IsNullOrWhiteSpace(extension)
+            ? "~"
+            : extension.Trim().PadLeft(10, '0');
+}

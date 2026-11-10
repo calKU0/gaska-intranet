@@ -1,0 +1,160 @@
+@page "/konto/logowanie"
+@inject Gaska.Intranet.Core.Helpdesk.IHelpdeskConnector Helpdesk
+@inject IDirectoryAuthenticator Directory
+@inject ILoginCodeService LoginCodes
+@inject ILoginThrottle Throttle
+@inject IntranetSignInService SignIn
+@inject IAuditLog Audit
+@inject NavigationManager Navigation
+@inject ILogger<Login> Logger
+
+<PageTitle>Logowanie · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Zaloguj się</h1>
+<p class="auth-subtitle">Użyj swojego loginu i hasła do komputera.</p>
+
+@if (_error is not null)
+{
+    <div class="auth-alert auth-alert-error" role="alert">@_error</div>
+}
+
+<EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login" class="auth-form" data-busy-on-submit>
+    <DataAnnotationsValidator />
+
+    <label class="auth-label" for="username">Login</label>
+    <InputText id="username" @bind-Value="Input.UserName" class="auth-input" autocomplete="username"
+               autofocus placeholder="np. jkowalski" />
+    <ValidationMessage For="() => Input.UserName" class="auth-validation" />
+
+    <label class="auth-label" for="password">Hasło</label>
+    <InputText id="password" type="password" @bind-Value="Input.Password" class="auth-input"
+               autocomplete="current-password" />
+    <ValidationMessage For="() => Input.Password" class="auth-validation" />
+
+    @* Bot trap: a field humans never see; bots tend to fill every input. *@
+    <div class="auth-hp" aria-hidden="true">
+        <label for="website">Strona www</label>
+        <InputText id="website" @bind-Value="Input.Website" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <button type="submit" class="auth-button">Dalej</button>
+</EditForm>
+
+<p class="auth-hint">Następnie potwierdzisz logowanie kodem z aplikacji uwierzytelniającej.</p>
+
+@code {
+    private string? _error;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private LoginInput Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new LoginInput();
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            // Every login starts from a clean state.
+            await PendingLoginState.ClearAsync(HttpContext);
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        var userName = Input.UserName.Trim();
+        var client = ClientNetwork.GetClientInfo(HttpContext);
+
+        if (!string.IsNullOrEmpty(Input.Website))
+        {
+            await Audit.WriteAsync(AuditEvents.BotDetected, userName, "Wypełnione ukryte pole formularza");
+            _error = "Nieprawidłowy login lub hasło.";
+            return;
+        }
+
+        if (Throttle.IsLockedOut(userName, client.IpAddress))
+        {
+            await Audit.WriteAsync(AuditEvents.LoginLockedOut, userName);
+            _error = "Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.";
+            return;
+        }
+
+        DirectoryUser? user;
+        try
+        {
+            user = await Directory.ValidateCredentialsAsync(userName, Input.Password);
+        }
+        catch (DirectoryUnavailableException ex)
+        {
+            Logger.LogError(ex, "Active Directory unavailable during login");
+            _error = "Serwer logowania jest chwilowo niedostępny. Spróbuj za chwilę.";
+            return;
+        }
+
+        if (user is null)
+        {
+            Throttle.RegisterFailure(userName, client.IpAddress);
+            await Audit.WriteAsync(AuditEvents.LoginPasswordFailed, userName);
+            _error = "Nieprawidłowy login lub hasło.";
+            return;
+        }
+
+        Throttle.Reset(userName);
+
+        // The only moment the password is available: ask GLPI (Helpdesk IT) for the user's tokens in the background.
+        // They are kept only if the login completes (after the second factor) – see IntranetSignInService.
+        Helpdesk.BeginConnect(user, Input.Password);
+
+        var state = new PendingLoginState(user, PendingLoginState.SanitizeReturnUrl(ReturnUrl));
+
+        // A previous session in this browser (possibly another account) ends here – the new one starts
+        // only after the second factor.
+        await HttpContext.SignOutAsync(AuthSchemes.Main);
+
+        // Second factor already completed on this device and network within the last days.
+        if (await SignIn.IsTrustedDeviceAsync(HttpContext, user))
+        {
+            await SignIn.SignInAsync(HttpContext, user, AuditEvents.LoginTrustedDevice, $"IP {client.IpAddress}");
+            Navigation.NavigateTo(state.ReturnUrl, forceLoad: true);
+            return;
+        }
+
+        await Audit.WriteAsync(AuditEvents.LoginPasswordOk, user.AccountName);
+
+        if (await SignIn.UsesAuthenticatorAsync(user))
+        {
+            await state.SaveAsync(HttpContext);
+            Navigation.NavigateTo(AccountRoutes.AuthenticatorCode);
+            return;
+        }
+
+        // No authenticator app yet – identity is confirmed with an SMS/e-mail code first.
+        if (LoginCodes.GetDeliveryOptions(user).Count == 0)
+        {
+            _error = "Twoje konto nie ma przypisanego numeru telefonu komórkowego ani adresu e-mail. Skontaktuj się z działem IT.";
+            return;
+        }
+
+        await state.SaveAsync(HttpContext);
+        Navigation.NavigateTo(AccountRoutes.ChooseMethod);
+    }
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Podaj login.")]
+        [StringLength(128)]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Podaj hasło.")]
+        [StringLength(256)]
+        public string Password { get; set; } = string.Empty;
+
+        [StringLength(256)]
+        public string? Website { get; set; }
+    }
+}

@@ -1,0 +1,113 @@
+@page "/konto/weryfikacja/aplikacja"
+@inject IAuthenticatorService Authenticators
+@inject ILoginThrottle Throttle
+@inject IntranetSignInService SignIn
+@inject IAuditLog Audit
+@inject NavigationManager Navigation
+
+<PageTitle>Kod z aplikacji · Gąska Intranet</PageTitle>
+
+<h1 class="auth-title">Kod z aplikacji</h1>
+<p class="auth-subtitle">
+    Otwórz aplikację uwierzytelniającą (Google Authenticator, Microsoft Authenticator…) i wpisz 6-cyfrowy kod
+    dla konta <strong>Gaska Intranet: @_state?.User.AccountName</strong>.
+</p>
+
+@if (_error is not null)
+{
+    <div class="auth-alert auth-alert-error" role="alert">@_error</div>
+}
+
+<EditForm Model="Input" method="post" OnValidSubmit="VerifyAsync" FormName="authenticator-code" class="auth-form" data-busy-on-submit>
+    <DataAnnotationsValidator />
+    <label class="auth-label" for="code">Kod z aplikacji</label>
+    <InputText id="code" @bind-Value="Input.Code" class="auth-input auth-code-input" autocomplete="one-time-code"
+               inputmode="numeric" maxlength="7" autofocus placeholder="••••••" />
+    <ValidationMessage For="() => Input.Code" class="auth-validation" />
+
+    <RememberDeviceCheckbox @bind-Value="Input.RememberDevice" />
+
+    <button type="submit" class="auth-button">Zaloguj</button>
+</EditForm>
+
+<p class="auth-hint">Zgubiony lub nowy telefon? Skontaktuj się z działem IT – zresetujemy aplikację.</p>
+<a href="@AccountRoutes.Login" class="auth-link">← Zaloguj się na inne konto</a>
+
+@code {
+    private string? _error;
+    private PendingLoginState? _state;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private CodeInput Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new CodeInput();
+        _state = await PendingLoginState.ReadAsync(HttpContext);
+
+        if (_state is null)
+        {
+            Navigation.NavigateTo(AccountRoutes.Login);
+        }
+        else if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Input.RememberDevice = true;
+        }
+    }
+
+    private async Task VerifyAsync()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        var user = _state.User;
+        var client = ClientNetwork.GetClientInfo(HttpContext);
+
+        // Wrong authenticator codes count towards the same lockout as wrong passwords.
+        if (Throttle.IsLockedOut(user.AccountName, client.IpAddress))
+        {
+            await Audit.WriteAsync(AuditEvents.LoginLockedOut, user.AccountName);
+            _error = "Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.";
+            return;
+        }
+
+        bool valid;
+        try
+        {
+            valid = await Authenticators.VerifyAsync(user, Input.Code);
+        }
+        catch (AuthenticatorUnreadableException)
+        {
+            // Not the user's fault – no failed attempt is counted. Details are in the server log.
+            _error = "Nie można sprawdzić kodu: zapisana aplikacja uwierzytelniająca nie jest czytelna na tym serwerze. " +
+                     "Poproś dział IT o reset aplikacji 2FA – przy następnym logowaniu skonfigurujesz ją od nowa.";
+            return;
+        }
+
+        if (!valid)
+        {
+            Throttle.RegisterFailure(user.AccountName, client.IpAddress);
+            _error = "Nieprawidłowy kod. Sprawdź, czy zegar w telefonie jest ustawiony automatycznie, i wpisz aktualny kod.";
+            return;
+        }
+
+        Throttle.Reset(user.AccountName);
+        await SignIn.CompleteSignInAsync(HttpContext, user, Input.RememberDevice, AuditEvents.LoginAuthenticator);
+        Navigation.NavigateTo(_state.ReturnUrl, forceLoad: true);
+    }
+
+    private sealed class CodeInput
+    {
+        [Required(ErrorMessage = "Wpisz kod z aplikacji.")]
+        [RegularExpression(@"^\s*\d{3}\s?\d{3}\s*$", ErrorMessage = "Kod składa się z 6 cyfr.")]
+        public string Code { get; set; } = string.Empty;
+
+        // Unchecked checkboxes are not posted, so the default must be false (checked on GET instead).
+        public bool RememberDevice { get; set; }
+    }
+}

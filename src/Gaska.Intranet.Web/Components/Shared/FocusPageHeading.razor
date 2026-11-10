@@ -1,0 +1,52 @@
+@* Moves keyboard / screen-reader focus to the page heading after navigating to another page – like Blazor's
+   FocusOnNavigate, but only when the address really changes and without scrolling. FocusOnNavigate also fired when
+   a dialog closed (the router re-rendered), and focusing the <h1> scrolled the page back to the top. *@
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@code {
+    private string? _focusedPath;
+    private bool _pending;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (PathOf(e.Location) != _focusedPath)
+        {
+            _pending = true;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _focusedPath = PathOf(Navigation.Uri);
+            return;
+        }
+
+        if (!_pending)
+        {
+            return;
+        }
+
+        _pending = false;
+        _focusedPath = PathOf(Navigation.Uri);
+        try
+        {
+            // The new page renders its heading a moment later – boot.js waits a frame before focusing.
+            await JS.InvokeVoidAsync("gaskaFocusHeading");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // Focus is a convenience only.
+        }
+    }
+
+    private static string PathOf(string uri) => new Uri(uri).AbsolutePath;
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

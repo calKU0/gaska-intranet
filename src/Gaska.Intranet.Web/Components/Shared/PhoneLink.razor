@@ -1,0 +1,12 @@
+@if (ContactFormatter.ToTelUri(Number) is { } tel)
+{
+    <a href="@tel" class="gaska-phone">
+        <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
+        @ContactFormatter.FormatPhoneForDisplay(Number)
+    </a>
+}
+
+@code {
+    [Parameter]
+    public string? Number { get; set; }
+}

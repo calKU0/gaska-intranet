@@ -1,0 +1,63 @@
+@inject IModuleAccessService Access
+@inject Microsoft.Extensions.Options.IOptions<List<QuickLink>> QuickLinks
+
+<MudNavMenu Class="gaska-nav" Color="Color.Primary" Bordered="false">
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.Home">Start</MudNavLink>
+
+    @foreach (var section in _sections)
+    {
+        @if (section.Key is not null)
+        {
+            <div class="gaska-nav-section">@section.Key</div>
+        }
+
+        @foreach (var module in section)
+        {
+            <MudNavLink Href="@module.Route" Match="NavLinkMatch.Prefix" Icon="@module.Icon">@module.Title</MudNavLink>
+        }
+    }
+
+    <div class="gaska-nav-section">Pomoc</div>
+    <MudNavLink Href="/instrukcja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.MenuBook">Instrukcja</MudNavLink>
+    @* Browser only – inside the installed app there is nothing to install. *@
+    <MudNavLink Href="/aplikacja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Outlined.InstallMobile" Class="gaska-browser-only">Zainstaluj aplikację</MudNavLink>
+
+    @if (QuickLinks.Value.Count > 0)
+    {
+        <div class="gaska-nav-section">Linki</div>
+        @foreach (var link in QuickLinks.Value)
+        {
+            <MudNavLink Href="@link.Url" Target="_blank" Icon="@link.IconSvg" title="@link.Description">
+                <span class="gaska-external-link">
+                    <span class="gaska-external-title">@link.Title</span>
+                    <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Class="gaska-external" Size="Size.Small" />
+                </span>
+            </MudNavLink>
+        }
+    }
+</MudNavMenu>
+
+<div class="gaska-nav-footer">
+    <img src="img/mark.png" alt="" />
+    <span>Gąska &copy; @DateTime.Now.Year</span>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IReadOnlyList<IGrouping<string?, ModuleDefinition>> _sections = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = (await AuthState).User;
+        var modules = await Access.GetAccessibleModulesAsync(user);
+
+        // Main (unnamed) section first, administration last.
+        _sections = modules
+            .GroupBy(m => m.Section)
+            .OrderBy(g => g.Key is null ? 0 : g.Key == ModuleCatalog.AdminSection ? 2 : 1)
+            .ThenBy(g => g.Min(m => m.Order))
+            .ToList();
+    }
+}

@@ -1,0 +1,47 @@
+<AuthorizeView>
+    <Authorized Context="auth">
+        @* No LockScroll: hiding the page scrollbar while the menu is open made the whole layout jump sideways. *@
+        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <ActivatorContent Context="menu">
+                <div class="gaska-user" role="button" tabindex="0" aria-label="Menu użytkownika"
+                     @onclick="menu.ToggleAsync">
+
+                    <div class="gaska-user-text d-none d-sm-flex">
+                        <span class="gaska-user-name">@auth.User.GetDisplayName()</span>
+                        @if (auth.User.IsAdministrator())
+                        {
+                            <span class="gaska-user-role">Administrator</span>
+                        }
+                    </div>
+                    <MudAvatar Color="Color.Primary" Size="Size.Medium">@Initials(auth.User)</MudAvatar>
+                </div>
+            </ActivatorContent>
+            <ChildContent>
+                <div class="px-4 py-2">
+                    <MudText Typo="Typo.subtitle2">@auth.User.GetDisplayName()</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@auth.User.Identity?.Name</MudText>
+                </div>
+                <MudDivider />
+                <form action="@AccountRoutes.Logout" method="post" class="gaska-logout-form" data-busy-on-submit>
+                    <AntiforgeryToken />
+                    <button type="submit" class="gaska-logout-button">
+                        <MudIcon Icon="@Icons.Material.Outlined.Logout" Size="Size.Small" />
+                        <span>Wyloguj</span>
+                    </button>
+                    <button type="submit" name="forgetDevice" value="true" class="gaska-logout-button">
+                        <MudIcon Icon="@Icons.Material.Outlined.PhonelinkErase" Size="Size.Small" />
+                        <span>Wyloguj i zapomnij to urządzenie</span>
+                    </button>
+                </form>
+            </ChildContent>
+        </MudMenu>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static string Initials(ClaimsPrincipal user)
+    {
+        var parts = user.GetDisplayName().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+}

@@ -1,0 +1,615 @@
+@page "/helpdesk/{Id:int}"
+@attribute [ModuleAuthorize(ModuleKeys.Helpdesk)]
+@using Gaska.Intranet.Core.Auditing
+@using Gaska.Intranet.Core.Helpdesk
+@inject IHelpdeskService Helpdesk
+@inject IAuditLog Audit
+@inject ISnackbar Snackbar
+@inject ILogger<HelpdeskTicketPage> Logger
+@inject IJSRuntime JS
+
+<PageTitle>@(_details is null ? "Zgłoszenie" : $"#{Id} {_details.Ticket.Title}") · Gąska Intranet</PageTitle>
+
+<MudBreadcrumbs Items="_breadcrumbs" Class="px-0 pt-0" />
+
+@if (_needsConnection)
+{
+    <HelpdeskConnect OnConnected="LoadAsync" />
+}
+else if (_details is null && _loading)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.Details" />
+}
+else if (_details is null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@(_error ?? "Nie udało się wczytać zgłoszenia.")</MudAlert>
+}
+else
+{
+    var ticket = _details.Ticket;
+
+    <div class="gaska-page-header">
+        <div>
+            <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title gaska-helpdesk-title">@ticket.Title</MudText>
+            <div class="gaska-helpdesk-meta">
+                <MudChip T="string" Size="Size.Small" Color="@HelpdeskUi.StatusColor(ticket.Status)" Variant="Variant.Filled">
+                    @HelpdeskUi.StatusLabel(ticket.Status)
+                </MudChip>
+                <span>#@ticket.Id</span>
+                <span>@HelpdeskUi.TypeLabel(ticket.Type)</span>
+                @if (ticket.Category is not null)
+                {
+                    <span>@ticket.Category</span>
+                }
+                <span>Pilność: @HelpdeskUi.UrgencyLabel(ticket.Urgency).ToLowerInvariant()</span>
+            </div>
+        </div>
+        <div class="gaska-page-actions">
+            <MudButton Href="@Helpdesk.TicketUrl(ticket.Id)" Target="_blank" Variant="Variant.Text" Color="Color.Secondary"
+                       EndIcon="@Icons.Material.Outlined.OpenInNew">Otwórz w GLPI</MudButton>
+        </div>
+    </div>
+
+    <FormError Message="@_error" Class="mb-4" OnClose="() => _error = null" />
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="8">
+            @* A solution waits for the requester: did it help? *@
+            @if (_details.PendingSolution is { } solution && ticket.MyRole.HasFlag(TicketRole.Requester))
+            {
+                <MudPaper Class="gaska-card pa-4 mb-4 gaska-helpdesk-solution" Elevation="0">
+                    <div class="d-flex align-center gap-2 mb-2">
+                        <MudIcon Icon="@Icons.Material.Outlined.TaskAlt" Color="Color.Success" />
+                        <MudText Typo="Typo.subtitle1"><strong>Dział IT zaproponował rozwiązanie – czy problem zniknął?</strong></MudText>
+                    </div>
+                    <div class="gaska-helpdesk-text mb-3">@HelpdeskText.ToPlainText(solution.ContentHtml)</div>
+                    @if (_refusing)
+                    {
+                        <MudTextField @bind-Value="_refuseComment" Label="Co nadal nie działa?" Variant="Variant.Outlined" Lines="3"
+                                      Sizing="InputSizing.Auto" Immediate="true" Margin="Margin.Dense" Disabled="_busy" Class="mb-2" />
+                        <div class="d-flex gap-2 flex-wrap">
+                            <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="_busy || string.IsNullOrWhiteSpace(_refuseComment)"
+                                       OnClick="() => AnswerSolutionAsync(solution, accept: false)">Odrzuć rozwiązanie</MudButton>
+                            <MudButton OnClick="() => _refusing = false" Disabled="_busy">Anuluj</MudButton>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex gap-2 flex-wrap">
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Outlined.Check" Disabled="_busy"
+                                       OnClick="() => AnswerSolutionAsync(solution, accept: true)">Tak, zamknij zgłoszenie</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Close" Disabled="_busy"
+                                       OnClick="() => _refusing = true">Nie, nadal nie działa</MudButton>
+                        </div>
+                    }
+                </MudPaper>
+            }
+
+            <MudPaper Class="gaska-card pa-0 gaska-helpdesk-thread" Elevation="0">
+                <div class="gaska-helpdesk-thread-head">
+                    <MudIcon Icon="@Icons.Material.Outlined.Forum" Size="Size.Small" />
+                    <span class="gaska-helpdesk-thread-title">Rozmowa</span>
+                    <span class="gaska-helpdesk-thread-count">@VisibleEntries.Count() @EntriesWord(VisibleEntries.Count())</span>
+                    @if (CanWrite)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="ml-auto"
+                                   StartIcon="@Icons.Material.Outlined.Reply" OnClick="GoToComposerAsync">
+                            <span class="gaska-label-long">Napisz odpowiedź</span><span class="gaska-label-short">Odpowiedz</span>
+                        </MudButton>
+                    }
+                </div>
+                <div class="gaska-helpdesk-timeline">
+                    <div class="gaska-helpdesk-entry is-description">
+                        <div class="gaska-helpdesk-entry-head">
+                            <MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Small" />
+                            <strong>@(ticket.Requesters.FirstOrDefault()?.Name ?? "Zgłaszający")</strong>
+                            <span class="gaska-helpdesk-entry-kind">opis zgłoszenia</span>
+                            <span>@HelpdeskUi.Date(ticket.OpenedAt)</span>
+                        </div>
+                        <div class="gaska-helpdesk-text">@HelpdeskText.ToPlainText(ticket.ContentHtml)</div>
+                    </div>
+
+                    @foreach (var item in VisibleEntries)
+                    {
+                        <div class="gaska-helpdesk-entry @EntryClass(item) @(item.IsPrivate ? "is-private" : null)">
+                            <div class="gaska-helpdesk-entry-head">
+                                <MudIcon Icon="@EntryIcon(item)" Size="Size.Small" />
+                                <strong>@(item.Author ?? "Dział IT")</strong>
+                                <span class="gaska-helpdesk-entry-kind">@EntryLabel(item)@(item.IsPrivate ? " · prywatne" : "")</span>
+                                <span>@HelpdeskUi.Date(item.Date)</span>
+                            </div>
+                            @if (item.Kind == TimelineKind.Document)
+                            {
+                                <div class="gaska-helpdesk-text">
+                                    @if (item.DocumentId is { } documentId)
+                                    {
+                                        @DocumentView(new TicketDocument(documentId, item.FileName ?? "Załącznik"))
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.AttachFile" Size="Size.Small" /> @(item.FileName ?? "Załącznik")
+                                        <span class="mud-text-secondary">– do pobrania w GLPI</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="gaska-helpdesk-text">@HelpdeskText.ToPlainText(item.ContentHtml)</div>
+                                @if (item.Documents.Count > 0)
+                                {
+                                    <div class="gaska-helpdesk-files">
+                                        @foreach (var document in item.Documents)
+                                        {
+                                            @DocumentView(document)
+                                        }
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </MudPaper>
+
+            @* The composer is a card of its own (accent bar + heading) – after a long thread it must be obvious
+               where the new message goes. *@
+            <MudPaper Class="gaska-card gaska-helpdesk-composer" Elevation="0">
+                @if (CanWrite)
+                {
+                    <div class="gaska-helpdesk-reply" id="helpdesk-composer">
+                        <div class="gaska-helpdesk-composer-head">
+                            <MudIcon Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" />
+                            <span>Dodaj odpowiedź</span>
+                        </div>
+                        @if (_access.IsTechnician)
+                        {
+                            <MudToggleGroup T="EntryKind" @bind-Value="_entryKind" Color="Color.Primary" Size="Size.Small"
+                                            SelectionMode="SelectionMode.SingleSelection" CheckMark="false" Class="gaska-helpdesk-status mb-3">
+                                <MudToggleItem Value="EntryKind.Reply" Text="Odpowiedź" />
+                                <MudToggleItem Value="EntryKind.PrivateNote">
+                                    <span class="gaska-label-long">Notatka prywatna</span><span class="gaska-label-short">Notatka</span>
+                                </MudToggleItem>
+                                <MudToggleItem Value="EntryKind.Solution" Text="Rozwiązanie" />
+                            </MudToggleGroup>
+                        }
+                        @* Immediate: the button follows every keystroke, not only leaving the field. *@
+                        <AttachmentInput Attachments="_attachments" AttachmentsChanged="StateHasChanged" Disabled="_busy">
+                            <MudTextField @bind-Value="_reply" Label="@ReplyLabel" Variant="Variant.Outlined" Lines="3" Sizing="InputSizing.Auto" MaxLines="14"
+                                          Immediate="true" Placeholder="@ReplyPlaceholder" Disabled="_busy" />
+                        </AttachmentInput>
+                        <div class="d-flex justify-end mt-2">
+                            <MudButton Variant="Variant.Filled" Color="@(_entryKind == EntryKind.Solution ? Color.Success : Color.Primary)"
+                                       StartIcon="@(_entryKind == EntryKind.Solution ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.Send)"
+                                       Disabled="_busy || !CanSend" OnClick="ReplyAsync">@SendLabel</MudButton>
+                        </div>
+                        @if (ticket.Status == TicketStatus.Solved && !_access.IsTechnician)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                Zgłoszenie jest rozwiązane – odpowiedź może je ponownie otworzyć.
+                            </MudText>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="gaska-helpdesk-reply mud-text-secondary">
+                        Zgłoszenie jest zamknięte. Jeśli problem wrócił, <MudLink Href="/helpdesk/nowe">utwórz nowe zgłoszenie</MudLink>.
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            @if (_access.IsTechnician)
+            {
+                @* Technicians (GLPI standard interface). GLPI still checks every change against the profile's rights. *@
+                <MudPaper Class="gaska-card pa-4 mb-4 gaska-helpdesk-manage" Elevation="0">
+                    <MudText Typo="Typo.overline" Class="gaska-section-title">Zarządzanie</MudText>
+                    <div class="d-flex flex-column gap-3 mt-2">
+                        <SearchSelect TValue="TicketStatus" Value="ticket.Status" ValueChanged="SetStatusAsync" Label="Status" Disabled="_busy"
+                                      Options="@(Enum.GetValues<TicketStatus>().Select(s => new SelectOption<TicketStatus>(s, HelpdeskUi.StatusLabel(s))).ToList())" />
+                        <MudSelect T="int" Value="ticket.Urgency" ValueChanged="SetUrgencyAsync" Label="Pilność"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy">
+                            @foreach (var (value, label) in HelpdeskUi.Urgencies)
+                            {
+                                <MudSelectItem T="int" Value="value">@label</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <SearchSelect TValue="int" Value="ticket.CategoryId ?? 0" ValueChanged="SetCategoryAsync" Label="Kategoria" Disabled="_busy"
+                                      Options="CategoryOptions(ticket)" />
+                    </div>
+
+                    <MudText Typo="Typo.overline" Class="gaska-section-title mt-4 d-block">Przypisani technicy</MudText>
+                    <div class="gaska-helpdesk-observers mb-2">
+                        @foreach (var assignee in ticket.Assignees)
+                        {
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Engineering" Disabled="_busy"
+                                     OnClose="() => RemoveAssigneeAsync(assignee)">@assignee.Name</MudChip>
+                        }
+                        @if (!ticket.Assignees.Any())
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Nikt nie jest przypisany.</MudText>
+                        }
+                    </div>
+                    @if (_access.GlpiUserId is { } myId && ticket.Assignees.All(a => a.Id != myId))
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.PersonAddAlt"
+                                   Disabled="_busy" Class="mb-3" OnClick="() => AssignAsync(myId, _access.Name ?? Me)">Przypisz do mnie</MudButton>
+                    }
+                    <div class="gaska-helpdesk-picker">
+                        <ObserverPicker Label="Przypisz technika" Exclude="ticket.Assignees.Select(a => a.Id).ToList()"
+                                        OnPicked="user => AssignAsync(user.Id, user.Name)" Disabled="_busy" />
+                    </div>
+                </MudPaper>
+            }
+
+            <MudPaper Class="gaska-card pa-4" Elevation="0">
+                <MudText Typo="Typo.overline" Class="gaska-section-title">Szczegóły</MudText>
+                <dl class="gaska-details">
+                    <dt>Otwarte</dt>
+                    <dd>@HelpdeskUi.Date(ticket.OpenedAt)</dd>
+                    <dt>Ostatnia zmiana</dt>
+                    <dd>@HelpdeskUi.Date(ticket.UpdatedAt)</dd>
+                    @if (ticket.SolvedAt is not null)
+                    {
+                        <dt>Rozwiązane</dt>
+                        <dd>@HelpdeskUi.Date(ticket.SolvedAt)</dd>
+                    }
+                    @if (ticket.Location is not null)
+                    {
+                        <dt>Lokalizacja</dt>
+                        <dd>@ticket.Location</dd>
+                    }
+                    <dt>Zgłaszający</dt>
+                    <dd class="gaska-dd-block">@Names(ticket.Requesters)</dd>
+                    <dt>Przypisane do</dt>
+                    <dd class="gaska-dd-block">@Names(ticket.Assignees, "jeszcze nikt")</dd>
+                </dl>
+
+                <MudText Typo="Typo.overline" Class="gaska-section-title mt-4 d-block">Obserwujący</MudText>
+                <div class="gaska-helpdesk-observers mb-2">
+                    @foreach (var observer in ticket.Observers)
+                    {
+                        @if (observer.Type == "User" && ticket.Status != TicketStatus.Closed)
+                        {
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Visibility" Disabled="_busy"
+                                     OnClose="() => RemoveObserverAsync(observer)">@observer.Name</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Visibility">@observer.Name</MudChip>
+                        }
+                    }
+                    @if (!ticket.Observers.Any())
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Nikt nie obserwuje zgłoszenia.</MudText>
+                    }
+                </div>
+                @if (ticket.Status != TicketStatus.Closed)
+                {
+                    <div class="gaska-helpdesk-picker">
+                        <ObserverPicker Exclude="TeamUserIds(ticket)" OnPicked="AddObserverAsync" Disabled="_busy" />
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private HelpdeskTicketDetails? _details;
+    private bool _loading = true;
+    private bool _needsConnection;
+    private bool _busy;
+    private bool _refusing;
+    private string? _reply;
+    private EntryKind _entryKind = EntryKind.Reply;
+    private readonly List<HelpdeskAttachment> _attachments = [];
+    private HelpdeskAccess _access = HelpdeskAccess.SelfService;
+    private IReadOnlyList<HelpdeskCategory> _categories = [];
+    private string? _refuseComment;
+    private string? _error;
+    private List<BreadcrumbItem> _breadcrumbs = [];
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private async Task<string> SidAsync() => (await AuthState).User.GetSid();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _breadcrumbs = [new("Helpdesk IT", "/helpdesk"), new($"#{Id}", null, disabled: true)];
+        if (RendererInfo.IsInteractive)
+        {
+            _details = _details?.Ticket.Id == Id ? _details : null;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var sid = await SidAsync();
+            var access = Helpdesk.GetAccessAsync(sid);
+            _details = await Helpdesk.GetTicketAsync(sid, Id);
+            _access = await access;
+            _needsConnection = false;
+
+            // Technicians get the category list up front – it is searchable, so it has to be complete when opened.
+            if (_access.IsTechnician)
+            {
+                await LoadCategoriesAsync();
+            }
+        }
+        catch (HelpdeskNotConnectedException)
+        {
+            _needsConnection = true;
+        }
+        catch (HelpdeskException ex)
+        {
+            Logger.LogWarning(ex, "Loading helpdesk ticket {Id} failed", Id);
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private const string Me = "Ty";
+
+    /// <summary>Closed tickets accept no more messages from requesters; technicians can still write.</summary>
+    private bool CanWrite => _details is { } d && (d.Ticket.Status != TicketStatus.Closed || _access.IsTechnician);
+
+    private IEnumerable<TimelineItem> VisibleEntries =>
+        _details?.Timeline.Where(i => !i.IsPrivate || _access.IsTechnician) ?? [];
+
+    private static string EntriesWord(int count) =>
+        count == 1 ? "wpis" : count % 10 is >= 2 and <= 4 && count % 100 is < 12 or > 14 ? "wpisy" : "wpisów";
+
+    /// <summary>"Napisz odpowiedź": scrolls past a long thread straight to the composer and focuses the text box.</summary>
+    private async Task GoToComposerAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("gaskaScrollTo", "helpdesk-composer", "textarea");
+        }
+        catch (JSException)
+        {
+            // Scrolling is a convenience only.
+        }
+    }
+
+    private bool CanSend => _entryKind == EntryKind.Solution
+        ? !string.IsNullOrWhiteSpace(_reply)
+        : !string.IsNullOrWhiteSpace(_reply) || _attachments.Count > 0;
+
+    private string ReplyLabel => _entryKind switch
+    {
+        EntryKind.PrivateNote => "Notatka widoczna tylko dla techników",
+        EntryKind.Solution => "Rozwiązanie",
+        _ => "Twoja odpowiedź",
+    };
+
+    private string ReplyPlaceholder => _entryKind switch
+    {
+        EntryKind.Solution => "Co zostało zrobione? Zgłaszający zaakceptuje albo odrzuci rozwiązanie.",
+        EntryKind.PrivateNote => "Notatka dla działu IT…",
+        _ => _access.IsTechnician ? "Odpowiedz zgłaszającemu…" : "Dodaj informacje, odpowiedz technikowi…",
+    };
+
+    private string SendLabel => _entryKind switch
+    {
+        EntryKind.Solution => "Rozwiąż zgłoszenie",
+        EntryKind.PrivateNote => "Dodaj notatkę",
+        _ => "Wyślij",
+    };
+
+    private async Task ReplyAsync()
+    {
+        var kind = _access.IsTechnician ? _entryKind : EntryKind.Reply;
+        await RunAsync(async sid =>
+        {
+            var failed = await Helpdesk.AddEntryAsync(sid, Id, kind, _reply, _attachments.ToList());
+            var what = kind switch
+            {
+                EntryKind.Solution => "rozwiązanie",
+                EntryKind.PrivateNote => "notatka prywatna",
+                _ => "odpowiedź",
+            };
+            await Audit.WriteAsync(kind == EntryKind.Solution ? AuditEvents.HelpdeskSolutionAdded : AuditEvents.HelpdeskReply,
+                (await AuthState).User.Identity?.Name, $"GLPI zgłoszenie #{Id}: {what}{(_attachments.Count > 0 ? $", załączniki: {_attachments.Count}" : "")}");
+            _reply = null;
+            _attachments.Clear();
+            _entryKind = EntryKind.Reply;
+            Snackbar.Add(kind == EntryKind.Solution ? "Zgłoszenie rozwiązane – zgłaszający dostanie prośbę o potwierdzenie." : "Dodano do zgłoszenia.", Severity.Success);
+            if (failed.Count > 0)
+            {
+                Snackbar.Add($"Nie udało się dodać plików: {string.Join(", ", failed)}.", Severity.Warning);
+            }
+        });
+    }
+
+    private Task SetStatusAsync(TicketStatus status) =>
+        ChangeAsync(new TicketChanges { Status = status }, $"status: {HelpdeskUi.StatusLabel(status)}");
+
+    private Task SetUrgencyAsync(int urgency) =>
+        ChangeAsync(new TicketChanges { Urgency = urgency }, $"pilność: {HelpdeskUi.UrgencyLabel(urgency)}");
+
+    private Task SetCategoryAsync(int categoryId) =>
+        ChangeAsync(new TicketChanges { CategoryId = categoryId },
+            $"kategoria: {_categories.FirstOrDefault(c => c.Id == categoryId)?.Name ?? (categoryId == 0 ? "brak" : categoryId.ToString())}");
+
+    private async Task ChangeAsync(TicketChanges changes, string description)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.UpdateTicketAsync(sid, Id, changes);
+            await Audit.WriteAsync(AuditEvents.HelpdeskTicketChanged, (await AuthState).User.Identity?.Name, $"GLPI zgłoszenie #{Id}: {description}");
+            Snackbar.Add("Zmieniono " + description + ".", Severity.Success);
+        });
+    }
+
+    private async Task AssignAsync(int glpiUserId, string name)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.AddAssigneeAsync(sid, Id, glpiUserId);
+            await Audit.WriteAsync(AuditEvents.HelpdeskTicketChanged, (await AuthState).User.Identity?.Name, $"GLPI zgłoszenie #{Id}: przypisano {name}");
+            Snackbar.Add($"Przypisano: {name}.", Severity.Success);
+        });
+    }
+
+    private async Task RemoveAssigneeAsync(TicketPerson assignee)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.RemoveAssigneeAsync(sid, Id, assignee.Id);
+            await Audit.WriteAsync(AuditEvents.HelpdeskTicketChanged, (await AuthState).User.Identity?.Name, $"GLPI zgłoszenie #{Id}: odpięto {assignee.Name}");
+            Snackbar.Add($"{assignee.Name} nie jest już przypisany.", Severity.Info);
+        });
+    }
+
+    /// <summary>"No category", the ticket's current category (also when it is not offered for this ticket type) and the rest.</summary>
+    private List<SelectOption<int>> CategoryOptions(HelpdeskTicket ticket)
+    {
+        var options = new List<SelectOption<int>> { new(0, "— bez kategorii —") };
+        if (ticket.CategoryId is { } current && _categories.All(c => c.Id != current))
+        {
+            options.Add(new SelectOption<int>(current, ticket.Category ?? $"#{current}"));
+        }
+
+        options.AddRange(_categories.Select(c => new SelectOption<int>(c.Id, c.Name)));
+        return options;
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        if (_categories.Count > 0 || _details is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _categories = await Helpdesk.GetCategoriesAsync(await SidAsync(), _details.Ticket.Type);
+        }
+        catch (HelpdeskException ex) when (ex is not HelpdeskNotConnectedException)
+        {
+            Logger.LogWarning(ex, "Loading helpdesk categories failed");
+        }
+    }
+
+    private async Task AddObserverAsync(HelpdeskUser user)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.AddObserverAsync(sid, Id, user.Id);
+            Snackbar.Add($"{user.Name} obserwuje zgłoszenie.", Severity.Success);
+        });
+    }
+
+    private async Task RemoveObserverAsync(TicketPerson observer)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.RemoveObserverAsync(sid, Id, observer.Id);
+            Snackbar.Add($"{observer.Name} nie obserwuje już zgłoszenia.", Severity.Info);
+        });
+    }
+
+    private async Task AnswerSolutionAsync(TimelineItem solution, bool accept)
+    {
+        await RunAsync(async sid =>
+        {
+            await Helpdesk.AnswerSolutionAsync(sid, Id, solution.Id, accept, accept ? null : _refuseComment);
+            await Audit.WriteAsync(AuditEvents.HelpdeskSolutionAnswered, (await AuthState).User.Identity?.Name,
+                $"GLPI zgłoszenie #{Id}: rozwiązanie {(accept ? "zaakceptowane" : "odrzucone")}");
+            _refusing = false;
+            _refuseComment = null;
+            Snackbar.Add(accept ? "Dziękujemy – zgłoszenie zostało zamknięte." : "Rozwiązanie odrzucone – dział IT wróci do zgłoszenia.", Severity.Success);
+        });
+    }
+
+    /// <summary>Runs an action against GLPI, then reloads the ticket so the page shows GLPI's real state.</summary>
+    private async Task RunAsync(Func<string, Task> action)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await action(await SidAsync());
+            await LoadAsync();
+        }
+        catch (HelpdeskNotConnectedException)
+        {
+            _needsConnection = true;
+        }
+        catch (HelpdeskException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static IReadOnlyCollection<int> TeamUserIds(HelpdeskTicket ticket) =>
+        ticket.Team.Where(t => t.Type == "User").Select(t => t.Id).ToList();
+
+    private static string Names(IEnumerable<TicketPerson> people, string empty = "—")
+    {
+        var names = people.Select(p => p.Name).ToList();
+        return names.Count == 0 ? empty : string.Join(", ", names);
+    }
+
+    private RenderFragment DocumentView(TicketDocument document) =>
+        @<div class="gaska-helpdesk-file">
+            @if (document.IsImage)
+            {
+                <a href="@HelpdeskEndpoints.DocumentUrl(Id, document.Id)" target="_blank" class="gaska-helpdesk-image">
+                    <img src="@HelpdeskEndpoints.DocumentUrl(Id, document.Id)" alt="@document.FileName" loading="lazy" />
+                </a>
+            }
+            <MudLink Href="@HelpdeskEndpoints.DocumentUrl(Id, document.Id, download: true)" Typo="Typo.body2">
+                <MudIcon Icon="@Icons.Material.Outlined.AttachFile" Size="Size.Small" Class="mr-1" />@document.FileName
+            </MudLink>
+        </div>;
+
+    private static string EntryClass(TimelineItem item) => item.Kind switch
+    {
+        TimelineKind.Solution => "is-solution",
+        TimelineKind.Task => "is-task",
+        TimelineKind.Document => "is-document",
+        TimelineKind.Validation => "is-validation",
+        _ => "is-followup",
+    };
+
+    private static string EntryIcon(TimelineItem item) => item.Kind switch
+    {
+        TimelineKind.Solution => Icons.Material.Outlined.TaskAlt,
+        TimelineKind.Task => Icons.Material.Outlined.Build,
+        TimelineKind.Document => Icons.Material.Outlined.AttachFile,
+        TimelineKind.Validation => Icons.Material.Outlined.HowToReg,
+        _ => Icons.Material.Outlined.ChatBubbleOutline,
+    };
+
+    private static string EntryLabel(TimelineItem item) => item.Kind switch
+    {
+        TimelineKind.Solution => item.SolutionStatus switch
+        {
+            SolutionStatus.Accepted => "rozwiązanie · zaakceptowane",
+            SolutionStatus.Refused => "rozwiązanie · odrzucone",
+            _ => "rozwiązanie",
+        },
+        TimelineKind.Task => "zadanie",
+        TimelineKind.Document => "załącznik",
+        TimelineKind.Validation => "zatwierdzenie",
+        _ => "odpowiedź",
+    };
+}

@@ -1,0 +1,84 @@
+@* Search GLPI users and pick one as an observer (like the "Obserwator" field in GLPI). *@
+@using Gaska.Intranet.Core.Helpdesk
+@inject IHelpdeskService Helpdesk
+
+@if (_unavailable is not null)
+{
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">@_unavailable</MudText>
+}
+else
+{
+    <MudAutocomplete T="HelpdeskUser" @ref="_autocomplete" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense"
+                     SearchFunc="SearchAsync" ToStringFunc="@(u => u is null ? null : u.Name)" ValueChanged="PickAsync"
+                     DebounceInterval="300" MinCharacters="2" ResetValueOnEmptyText="true" CoerceText="false" Clearable="true"
+                     Disabled="Disabled" AdornmentIcon="@Icons.Material.Outlined.PersonAdd" Adornment="Adornment.Start"
+                     Placeholder="Wpisz imię, nazwisko lub login…" MaxItems="20"
+                     AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+        <ItemTemplate Context="user">
+            <div class="gaska-person">
+                <MudAvatar Size="Size.Small" Class="gaska-person-avatar">@Initials(user.Name)</MudAvatar>
+                <div>
+                    <div class="gaska-person-name">@user.Name</div>
+                    <div class="gaska-person-title">@user.UserName</div>
+                </div>
+            </div>
+        </ItemTemplate>
+        <NoItemsTemplate>
+            <MudText Class="pa-3 mud-text-secondary">Nikogo nie znaleziono.</MudText>
+        </NoItemsTemplate>
+    </MudAutocomplete>
+}
+
+@code {
+    private MudAutocomplete<HelpdeskUser>? _autocomplete;
+    private string? _unavailable;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    [Parameter]
+    public string Label { get; set; } = "Dodaj obserwatora";
+
+    /// <summary>GLPI user ids not to offer (already observers, the requester…).</summary>
+    [Parameter]
+    public IReadOnlyCollection<int> Exclude { get; set; } = [];
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<HelpdeskUser> OnPicked { get; set; }
+
+    private async Task<IEnumerable<HelpdeskUser>> SearchAsync(string text, CancellationToken ct)
+    {
+        try
+        {
+            var users = await Helpdesk.SearchUsersAsync((await AuthState).User.GetSid(), text, ct);
+            return users.Where(u => !Exclude.Contains(u.Id));
+        }
+        catch (HelpdeskException ex) when (ex is not HelpdeskNotConnectedException)
+        {
+            // Typically 403: the user's GLPI profile may not list other users.
+            _unavailable = "Twój profil w Helpdesku nie pozwala wybierać obserwatorów – dodaj ich w GLPI albo poproś dział IT.";
+            await InvokeAsync(StateHasChanged);
+            return [];
+        }
+    }
+
+    private async Task PickAsync(HelpdeskUser? user)
+    {
+        if (user is null)
+        {
+            return;
+        }
+
+        await OnPicked.InvokeAsync(user);
+        if (_autocomplete is not null)
+        {
+            await _autocomplete.ClearAsync();
+        }
+    }
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

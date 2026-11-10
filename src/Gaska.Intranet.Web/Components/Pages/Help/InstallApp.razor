@@ -1,0 +1,159 @@
+@page "/aplikacja"
+@inject IJSRuntime JS
+
+<PageTitle>Zainstaluj aplikację · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Zainstaluj aplikację" Subtitle="Zainstaluj intranet jako aplikację na telefonie lub komputerze – z własną ikoną, jak każdą inną aplikację." />
+
+@if (_info is { Standalone: true })
+{
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mb-4">
+        Używasz zainstalowanej aplikacji – nic więcej nie trzeba robić.
+    </MudAlert>
+}
+else
+{
+    <MudPaper Class="gaska-card pa-4 pa-sm-5 mb-4" Elevation="0">
+        <div class="d-flex align-center gap-4 flex-wrap">
+            <div class="gaska-install-banner-icon"><img src="img/mark.png" alt="" /></div>
+            <div class="flex-grow-1" style="min-width: 200px">
+                <MudText Typo="Typo.h6">Gąska Intranet</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Aplikacja to ten sam intranet – te same dane, to samo logowanie. Nic nie pobierasz ze sklepu,
+                    a aktualizacje są automatyczne.
+                </MudText>
+            </div>
+            @if (_info is { CanPrompt: true })
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Outlined.InstallMobile"
+                           OnClick="InstallAsync" Disabled="_busy">Zainstaluj teraz</MudButton>
+            }
+        </div>
+        @if (_result is not null)
+        {
+            <MudAlert Severity="@(_result == "accepted" ? Severity.Success : Severity.Info)" Dense="true" Class="mt-3">
+                @(_result == "accepted"
+                    ? "Gotowe – ikona „Intranet” jest na ekranie głównym / w menu aplikacji."
+                    : "Instalacja anulowana. Możesz wrócić tu w każdej chwili.")
+            </MudAlert>
+        }
+        else if (_info is { CanPrompt: false, Ios: false })
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-3">
+                Jeśli nie widzisz przycisku „Zainstaluj teraz”, skorzystaj z instrukcji poniżej – przeglądarka pokazuje go
+                tylko raz, a w niektórych przeglądarkach instaluje się z menu.
+            </MudText>
+        }
+    </MudPaper>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4" Class="d-flex">
+            <MudPaper Class="@PlatformClass(_info?.Android == true)" Elevation="0">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Outlined.PhoneAndroid" />
+                    <MudText Typo="Typo.subtitle1"><strong>Telefon z Androidem</strong></MudText>
+                </div>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Chrome, Edge lub Samsung Internet</MudText>
+                <ol class="gaska-install-steps">
+                    <li>Otwórz intranet w przeglądarce i zaloguj się.</li>
+                    <li>Stuknij <strong>Zainstaluj teraz</strong> powyżej – albo menu <strong>⋮</strong> → <strong>Zainstaluj aplikację</strong>
+                        (lub <strong>Dodaj do ekranu głównego</strong>).</li>
+                    <li>Potwierdź <strong>Zainstaluj</strong>. Ikona „Intranet” pojawi się na ekranie głównym.</li>
+                </ol>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex">
+            <MudPaper Class="@PlatformClass(_info?.Ios == true)" Elevation="0">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Outlined.PhoneIphone" />
+                    <MudText Typo="Typo.subtitle1"><strong>iPhone / iPad</strong></MudText>
+                </div>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Tylko w przeglądarce Safari</MudText>
+                <ol class="gaska-install-steps">
+                    <li>Otwórz intranet w <strong>Safari</strong> i zaloguj się.</li>
+                    <li>Stuknij przycisk <strong>Udostępnij</strong> (kwadrat ze strzałką w górę) na dolnym pasku.</li>
+                    <li>Przewiń listę i wybierz <strong>Do ekranu początkowego</strong>, potem <strong>Dodaj</strong>.</li>
+                </ol>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex">
+            <MudPaper Class="@PlatformClass(_info is { Android: false, Ios: false })" Elevation="0">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Outlined.Computer" />
+                    <MudText Typo="Typo.subtitle1"><strong>Komputer</strong></MudText>
+                </div>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Chrome lub Edge</MudText>
+                <ol class="gaska-install-steps">
+                    <li>Kliknij <strong>Zainstaluj teraz</strong> powyżej – albo ikonę instalacji w pasku adresu
+                        (monitor ze strzałką) / menu → <strong>Aplikacje</strong> → <strong>Zainstaluj</strong>.</li>
+                    <li>Intranet otworzy się w osobnym oknie i będzie w menu Start.</li>
+                </ol>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-4">
+        Aplikację usuwa się jak każdą inną (przytrzymaj ikonę → Usuń). Do działania potrzebne jest połączenie z internetem.
+    </MudText>
+}
+
+@code {
+    private InstallInfo? _info;
+    private string? _result;
+    private bool _busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // The browser may offer installation a moment after the page loads – ask a few times.
+        for (var attempt = 0; attempt < 4 && _info is not { CanPrompt: true }; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(1000);
+            }
+
+            try
+            {
+                _info = await JS.InvokeAsync<InstallInfo>("gaskaInstall.info");
+                StateHasChanged();
+            }
+            catch (Exception ex) when (ex is JSException or JSDisconnectedException or TaskCanceledException)
+            {
+                return;
+            }
+
+            if (_info.Standalone)
+            {
+                return;
+            }
+        }
+    }
+
+    private async Task InstallAsync()
+    {
+        _busy = true;
+        try
+        {
+            _result = await JS.InvokeAsync<string>("gaskaInstall.prompt");
+            _info = await JS.InvokeAsync<InstallInfo>("gaskaInstall.info");
+        }
+        catch (JSException)
+        {
+            _result = "unavailable";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string PlatformClass(bool current) =>
+        "gaska-card pa-4 gaska-install-platform" + (current ? " is-current" : string.Empty);
+
+    private sealed record InstallInfo(bool Standalone, bool CanPrompt, bool Ios, bool Android);
+}

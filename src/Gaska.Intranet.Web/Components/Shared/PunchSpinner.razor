@@ -1,0 +1,10 @@
+@* Small spinner inside a button while its action is being saved. *@
+@if (Visible)
+{
+    <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Inherit" Class="gaska-button-spinner" />
+}
+
+@code {
+    [Parameter]
+    public bool Visible { get; set; }
+}

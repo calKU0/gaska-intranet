@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7227",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https-fake": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7227",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ActiveDirectory__Provider": "Fake",
+        "ConnectionStrings__Intranet": "Server=(localdb)\\MSSQLLocalDB;Database=GaskaIntranet;Trusted_Connection=True;TrustServerCertificate=True",
+        "Sms__Enabled": "false",
+        "Smtp__Enabled": "false"
+      }
+    },
+    "https-demo": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7227",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ActiveDirectory__Provider": "Fake",
+        "ConnectionStrings__Intranet": "Server=(localdb)\\MSSQLLocalDB;Database=GaskaIntranet;Trusted_Connection=True;TrustServerCertificate=True",
+        "Sms__Enabled": "false",
+        "Smtp__Enabled": "false",
+        "Demo__Enabled": "true"
+      }
+    }
+  }
+}

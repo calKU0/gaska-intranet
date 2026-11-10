@@ -1,0 +1,28 @@
+@* Table rows in the shape of the data while a table loads (instead of the table's progress bar – same look as
+   PageSkeleton). Used as MudDataGrid's LoadingContent. *@
+<div class="gaska-grid-skeleton" aria-busy="true" aria-label="Ładowanie…">
+    @for (var i = 0; i < Rows; i++)
+    {
+        <div class="gaska-grid-skeleton-row">
+            @if (Avatar)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
+            }
+            <div class="flex-grow-1">
+                <MudSkeleton Width="@($"{40 + i * 9 % 35}%")" Height="18px" />
+                <MudSkeleton Width="@($"{25 + i * 7 % 20}%")" Height="14px" />
+            </div>
+            <MudSkeleton Width="16%" Height="18px" Class="gaska-hide-xs" />
+            <MudSkeleton Width="12%" Height="18px" Class="gaska-hide-xs" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Rows { get; set; } = 8;
+
+    /// <summary>Round placeholder in front of each row (lists of people).</summary>
+    [Parameter]
+    public bool Avatar { get; set; }
+}

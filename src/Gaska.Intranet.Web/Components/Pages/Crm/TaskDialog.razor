@@ -1,0 +1,90 @@
+@using Gaska.Intranet.Core.Auditing
+@inject ICrmTaskService Tasks
+@inject CrmSession Session
+@inject IAuditLog Audit
+@inject IJSRuntime JS
+
+<MudDialog Class="gaska-dialog">
+    <DialogContent>
+        <EditForm Model="_input" OnValidSubmit="SaveAsync" OnInvalidSubmit="() => JS.RevealInvalidFieldAsync()" id="task-form">
+            <DataAnnotationsValidator />
+            <TaskFields Task="_input" Contacts="_contacts" />
+        </EditForm>
+        <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()" Disabled="_saving">Anuluj</MudButton>
+        <MudButton ButtonType="ButtonType.Submit" form="task-form" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Zapisz w GoNet
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly TaskInput _input = new();
+    private IReadOnlyList<(int Id, string Name)> _contacts = [];
+    private bool _saving;
+    private string? _error;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    [Parameter]
+    public int ContractorId { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ContractorContact> Contacts { get; set; } = [];
+
+    protected override void OnInitialized()
+    {
+        _contacts = Contacts.Select(c => (c.Id, c.Position is null ? c.Name : $"{c.Name} ({c.Position})")).ToList();
+        _input.ContactId = Contacts.FirstOrDefault(c => c.IsMain)?.Id;
+    }
+
+    private async Task SaveAsync()
+    {
+        // The same error again: hide it for a moment, so it appears (and scrolls into view) once more.
+        if (_error is not null)
+        {
+            _error = null;
+            await Task.Yield();
+        }
+
+        if (await Session.GetOperatorAsync() is not { } op)
+        {
+            _error = "Brak powiązania z kontem GoNet – nie można zapisać.";
+            return;
+        }
+
+        if (_input.IsDone(DateTime.Now) && string.IsNullOrWhiteSpace(_input.Notes))
+        {
+            _error = "Zadanie z przeszłości zapisuje się jako wykonane – opisz jego przebieg w notatce.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var taskId = await Tasks.AddTaskAsync(ContractorId, _input, op.Id);
+            var user = (await AuthState).User.Identity?.Name;
+            await Audit.WriteAsync(AuditEvents.CrmTaskAdded, user, $"GoNet kontrahent #{ContractorId}, zadanie #{taskId}");
+            MudDialog.Close(DialogResult.Ok(taskId));
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

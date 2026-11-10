@@ -1,0 +1,84 @@
+@page "/"
+@inject IModuleAccessService Access
+@inject Microsoft.Extensions.Options.IOptions<List<QuickLink>> QuickLinks
+
+<PageTitle>Start · Gąska Intranet</PageTitle>
+
+<div class="gaska-hero">
+    <div>
+        <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title">@Greeting, @_firstName!</MudText>
+        <MudText Typo="Typo.body1" Class="mud-text-secondary mt-1">Witaj w intranecie Gąski. Wybierz, czego potrzebujesz.</MudText>
+    </div>
+    <img src="img/mark.png" alt="" class="gaska-hero-mark d-none d-md-block" />
+</div>
+
+@* Browser only (hidden inside the installed app); "Nie teraz" hides it for good on this device (js/boot.js). *@
+<div class="gaska-install-banner gaska-browser-only">
+    <div class="gaska-install-banner-icon"><img src="img/mark.png" alt="" /></div>
+    <div class="gaska-install-banner-text">
+        <div class="gaska-install-banner-title">Zainstaluj intranet jako aplikację</div>
+        <div class="gaska-install-banner-desc">Na telefonie lub komputerze, z własną ikoną – uruchomisz go jednym dotknięciem, jak każdą inną aplikację.</div>
+    </div>
+    <div class="gaska-install-banner-actions">
+        <button type="button" class="gaska-plain-button" data-install-dismiss>Nie teraz</button>
+        <MudButton Href="/aplikacja" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.InstallMobile">Zainstaluj</MudButton>
+    </div>
+</div>
+
+<MudGrid Spacing="4" Class="mt-2 gaska-stagger">
+    @foreach (var module in _modules)
+    {
+        <MudItem xs="12" sm="6" lg="4">
+            <a href="@module.Route" class="gaska-tile">
+                <div class="gaska-tile-icon"><MudIcon Icon="@module.Icon" /></div>
+                <div class="gaska-tile-text">
+                    <div class="gaska-tile-title">@module.Title</div>
+                    <div class="gaska-tile-desc">@module.Description</div>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Class="gaska-tile-arrow" />
+            </a>
+        </MudItem>
+    }
+</MudGrid>
+
+@if (QuickLinks.Value.Count > 0)
+{
+    <MudText Typo="Typo.h6" HtmlTag="h2" Class="gaska-section-heading">Przydatne linki</MudText>
+    <MudGrid Spacing="4" Class="gaska-stagger">
+        @foreach (var link in QuickLinks.Value)
+        {
+            <MudItem xs="12" sm="6" lg="4">
+                <a href="@link.Url" target="_blank" rel="noopener" class="gaska-tile gaska-link-tile">
+                    <div class="gaska-tile-icon"><MudIcon Icon="@link.IconSvg" /></div>
+                    <div class="gaska-tile-text">
+                        <div class="gaska-tile-title">@link.Title</div>
+                        <div class="gaska-tile-desc">@link.Description</div>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Class="gaska-tile-arrow" Size="Size.Small" />
+                </a>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<ModuleDefinition> _modules = [];
+    private string _firstName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private static string Greeting => DateTime.Now.Hour switch
+    {
+        < 5 => "Dobry wieczór",
+        < 18 => "Dzień dobry",
+        _ => "Dobry wieczór",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        _firstName = user.GetFirstName() ?? user.GetDisplayName();
+        _modules = await Access.GetAccessibleModulesAsync(user);
+    }
+}

@@ -1,0 +1,70 @@
+@* Placeholder in the shape of the page while its data loads – feels faster than an empty page with a progress bar. *@
+<div class="gaska-skeleton" aria-busy="true" aria-label="Ładowanie…">
+    @if (Kind == SkeletonKind.Details)
+    {
+        @if (ShowTitle)
+        {
+            <MudSkeleton Width="40%" Height="40px" Class="mb-2" />
+            <MudSkeleton Width="60%" Height="20px" Class="mb-6" />
+        }
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="5" lg="4">
+                <MudPaper Elevation="0" Class="gaska-card pa-5">
+                    @for (var i = 0; i < 6; i++)
+                    {
+                        <MudSkeleton Width="30%" Height="14px" />
+                        <MudSkeleton Width="@($"{60 + i * 5 % 30}%")" Height="22px" Class="mb-3" />
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="7" lg="8">
+                <MudPaper Elevation="0" Class="gaska-card pa-5">
+                    <MudSkeleton Width="50%" Height="32px" Class="mb-4" />
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        <div class="d-flex align-center gap-3 mb-3">
+                            <MudSkeleton SkeletonType="SkeletonType.Circle" Width="36px" Height="36px" />
+                            <div class="flex-grow-1">
+                                <MudSkeleton Width="45%" Height="18px" />
+                                <MudSkeleton Width="70%" Height="14px" />
+                            </div>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+    else
+    {
+        <MudPaper Elevation="0" Class="gaska-card pa-4">
+            <MudSkeleton Width="100%" Height="40px" Class="mb-4" />
+            @for (var i = 0; i < Rows; i++)
+            {
+                <div class="d-flex align-center gap-3 py-2">
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
+                    <MudSkeleton Width="@($"{35 + i * 7 % 30}%")" Height="18px" />
+                    <MudSpacer />
+                    <MudSkeleton Width="18%" Height="18px" />
+                </div>
+            }
+        </MudPaper>
+    }
+</div>
+
+@code {
+    public enum SkeletonKind
+    {
+        List,
+        Details,
+    }
+
+    [Parameter]
+    public SkeletonKind Kind { get; set; } = SkeletonKind.List;
+
+    [Parameter]
+    public int Rows { get; set; } = 6;
+
+    /// <summary>Placeholder for the page title – off when the page header is already shown.</summary>
+    [Parameter]
+    public bool ShowTitle { get; set; } = true;
+}

@@ -1,0 +1,25 @@
+@inject CrmSession Session
+
+@* Shown when the intranet user has no matching GoNet operator – browsing works, saving does not. *@
+@if (_resolved && Session.UnavailableReason is { } reason)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" Dense="true">@reason</MudAlert>
+}
+else if (_resolved && _operator is null)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" Dense="true">
+        Nie znaleziono Twojego konta w GoNet (dopasowanie po imieniu i nazwisku). Możesz przeglądać karty, ale nie możesz
+        niczego zapisywać. Zgłoś to do działu IT.
+    </MudAlert>
+}
+
+@code {
+    private GoNetOperator? _operator;
+    private bool _resolved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _operator = await Session.GetOperatorAsync();
+        _resolved = true;
+    }
+}

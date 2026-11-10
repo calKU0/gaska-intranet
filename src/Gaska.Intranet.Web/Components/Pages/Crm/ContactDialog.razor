@@ -1,0 +1,118 @@
+@using Gaska.Intranet.Core.Auditing
+@inject IContractorService Contractors
+@inject CrmSession Session
+@inject IAuditLog Audit
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog Class="gaska-dialog">
+    <DialogContent>
+        <EditForm Model="_input" OnValidSubmit="SaveAsync" OnInvalidSubmit="() => JS.RevealInvalidFieldAsync()" id="contact-form">
+            <DataAnnotationsValidator />
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_input.Name" For="() => _input.Name" Label="Imię i nazwisko" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_input.Position" For="() => _input.Position" Label="Stanowisko" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_input.Mobile" For="() => _input.Mobile" Label="Telefon komórkowy" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_input.Phone1" For="() => _input.Phone1" Label="Telefon stacjonarny" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_input.Email" For="() => _input.Email" Label="E-mail" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_input.Notes" Label="Uwagi" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Sizing="InputSizing.Auto" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudCheckBox @bind-Value="_input.IsMain" Label="Główna osoba kontaktowa" Color="Color.Primary" />
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+        <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()" Disabled="_saving">Anuluj</MudButton>
+        <MudButton ButtonType="ButtonType.Submit" form="contact-form" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Zapisz
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private ContactInput _input = new();
+    private bool _saving;
+    private string? _error;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    [Parameter]
+    public int ContractorId { get; set; }
+
+    /// <summary>Contact to edit; null = new contact.</summary>
+    [Parameter]
+    public ContractorContact? Contact { get; set; }
+
+    [Parameter]
+    public ContactInput? Prefill { get; set; }
+
+    public static ContactInput FromCard(BusinessCardData card) => new()
+    {
+        Name = card.PersonName ?? string.Empty,
+        Position = card.Position,
+        Mobile = card.Phones.FirstOrDefault(),
+        Phone1 = card.Phones.Skip(1).FirstOrDefault(),
+        Email = card.Emails.FirstOrDefault(),
+    };
+
+    protected override void OnInitialized() =>
+        _input = Contact is not null ? ContactInput.From(Contact) : Prefill ?? new ContactInput();
+
+    private async Task SaveAsync()
+    {
+        if (await Session.GetOperatorAsync() is not { } op)
+        {
+            _error = "Brak powiązania z kontem GoNet – nie można zapisać.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (Contact is null)
+            {
+                await Contractors.AddContactAsync(ContractorId, _input, op.Id);
+            }
+            else
+            {
+                await Contractors.UpdateContactAsync(ContractorId, Contact.Id, _input, op.Id);
+            }
+
+            var user = (await AuthState).User.Identity?.Name;
+            await Audit.WriteAsync(AuditEvents.CrmContactSaved, user, $"GoNet kontrahent #{ContractorId}: {_input.Name}");
+            Snackbar.Add("Zapisano osobę kontaktową.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

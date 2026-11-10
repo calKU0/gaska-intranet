@@ -1,0 +1,149 @@
+@page "/kontrahenci/wizytowka"
+@attribute [ModuleAuthorize(ModuleKeys.Contractors)]
+@inject IBusinessCardReader Reader
+@inject IContractorService Contractors
+@inject CrmSession Session
+@inject NavigationManager Navigation
+@inject ILogger<BusinessCardScan> Logger
+
+<PageTitle>Wizytówka · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Wizytówka" Subtitle="Zrób zdjęcie wizytówki – znajdziemy kontrahenta albo przygotujemy formularz z danymi." />
+
+<CrmOperatorNotice />
+
+<MudPaper Elevation="0" Class="gaska-card pa-5 gaska-scan">
+    <label class="gaska-scan-drop @(_busy ? "is-disabled" : null)">
+        <InputFile OnChange="OnFileAsync" accept="image/*" capture="environment" disabled="@_busy" class="gaska-scan-input" />
+        @if (_busy)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <span class="gaska-scan-label">Odczytuję wizytówkę…</span>
+        }
+        else
+        {
+            <MudIcon Icon="@Icons.Material.Outlined.PhotoCamera" Style="font-size:3rem" Color="Color.Primary" />
+            <span class="gaska-scan-label">Zrób zdjęcie albo wybierz plik</span>
+            <span class="gaska-person-title">Wizytówka na płasko, z bliska, przy dobrym świetle.</span>
+        }
+    </label>
+
+    <FormError Message="@_error" Class="mt-4" />
+
+    @if (_card is not null)
+    {
+        <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-6">Odczytane dane</MudText>
+        <dl class="gaska-details">
+            <dt>Firma</dt><dd>@(_card.CompanyName ?? "—")</dd>
+            <dt>NIP</dt><dd>@(_card.Nip ?? "—")</dd>
+            <dt>Osoba</dt><dd>@(_card.PersonName ?? "—") @(_card.Position is null ? "" : $"({_card.Position})")</dd>
+            <dt>Telefony</dt><dd>@(_card.Phones.Count > 0 ? string.Join(", ", _card.Phones) : "—")</dd>
+            <dt>E-mail</dt><dd>@(_card.Emails.Count > 0 ? string.Join(", ", _card.Emails) : "—")</dd>
+            <dt>Adres</dt><dd>@($"{_card.Address} {_card.PostalCode} {_card.City}".Trim() is { Length: > 0 } a ? a : "—")</dd>
+            @if (_card.Country is not null)
+            {
+                <dt>Kraj</dt><dd>@_card.Country</dd>
+            }
+            @if (_card.Www is not null)
+            {
+                <dt>WWW</dt><dd>@_card.Www</dd>
+            }
+        </dl>
+
+        @if (_matches.Count > 1)
+        {
+            <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-4">Pasujący kontrahenci – wybierz</MudText>
+            <MudList T="ContractorListItem" Dense="true">
+                @foreach (var m in _matches)
+                {
+                    <MudListItem T="ContractorListItem" OnClick="() => OpenContractor(m.Id)" Icon="@Icons.Material.Outlined.Storefront">
+                        <span class="gaska-person-name">@m.ShortName</span>
+                        <span class="gaska-person-title"> · @m.FullName @(m.City is null ? "" : $"· {m.City}")</span>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        <div class="d-flex gap-2 mt-4 flex-wrap">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateNew"
+                       Disabled="@(_operator is null)">
+                <span class="gaska-label-long">Utwórz nowego kontrahenta</span><span class="gaska-label-short">Nowy kontrahent</span>
+            </MudButton>
+        </div>
+
+        <details class="auth-manual-key mt-4">
+            <summary>Pokaż rozpoznany tekst</summary>
+            <pre class="gaska-ocr-text">@_card.RawText</pre>
+        </details>
+    }
+</MudPaper>
+
+@code {
+    private BusinessCardData? _card;
+    private IReadOnlyList<ContractorListItem> _matches = [];
+    private GoNetOperator? _operator;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => _operator = await Session.GetOperatorAsync();
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        _error = null;
+        _card = null;
+        _matches = [];
+        StateHasChanged();
+
+        try
+        {
+            // Phones send large photos; the limit is checked again by the reader.
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024);
+            _card = await Reader.ReadAsync(stream);
+            _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(_card.Nip, _card.Emails, _card.Phones, _card.CompanyName, _card.Www));
+            Session.Draft = _card;
+
+            // Exactly one contractor matches – open the card. None – open the form with the data.
+            if (_matches.Count == 1)
+            {
+                OpenContractor(_matches[0].Id);
+            }
+            else if (_matches.Count == 0 && _operator is not null && HasUsefulData(_card))
+            {
+                CreateNew();
+            }
+            else if (!HasUsefulData(_card))
+            {
+                _error = "Nie udało się rozpoznać danych. Zrób zdjęcie jeszcze raz – z bliska, na wprost, bez odblasków.";
+            }
+        }
+        catch (CrmException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (IOException ex)
+        {
+            Logger.LogWarning(ex, "Business card upload failed");
+            _error = "Nie udało się przesłać zdjęcia (maks. 15 MB).";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OpenContractor(int id)
+    {
+        Session.DraftContractorId = id;
+        Navigation.NavigateTo($"/kontrahenci/{id}");
+    }
+
+    private void CreateNew()
+    {
+        Session.DraftContractorId = null;
+        Navigation.NavigateTo("/kontrahenci/nowy");
+    }
+
+    private static bool HasUsefulData(BusinessCardData card) =>
+        card.Nip is not null || card.Emails.Count > 0 || card.Phones.Count > 0 || card.CompanyName is not null;
+}

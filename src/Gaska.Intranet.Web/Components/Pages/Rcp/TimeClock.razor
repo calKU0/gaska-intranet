@@ -1,0 +1,345 @@
+@page "/rcp"
+@attribute [ModuleAuthorize(ModuleKeys.Rcp)]
+@using Gaska.Intranet.Core.Auditing
+@implements IAsyncDisposable
+@inject IRcpService Rcp
+@inject IAuditLog Audit
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Clock
+
+<PageTitle>RCP · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Rejestracja czasu pracy"
+            Subtitle="@(_employee is null ? "Odbicia trafiają do systemu – tak jak przy czytniku kart." : $"{_employee.FullName} · odbicia trafiają do systemu - tak jak przy czytniku kart")"
+            InlineActions="true">
+    <Actions>
+        <MudTooltip Text="Odśwież">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" OnClick="LoadAsync" Disabled="_loading || _busy" aria-label="Odśwież" />
+        </MudTooltip>
+    </Actions>
+</PageHeader>
+
+<FormError Message="@_error" Class="mb-4" />
+
+@if (_loading && _today is null)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.Details" ShowTitle="false" />
+}
+else if (_employee is null && _error is null)
+{
+    <div class="gaska-empty-state">
+        <MudIcon Icon="@Icons.Material.Outlined.PersonSearch" Style="font-size:4rem" Color="Color.Primary" />
+        <MudText Typo="Typo.h5" Class="mt-4">Nie znaleziono Cię w systemie RCP</MudText>
+        <MudText Typo="Typo.body1" Class="mt-2 mud-text-secondary">
+            Twoje imię i nazwisko (@_displayName) nie pasuje do żadnej aktywnej osoby w systemie RCP.
+            Zgłoś to do działu IT – powiązanie można ustawić ręcznie.
+        </MudText>
+    </div>
+}
+else if (_today is { } day)
+{
+    var now = Now;
+    var state = day.State;
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" lg="7">
+            <MudPaper Elevation="0" Class="gaska-card pa-5 gaska-rcp-status">
+                <div class="gaska-rcp-head">
+                    <div class="gaska-rcp-state is-@state.ToString().ToLowerInvariant()">
+                        <MudIcon Icon="@StateIcon(state)" />
+                        <span>@StateLabel(state)</span>
+                    </div>
+                    <div class="gaska-rcp-clock">@now.ToString("HH:mm:ss")</div>
+                </div>
+
+                <div class="gaska-rcp-big">
+                    <div>
+                        <div class="gaska-rcp-big-label">Czas pracy dziś</div>
+                        <div class="gaska-rcp-big-value">@Format(day.WorkTime(now))</div>
+                    </div>
+                    @if (day.CurrentBreak is { } current)
+                    {
+                        <div class="text-right">
+                            <div class="gaska-rcp-big-label">Trwa przerwa</div>
+                            <div class="gaska-rcp-big-value is-break">@Format(current.Duration(now))</div>
+                        </div>
+                    }
+                </div>
+
+                @* Phones show only the actions possible right now; desktop keeps all four (disabled) for orientation. *@
+                <div class="gaska-rcp-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@(_punching == RcpEventType.WorkStart ? null : Icons.Material.Filled.PlayArrow)"
+                               Disabled="_busy || !day.CanPunch(RcpEventType.WorkStart)" Class="@(day.CanPunch(RcpEventType.WorkStart) ? null : "is-unavailable")" OnClick="() => PunchAsync(RcpEventType.WorkStart)">
+                        <PunchSpinner Visible="_punching == RcpEventType.WorkStart" />Rozpocznij pracę
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" StartIcon="@(_punching == RcpEventType.BreakStart ? null : Icons.Material.Filled.Coffee)"
+                               Disabled="_busy || !day.CanPunch(RcpEventType.BreakStart)" Class="@(day.CanPunch(RcpEventType.BreakStart) ? null : "is-unavailable")" OnClick="() => PunchAsync(RcpEventType.BreakStart)">
+                        <PunchSpinner Visible="_punching == RcpEventType.BreakStart" />Rozpocznij przerwę
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" StartIcon="@(_punching == RcpEventType.BreakEnd ? null : Icons.Material.Filled.KeyboardReturn)"
+                               Disabled="_busy || !day.CanPunch(RcpEventType.BreakEnd)" Class="@(day.CanPunch(RcpEventType.BreakEnd) ? null : "is-unavailable")" OnClick="() => PunchAsync(RcpEventType.BreakEnd)">
+                        <PunchSpinner Visible="_punching == RcpEventType.BreakEnd" />Zakończ przerwę
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Large" StartIcon="@(_punching == RcpEventType.WorkEnd ? null : Icons.Material.Filled.Stop)"
+                               Disabled="_busy || !day.CanPunch(RcpEventType.WorkEnd)" Class="@(day.CanPunch(RcpEventType.WorkEnd) ? null : "is-unavailable")" OnClick="() => PunchAsync(RcpEventType.WorkEnd)">
+                        <PunchSpinner Visible="_punching == RcpEventType.WorkEnd" />Zakończ pracę
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" lg="5">
+            <div class="gaska-rcp-stats">
+                <div class="gaska-rcp-stat">
+                    <span>Rozpoczęcie</span>
+                    <strong>@(day.FirstStart?.ToString("HH:mm") ?? "–")</strong>
+                </div>
+                <div class="gaska-rcp-stat">
+                    <span>Zakończenie</span>
+                    <strong>@(day.LastEnd?.ToString("HH:mm") ?? "–")</strong>
+                </div>
+                <div class="gaska-rcp-stat">
+                    <span>Obecność</span>
+                    <strong>@Format(day.PresenceTime(now))</strong>
+                </div>
+                <div class="gaska-rcp-stat">
+                    <span>Przerwy (@day.Breaks.Count)</span>
+                    <strong>@Format(day.BreakTime(now))</strong>
+                </div>
+            </div>
+
+            <MudPaper Elevation="0" Class="gaska-card pa-4 mt-4">
+                <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Przerwy dziś</MudText>
+                @if (day.Breaks.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak przerw.</MudText>
+                }
+                @foreach (var b in day.Breaks)
+                {
+                    <div class="gaska-rcp-row">
+                        <MudIcon Icon="@Icons.Material.Outlined.Coffee" Size="Size.Small" />
+                        <span class="flex-grow-1">@b.Start.ToString("HH:mm") – @(b.End?.ToString("HH:mm") ?? "trwa")</span>
+                        <strong>@Format(b.Duration(now))</strong>
+                    </div>
+                }
+
+                <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-4">Odbicia dziś</MudText>
+                @if (day.Events.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak odbić.</MudText>
+                }
+                @foreach (var e in day.Events)
+                {
+                    <div class="gaska-rcp-row">
+                        <MudIcon Icon="@EventIcon(e.Type)" Size="Size.Small" />
+                        <span class="flex-grow-1">@EventLabel(e.Type)</span>
+                        <strong>@e.Time.ToString("HH:mm:ss")</strong>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudPaper Elevation="0" Class="gaska-card pa-4">
+                <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Ostatnie 7 dni</MudText>
+                @if (_history.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak odbić w ostatnich dniach.</MudText>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="gaska-rcp-history">
+                        <thead>
+                            <tr>
+                                <th>Dzień</th>
+                                <th>Godziny</th>
+                                <th class="gaska-hide-xs">Przerwy</th>
+                                <th>Czas pracy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _history.Where(d => d.Events.Count > 0))
+                            {
+                                // Past day without an exit: count only up to the last record, not until midnight.
+                                var end = d.Date == day.Date ? now : d.Events[^1].Time;
+                                <tr>
+                                    <td>@d.Date.ToString("ddd dd.MM", Pl)</td>
+                                    <td>@(d.FirstStart?.ToString("HH:mm") ?? "–")–@(d.LastEnd?.ToString("HH:mm") ?? (d.Date == day.Date ? "teraz" : "?"))</td>                                    <td class="gaska-hide-xs">@Format(d.BreakTime(end)) <span class="mud-text-secondary">(@d.Breaks.Count)</span></td>
+                                    <td><strong>@Format(d.WorkTime(end))</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo Pl = new("pl-PL");
+
+    private RcpEmployee? _employee;
+    private RcpDay? _today;
+    private IReadOnlyList<RcpDay> _history = [];
+    private string _displayName = string.Empty;
+    private string _accountName = string.Empty;
+    private bool _loading = true;
+    private bool _busy;
+
+    /// <summary>Punch being saved – its button shows a spinner.</summary>
+    private RcpEventType? _punching;
+    private string? _error;
+    private PeriodicTimer? _timer;
+    private Task? _ticking;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private DateTime Now => Clock.GetLocalNow().DateTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Punktualnik is queried once, by the interactive render (the pre-render only shows the skeleton).
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = (await AuthState).User;
+        _accountName = user.Identity?.Name ?? string.Empty;
+        _displayName = user.GetDisplayName();
+        await LoadAsync();
+
+        // Live counters (work time, current break) – re-rendered every second.
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ticking = TickAsync(_timer);
+    }
+
+    private async Task TickAsync(PeriodicTimer timer)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync())
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Circuit closed.
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _employee ??= await Rcp.FindEmployeeAsync(_accountName, _displayName);
+            if (_employee is not null)
+            {
+                var today = DateOnly.FromDateTime(Now);
+                _history = await Rcp.GetDaysAsync(_employee.Id, today.AddDays(-6), today);
+                _today = _history.FirstOrDefault(d => d.Date == today) ?? new RcpDay(today, []);
+            }
+        }
+        catch (RcpException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PunchAsync(RcpEventType type)
+    {
+        if (_employee is null || _busy)
+        {
+            return;
+        }
+
+        if (type == RcpEventType.WorkEnd)
+        {
+            var confirmed = await Dialogs.ShowMessageBoxAsync("Zakończyć pracę?",
+                $"Wyjście zostanie zapisane z godziną {Now:HH:mm}.", yesText: "Zakończ pracę", cancelText: "Anuluj");
+            if (confirmed != true)
+            {
+                return;
+            }
+        }
+
+        _busy = true;
+        _punching = type;
+        _error = null;
+        try
+        {
+            var day = await Rcp.PunchAsync(_employee.Id, type);
+            await Audit.WriteAsync(AuditEvents.RcpPunch, _accountName, $"{EventLabel(type)} (Punktualnik #{_employee.Id})");
+            Snackbar.Add($"{EventLabel(type)} – zapisano o {Now:HH:mm}.", Severity.Success);
+            _today = day;
+            _history = [day, .. _history.Where(d => d.Date != day.Date)];
+        }
+        catch (RcpException ex)
+        {
+            _error = ex.Message;
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+            _punching = null;
+        }
+    }
+
+    /// <summary>"7 h 05 min"; below an hour minutes and seconds: "12 min 07 s".</summary>
+    private static string Format(TimeSpan time) =>
+        time.TotalHours >= 1
+            ? $"{(int)time.TotalHours} h {time.Minutes:00} min"
+            : $"{time.Minutes} min {time.Seconds:00} s";
+
+    private static string StateLabel(RcpState state) => state switch
+    {
+        RcpState.Working => "W pracy",
+        RcpState.OnBreak => "Na przerwie",
+        RcpState.Finished => "Praca zakończona",
+        _ => "Praca nierozpoczęta",
+    };
+
+    private static string StateIcon(RcpState state) => state switch
+    {
+        RcpState.Working => Icons.Material.Filled.Work,
+        RcpState.OnBreak => Icons.Material.Filled.Coffee,
+        RcpState.Finished => Icons.Material.Filled.TaskAlt,
+        _ => Icons.Material.Outlined.Schedule,
+    };
+
+    private static string EventLabel(RcpEventType type) => type switch
+    {
+        RcpEventType.WorkStart => "Rozpoczęcie pracy",
+        RcpEventType.WorkEnd => "Zakończenie pracy",
+        RcpEventType.BreakStart => "Rozpoczęcie przerwy",
+        _ => "Zakończenie przerwy",
+    };
+
+    private static string EventIcon(RcpEventType type) => type switch
+    {
+        RcpEventType.WorkStart => Icons.Material.Outlined.Login,
+        RcpEventType.WorkEnd => Icons.Material.Outlined.Logout,
+        RcpEventType.BreakStart => Icons.Material.Outlined.Coffee,
+        _ => Icons.Material.Outlined.KeyboardReturn,
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        if (_ticking is not null)
+        {
+            await _ticking;
+        }
+    }
+}
