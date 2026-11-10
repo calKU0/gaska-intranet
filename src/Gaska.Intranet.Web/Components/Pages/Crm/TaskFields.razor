@@ -42,7 +42,11 @@
     <MudItem xs="12">
         <div class="gaska-task-mode @(IsDone ? "is-done" : "is-planned")">
             <MudIcon Icon="@(IsDone ? Icons.Material.Outlined.TaskAlt : Icons.Material.Outlined.Event)" Size="Size.Small" />
-            @if (IsDone)
+            @if (AlreadyDone)
+            {
+                <span>Zadanie jest <strong>wykonane</strong> – zmiany trafią też do jego korespondencji (data, temat, osoba, notatka).</span>
+            }
+            else if (IsDone)
             {
                 <span>Termin minął lub trwa – zadanie zostanie zapisane jako <strong>wykonane</strong>, z korespondencją zawierającą notatkę.</span>
             }
@@ -71,18 +75,35 @@
     [Parameter]
     public bool Compact { get; set; }
 
-    private bool IsDone => Task.IsDone(DateTime.Now);
+    /// <summary>
+    /// The task exists in GoNet – no defaults are filled in (opening and saving it unchanged must not change its topic
+    /// or assignee).
+    /// </summary>
+    [Parameter]
+    public bool AlreadyInGoNet { get; set; }
+
+    /// <summary>Editing a task that is already done in GoNet – it stays done whatever the date.</summary>
+    [Parameter]
+    public bool AlreadyDone { get; set; }
+
+    private bool IsDone => AlreadyDone || Task.IsDone(DateTime.Now);
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _topics = await Directory.GetTaskTopicsAsync();
-            Task.TopicId ??= _topics.FirstOrDefault()?.Id;
+            if (!AlreadyInGoNet)
+            {
+                Task.TopicId ??= _topics.FirstOrDefault()?.Id;
+            }
 
             _meId = (await Session.GetOperatorAsync())?.Id;
             _operators = await Directory.GetOperatorsAsync();
-            Task.AssigneeId ??= _meId;
+            if (!AlreadyInGoNet)
+            {
+                Task.AssigneeId ??= _meId;
+            }
         }
         catch (CrmException)
         {

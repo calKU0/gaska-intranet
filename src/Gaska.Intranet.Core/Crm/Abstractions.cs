@@ -32,6 +32,12 @@ public interface ICrmTaskService
     /// Adds a task. Past/now → done task + correspondence (with the note); future → planned task only. Returns the task id.
     /// </summary>
     Task<int> AddTaskAsync(int contractorId, TaskInput input, int operatorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Changes a task of the contractor. A done task stays done and its correspondence follows the changes (date, topic,
+    /// person, note); a planned task moved to the past becomes done and gets its correspondence, as when adding.
+    /// </summary>
+    Task UpdateTaskAsync(int contractorId, int taskId, TaskInput input, int operatorId, CancellationToken ct = default);
 }
 
 /// <summary>GoNet dictionaries and operators.</summary>

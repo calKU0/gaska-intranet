@@ -52,7 +52,7 @@ internal sealed class DemoCrm : ICrmDirectory, IContractorService, ICrmTaskServi
         [
             new CrmTask
             {
-                Id = 501, Number = "ZAD/2026/0412", Kind = "Wizyta startowa", Start = now.AddDays(-12).Date.AddHours(10), End = now.AddDays(-12).Date.AddHours(11),
+                Id = 501, Number = "ZAD/2026/0412", Kind = "Wizyta startowa", KindId = 1, AssigneeId = Me.Id, Start = now.AddDays(-12).Date.AddHours(10), End = now.AddDays(-12).Date.AddHours(11),
                 Status = 2, PercentDone = 100, Info = "Przedstawienie oferty części do kombajnów", AssigneeName = Me.FullName, AuthorName = Me.FullName,
                 Notes = "Klient zainteresowany częściami do Claas Lexion. Wysłać ofertę do końca tygodnia.",
                 Correspondence = [new CorrespondenceEntry { Id = 9001, Date = now.AddDays(-12).Date.AddHours(11), Kind = "Notatka", Subject = "Wizyta startowa",
@@ -60,7 +60,7 @@ internal sealed class DemoCrm : ICrmDirectory, IContractorService, ICrmTaskServi
             },
             new CrmTask
             {
-                Id = 502, Number = "ZAD/2026/0498", Kind = "Spotkanie handlowe", Start = now.AddDays(3).Date.AddHours(9), End = now.AddDays(3).Date.AddHours(10),
+                Id = 502, Number = "ZAD/2026/0498", Kind = "Spotkanie handlowe", KindId = 2, AssigneeId = Me.Id, Start = now.AddDays(3).Date.AddHours(9), End = now.AddDays(3).Date.AddHours(10),
                 Status = 0, PercentDone = 0, Info = "Omówienie zamówienia na sezon", AssigneeName = Me.FullName, AuthorName = Me.FullName,
             },
         ];
@@ -204,10 +204,42 @@ internal sealed class DemoCrm : ICrmDirectory, IContractorService, ICrmTaskServi
             {
                 Id = id, Number = $"ZAD/2026/{id:0000}", Kind = Topics.FirstOrDefault(t => t.Id == input.TopicId)?.Name, Start = input.Start, End = input.End,
                 Status = done ? 2 : 0, PercentDone = done ? 100 : 0, Info = input.Info, Notes = input.Notes,
+                KindId = input.TopicId, ContactId = input.ContactId, AssigneeId = input.AssigneeId ?? operatorId,
                 AssigneeName = (Operators.FirstOrDefault(o => o.Id == (input.AssigneeId ?? operatorId)) ?? Me).FullName,
                 AuthorName = (Operators.FirstOrDefault(o => o.Id == operatorId) ?? Me).FullName,
             });
             return Task.FromResult(id);
+        }
+    }
+
+    public Task UpdateTaskAsync(int contractorId, int taskId, TaskInput input, int operatorId, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            var list = _tasks.GetValueOrDefault(contractorId) ?? [];
+            var index = list.FindIndex(t => t.Id == taskId);
+            if (index < 0)
+            {
+                throw new CrmException("Nie znaleziono zadania – mogło zostać usunięte w GoNet.");
+            }
+
+            var task = list[index];
+            var done = task.IsDone || input.IsDone(DateTime.Now);
+            list[index] = task with
+            {
+                Kind = Topics.FirstOrDefault(t => t.Id == input.TopicId)?.Name ?? task.Kind,
+                KindId = input.TopicId,
+                Start = input.Start,
+                End = input.End,
+                Status = done ? 2 : 0,
+                PercentDone = done ? 100 : 0,
+                Info = input.Info,
+                Notes = input.Notes,
+                ContactId = input.ContactId,
+                AssigneeId = input.AssigneeId ?? operatorId,
+                AssigneeName = (Operators.FirstOrDefault(o => o.Id == (input.AssigneeId ?? operatorId)) ?? Me).FullName,
+            };
+            return Task.CompletedTask;
         }
     }
 

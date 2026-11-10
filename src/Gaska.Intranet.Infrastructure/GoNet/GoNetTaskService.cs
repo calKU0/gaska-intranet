@@ -28,7 +28,8 @@ internal sealed class GoNetTaskService(
             SELECT FIRST {Math.Clamp(take, 1, 500)}
                    z.ID, z.NUMERSTR, r.NAZWA AS RODZAJ, z.TERMINROZPOCZECIA, z.TERMINZAKONCZENIA, z.STATUS, z.UKONCZONO,
                    z.INFO, CAST(z.UWAGI AS BLOB SUB_TYPE 0) AS UWAGI, z.IDKORESPONDENCJADZIENNIKROOT AS ROOT,
-                   zb.IMIE AS ZB_IMIE, zb.NAZWISKO AS ZB_NAZWISKO, zd.IMIE AS ZD_IMIE, zd.NAZWISKO AS ZD_NAZWISKO
+                   zb.IMIE AS ZB_IMIE, zb.NAZWISKO AS ZB_NAZWISKO, zd.IMIE AS ZD_IMIE, zd.NAZWISKO AS ZD_NAZWISKO,
+                   z.IDRODZAJZADANIA, z.IDADRESATA, z.IDZLECENIOBIORCY
             FROM ZADANIA z
             LEFT JOIN SLOWNIK r ON r.ID = z.IDRODZAJZADANIA
             LEFT JOIN OPERATOR zb ON zb.ID = z.IDZLECENIOBIORCY
@@ -55,6 +56,9 @@ internal sealed class GoNetTaskService(
                     Notes = GoNetDatabase.Text(reader, "UWAGI"),
                     AssigneeName = Name(GoNetDatabase.Text(reader, "ZB_IMIE"), GoNetDatabase.Text(reader, "ZB_NAZWISKO")),
                     AuthorName = Name(GoNetDatabase.Text(reader, "ZD_IMIE"), GoNetDatabase.Text(reader, "ZD_NAZWISKO")),
+                    KindId = Positive(GoNetDatabase.Int(reader, "IDRODZAJZADANIA")),
+                    ContactId = Positive(GoNetDatabase.Int(reader, "IDADRESATA")),
+                    AssigneeId = Positive(GoNetDatabase.Int(reader, "IDZLECENIOBIORCY")),
                 }, GoNetDatabase.Int(reader, "ROOT")));
             }
         }
@@ -129,8 +133,20 @@ internal sealed class GoNetTaskService(
             return taskId;
         }
 
-        // 2. Correspondence note: topic from the correspondence-topics dictionary (added there when missing),
-        //    text as UTF-8 – the procedure marks the record UTF = 1.
+        await AddCorrespondenceAsync(connection, tx, contractorId, taskId, input, topicName, operatorId, now, ct);
+        return taskId;
+    }
+
+    /// <summary>
+    /// Correspondence of a done task: a "Spotkanie" note whose topic comes from the correspondence-topics dictionary
+    /// (added there when missing), text as UTF-8 (the procedure marks the record UTF = 1); the task is linked to it and
+    /// gets its completion date and actual times – as GoNet does.
+    /// </summary>
+    private async Task AddCorrespondenceAsync(FbConnection connection, FbTransaction tx, int contractorId, int taskId, TaskInput input,
+        string topicName, int operatorId, DateTime now, CancellationToken ct)
+    {
+        var contactId = input.ContactId ?? -1;
+        var notes = input.Notes?.Trim() ?? string.Empty;
         var correspondenceTopicId = await dictionary.GetOrAddAsync(connection, tx, _options.CorrespondenceTopicDictionaryType, topicName, operatorId, ct);
         var correspondenceNumber = await GoNetDatabase.NextIdAsync(connection, tx, "NR_KORESPONDENCJI", ct);
         await using var note = GoNetDatabase.Command(connection, tx, """
@@ -154,14 +170,124 @@ internal sealed class GoNetTaskService(
             "SELECT FIRST 1 ID FROM KORESPONDENCJADZIENNIK WHERE IDKORESPONDENCJI = @k ORDER BY ID", ("@k", correspondenceId));
         var diaryId = Convert.ToInt32(await diaryQuery.ExecuteScalarAsync(ct));
 
-        // 3. Done task → link to the note, completion date and actual times (as GoNet does).
+        // Done task → link to the note, completion date and actual times (as GoNet does).
         await using var link = GoNetDatabase.Command(connection, tx,
             "UPDATE ZADANIA SET IDKORESPONDENCJADZIENNIKROOT = @diary, DATAUKONCZENIA = @done, FAKTSTART = @start, FAKTKONIEC = @koniec WHERE ID = @id",
             ("@diary", diaryId), ("@done", input.Start.Date), ("@start", input.Start), ("@koniec", input.End), ("@id", taskId));
         await link.ExecuteNonQueryAsync(ct);
-
-        return taskId;
     }
+
+    public Task UpdateTaskAsync(int contractorId, int taskId, TaskInput input, int operatorId, CancellationToken ct = default) =>
+        db.InTransactionAsync(async (connection, tx) =>
+        {
+            await UpdateTaskAsync(connection, tx, contractorId, taskId, input, operatorId, ct);
+            return 0;
+        }, ct);
+
+    /// <summary>
+    /// Update inside a caller-owned transaction (also used by the rollback-only GoNet integration test). The GoNet client
+    /// edits tasks with a plain UPDATE plus a change-log row – done the same way here.
+    /// </summary>
+    internal async Task UpdateTaskAsync(FbConnection connection, FbTransaction tx, int contractorId, int taskId, TaskInput input, int operatorId, CancellationToken ct)
+    {
+        await using var current = GoNetDatabase.Command(connection, tx,
+            "SELECT STATUS, UKONCZONO, IDKORESPONDENCJADZIENNIKROOT FROM ZADANIA WHERE ID = @id AND IDKONTRAHENTA = @k AND USUNIETY = 0",
+            ("@id", taskId), ("@k", contractorId));
+        int status, percent, diaryId;
+        await using (var reader = await current.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct))
+            {
+                throw new CrmException("Nie znaleziono zadania – mogło zostać usunięte w GoNet.");
+            }
+
+            status = GoNetDatabase.Int(reader, "STATUS");
+            percent = GoNetDatabase.Int(reader, "UKONCZONO");
+            diaryId = GoNetDatabase.Int(reader, "IDKORESPONDENCJADZIENNIKROOT");
+        }
+
+        var now = clock.GetLocalNow().DateTime;
+        var wasDone = status == 2 || percent >= 100;
+        var done = wasDone || input.IsDone(now);
+        var topicId = input.TopicId ?? _options.StartVisitKindId;
+        var topicName = await TopicNameAsync(connection, tx, topicId, ct)
+            ?? throw new CrmException("Wybrany temat zadania nie istnieje w GoNet.");
+        var assigneeId = input.AssigneeId ?? operatorId;
+        if (input.AssigneeId is { } picked && (await dictionary.GetOperatorsAsync(ct)).All(o => o.Id != picked))
+        {
+            throw new CrmException("Wybranej osoby nie ma na liście aktywnych operatorów GoNet – wybierz kogoś innego.");
+        }
+
+        var notes = input.Notes?.Trim() ?? string.Empty;
+        await using var update = GoNetDatabase.Command(connection, tx, """
+            UPDATE ZADANIA SET TERMINROZPOCZECIA = @start, TERMINZAKONCZENIA = @koniec, IDRODZAJZADANIA = @rodzaj,
+                IDADRESATA = @adresat, IDZLECENIOBIORCY = @zleceniobiorca, INFO = @info, UWAGI = @uwagi,
+                STATUS = @status, UKONCZONO = @ukonczono
+            WHERE ID = @id
+            """,
+            ("@start", input.Start),
+            ("@koniec", input.End),
+            ("@rodzaj", topicId),
+            ("@adresat", input.ContactId ?? -1),
+            ("@zleceniobiorca", assigneeId),
+            ("@info", GoNetDatabase.Clean(string.IsNullOrWhiteSpace(input.Info) ? Capitalize(topicName) : input.Info, 250)),
+            ("@uwagi", notes),
+            ("@status", done ? 2 : status),
+            ("@ukonczono", done ? 100 : percent),
+            ("@id", taskId));
+        await update.ExecuteNonQueryAsync(ct);
+        await LogChangeAsync(connection, tx, await dictionary.TableIdAsync(connection, tx, "ZADANIA", ct), taskId, operatorId, ct);
+
+        if (!done)
+        {
+            return;
+        }
+
+        if (diaryId <= 0)
+        {
+            // Planned task moved into the past (or done in GoNet without a note) – same correspondence as a new done task.
+            await AddCorrespondenceAsync(connection, tx, contractorId, taskId, input, topicName, operatorId, now, ct);
+            return;
+        }
+
+        // Done task with its note: the note follows the changed date, topic, person and text; the task's actual times too.
+        var correspondenceTopicId = await dictionary.GetOrAddAsync(connection, tx, _options.CorrespondenceTopicDictionaryType, topicName, operatorId, ct);
+        await using (var diary = GoNetDatabase.Command(connection, tx,
+            "UPDATE KORESPONDENCJADZIENNIK SET DATAAKCJI = @data, IDADRESATA = @adresat, UWAGI = @uwagi, UTF = 1 WHERE ID = @id",
+            ("@data", input.Start), ("@adresat", input.ContactId ?? -1), ("@uwagi", GoNetDatabase.EncodeUtf8(notes)), ("@id", diaryId)))
+        {
+            await diary.ExecuteNonQueryAsync(ct);
+        }
+
+        await using (var correspondence = GoNetDatabase.Command(connection, tx,
+            "UPDATE KORESPONDENCJA SET DATAAKCJI = @data, IDRODZAJAKCJI = @temat WHERE ID = (SELECT IDKORESPONDENCJI FROM KORESPONDENCJADZIENNIK WHERE ID = @diary)",
+            ("@data", input.Start), ("@temat", correspondenceTopicId), ("@diary", diaryId)))
+        {
+            await correspondence.ExecuteNonQueryAsync(ct);
+        }
+
+        await using (var times = GoNetDatabase.Command(connection, tx,
+            "UPDATE ZADANIA SET DATAUKONCZENIA = @done, FAKTSTART = @start, FAKTKONIEC = @koniec WHERE ID = @id",
+            ("@done", input.Start.Date), ("@start", input.Start), ("@koniec", input.End), ("@id", taskId)))
+        {
+            await times.ExecuteNonQueryAsync(ct);
+        }
+
+        await LogChangeAsync(connection, tx, await dictionary.TableIdAsync(connection, tx, "KORESPONDENCJADZIENNIK", ct), diaryId, operatorId, ct);
+    }
+
+    /// <summary>Change-log row (MODYFIKACJE, action 1 = edit), as the GoNet client writes after every edit.</summary>
+    private static async Task LogChangeAsync(FbConnection connection, FbTransaction tx, int tableId, int recordId, int operatorId, CancellationToken ct)
+    {
+        await using var log = GoNetDatabase.Command(connection, tx, """
+            INSERT INTO MODYFIKACJE (ID, TYPAKCJI, NRTABELI, IDWTABELI, IDOPERATORA, DATAWPISU)
+            VALUES (GEN_ID(MODYFIKACJE_ID, 1), 1, @tabela, @rekord, @operator, CURRENT_TIMESTAMP)
+            """,
+            ("@tabela", tableId), ("@rekord", recordId), ("@operator", operatorId));
+        await log.ExecuteNonQueryAsync(ct);
+    }
+
+    private static int? Positive(int value) => value > 0 ? value : null;
 
     private static async Task<string?> TopicNameAsync(FbConnection connection, FbTransaction tx, int topicId, CancellationToken ct)
     {

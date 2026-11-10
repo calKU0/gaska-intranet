@@ -164,9 +164,9 @@ public sealed class GoNetRollbackIntegrationTests(ITestOutputHelper output)
                 Assert.True(await reader.ReadAsync());
                 Assert.Equal(id, Convert.ToInt32(reader["IDKONTRAHENTA"]));
                 Assert.Equal(contactId, Convert.ToInt32(reader["IDADRESATA"]));
-                Assert.Equal(7, Convert.ToInt32(reader["TOPICTYPE"]));
+                Assert.Equal(goNet.CorrespondenceTopicDictionaryType, Convert.ToInt32(reader["TOPICTYPE"]));
                 Assert.Equal("WIZYTA STARTOWA", reader["TOPIC"].ToString()?.Trim());
-                Assert.Equal(4, Convert.ToInt32(reader["IDTYPAKCJI"]));
+                Assert.Equal(goNet.VisitCorrespondenceActionType, Convert.ToInt32(reader["IDTYPAKCJI"]));
                 Assert.Equal(1, Convert.ToInt32(reader["UTF"]));
                 Assert.Equal(string.Empty, reader["TEMAT"].ToString()?.Trim());
                 Assert.Equal(notes, Encoding.UTF8.GetString((byte[])reader["UWAGI"]));
@@ -190,6 +190,69 @@ public sealed class GoNetRollbackIntegrationTests(ITestOutputHelper output)
             Assert.Equal("0", planned["UKONCZONO"]);
             Assert.Equal("-1", planned["IDKORESPONDENCJADZIENNIKROOT"]);
             Assert.Equal(1, await CountAsync(connection, tx, "SELECT COUNT(*) FROM KORESPONDENCJADZIENNIK WHERE IDKONTRAHENTA = @id", id));
+
+            var taskTable = await dictionary.TableIdAsync(connection, tx, "ZADANIA", CancellationToken.None);
+
+            // 7. Edit the planned task: new day, description, note, assignee back to the operator – stays planned.
+            await tasks.UpdateTaskAsync(connection, tx, id, plannedTaskId, new TaskInput
+            {
+                Date = DateTime.Today.AddDays(8),
+                StartTime = new TimeSpan(13, 30, 0),
+                DurationMinutes = 30,
+                Info = "Przełożona wizyta",
+                Notes = "Zabrać katalog i cennik.",
+                AssigneeId = operatorId,
+            }, operatorId, CancellationToken.None);
+            var edited = await ReadRowAsync(connection, tx,
+                "SELECT STATUS, INFO, IDZLECENIOBIORCY, TERMINROZPOCZECIA, TERMINZAKONCZENIA, IDKORESPONDENCJADZIENNIKROOT, CAST(UWAGI AS BLOB SUB_TYPE 0) AS UWAGI FROM ZADANIA WHERE ID = @id", plannedTaskId);
+            Assert.Equal("0", edited["STATUS"]);
+            Assert.Equal("Przełożona wizyta", edited["INFO"]);
+            Assert.Equal(operatorId.ToString(), edited["IDZLECENIOBIORCY"]);
+            Assert.Equal(DateTime.Today.AddDays(8).AddHours(13.5), DateTime.Parse(edited["TERMINROZPOCZECIA"]!));
+            Assert.Equal(DateTime.Today.AddDays(8).AddHours(14), DateTime.Parse(edited["TERMINZAKONCZENIA"]!));
+            Assert.Equal("-1", edited["IDKORESPONDENCJADZIENNIKROOT"]);
+            Assert.True(await CountAsync(connection, tx, $"SELECT COUNT(*) FROM MODYFIKACJE WHERE NRTABELI = {taskTable} AND IDWTABELI = @id AND TYPAKCJI = 1", plannedTaskId) >= 1);
+
+            // 8. Edit the done task's note – the correspondence note follows (UTF-8), the task stays done.
+            const string newNotes = "Poprawiona notatka: zażółć gęślą jaźń.";
+            await tasks.UpdateTaskAsync(connection, tx, id, doneTaskId, new TaskInput
+            {
+                Date = DateTime.Today.AddDays(-1),
+                StartTime = new TimeSpan(11, 0, 0),
+                DurationMinutes = 45,
+                ContactId = contactId,
+                Notes = newNotes,
+            }, operatorId, CancellationToken.None);
+            var doneAfter = await ReadRowAsync(connection, tx, "SELECT STATUS, UKONCZONO, IDKORESPONDENCJADZIENNIKROOT FROM ZADANIA WHERE ID = @id", doneTaskId);
+            Assert.Equal("2", doneAfter["STATUS"]);
+            Assert.Equal(task["IDKORESPONDENCJADZIENNIKROOT"], doneAfter["IDKORESPONDENCJADZIENNIKROOT"]); // same note, not a new one
+            await using (var diaryAfter = new FbCommand(
+                "SELECT d.DATAAKCJI, CAST(d.UWAGI AS BLOB SUB_TYPE 0) AS UWAGI, k.DATAAKCJI AS KDATA FROM KORESPONDENCJADZIENNIK d JOIN KORESPONDENCJA k ON k.ID = d.IDKORESPONDENCJI WHERE d.ID = @id",
+                connection, tx))
+            {
+                diaryAfter.Parameters.Add(new FbParameter("@id", int.Parse(doneAfter["IDKORESPONDENCJADZIENNIKROOT"]!)));
+                await using var reader = await diaryAfter.ExecuteReaderAsync();
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(newNotes, Encoding.UTF8.GetString((byte[])reader["UWAGI"]));
+                Assert.Equal(DateTime.Today.AddDays(-1).AddHours(11), Convert.ToDateTime(reader["DATAAKCJI"]));
+                Assert.Equal(DateTime.Today.AddDays(-1).AddHours(11), Convert.ToDateTime(reader["KDATA"]));
+            }
+
+            Assert.Equal(1, await CountAsync(connection, tx, "SELECT COUNT(*) FROM KORESPONDENCJADZIENNIK WHERE IDKONTRAHENTA = @id", id));
+
+            // 9. Move the planned task into the past – it becomes done and gets its correspondence, like a new done task.
+            await tasks.UpdateTaskAsync(connection, tx, id, plannedTaskId, new TaskInput
+            {
+                Date = DateTime.Today.AddDays(-2),
+                StartTime = new TimeSpan(9, 0, 0),
+                ContactId = contactId,
+                Notes = "Wizyta odbyła się wcześniej.",
+            }, operatorId, CancellationToken.None);
+            var nowDone = await ReadRowAsync(connection, tx, "SELECT STATUS, UKONCZONO, IDKORESPONDENCJADZIENNIKROOT FROM ZADANIA WHERE ID = @id", plannedTaskId);
+            Assert.Equal("2", nowDone["STATUS"]);
+            Assert.Equal("100", nowDone["UKONCZONO"]);
+            Assert.NotEqual("-1", nowDone["IDKORESPONDENCJADZIENNIKROOT"]);
+            Assert.Equal(2, await CountAsync(connection, tx, "SELECT COUNT(*) FROM KORESPONDENCJADZIENNIK WHERE IDKONTRAHENTA = @id", id));
         }
         finally
         {

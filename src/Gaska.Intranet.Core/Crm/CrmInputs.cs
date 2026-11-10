@@ -167,4 +167,22 @@ public sealed class TaskInput
 
     /// <summary>Started already (past or now) → done, with correspondence.</summary>
     public bool IsDone(DateTime now) => Start <= now;
+
+    /// <summary>An existing task, for editing.</summary>
+    public static TaskInput From(CrmTask task)
+    {
+        var start = task.Start ?? DateTime.Now;
+        var minutes = task.End is { } end && end > start ? (int)Math.Round((end - start).TotalMinutes) : 60;
+        return new TaskInput
+        {
+            TopicId = task.KindId,
+            Date = start.Date,
+            StartTime = start.TimeOfDay,
+            DurationMinutes = Math.Clamp(minutes, 5, 600),
+            ContactId = task.ContactId,
+            AssigneeId = task.AssigneeId,
+            Info = task.Info,
+            Notes = task.Notes,
+        };
+    }
 }

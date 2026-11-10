@@ -243,6 +243,14 @@ else
                                             {
                                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Outlined.Mail">@task.Correspondence.Count</MudChip>
                                             }
+                                            @if (_operator is not null)
+                                            {
+                                                @* Inside the panel header – the click must not also open/close the panel. *@
+                                                <span @onclick:stopPropagation="true">
+                                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" aria-label="Edytuj zadanie"
+                                                                   OnClick="() => EditTaskAsync(task)" />
+                                                </span>
+                                            }
                                         </div>
                                     </TitleContent>
                                     <ChildContent>
@@ -387,6 +395,23 @@ else
         if (await dialog.Result is { Canceled: false })
         {
             Session.ClearDraft();
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditTaskAsync(CrmTask task)
+    {
+        var parameters = new DialogParameters<TaskDialog>
+        {
+            { d => d.ContractorId, Id },
+            { d => d.Contacts, _contractor?.Contacts ?? [] },
+            { d => d.Existing, task },
+        };
+
+        var dialog = await Dialogs.ShowAsync<TaskDialog>("Edycja zadania", parameters, CrmDialogs.Options);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Zmiany zadania zapisane w GoNet.", Severity.Success);
             await LoadAsync();
         }
     }

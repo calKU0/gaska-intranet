@@ -162,7 +162,8 @@ else
                 </MudPaper>
             </MudItem>
 
-            @if (IsNew)
+            @* People and tasks: new rows when adding a contractor; existing ones (editable) plus new rows when editing. *@
+            @if (IsNew || _detailsLoaded)
             {
                 <MudItem xs="12" lg="8">
                     <MudPaper Elevation="0" Class="gaska-card pa-4 pa-sm-5">
@@ -173,7 +174,7 @@ else
                         </div>
                         @if (_contacts.Count == 0)
                         {
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak osób – dodaj je teraz albo później na karcie kontrahenta.</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@(IsNew ? "Brak osób – dodaj je teraz albo później na karcie kontrahenta." : "Brak osób kontaktowych.")</MudText>
                         }
                         @for (var i = 0; i < _contacts.Count; i++)
                         {
@@ -196,7 +197,11 @@ else
                                 </MudGrid>
                                 <div class="gaska-contact-row-actions">
                                     <MudCheckBox T="bool" Value="contact.IsMain" ValueChanged="v => SetMainContact(index, v)" Label="Główna" Color="Color.Primary" Dense="true" />
-                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń osobę" OnClick="() => RemoveContactRow(index)" />
+                                    @if (!_existingContacts.ContainsKey(contact))
+                                    {
+                                        @* People already in GoNet are not deleted from the intranet. *@
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń osobę" OnClick="() => RemoveContactRow(index)" />
+                                    }
                                 </div>
                             </div>
                         }
@@ -212,17 +217,27 @@ else
                         </div>
                         @if (_tasks.Count == 0)
                         {
-                            <MudText Typo="Typo.body2" Class="mud-text-secondary">Brak zadań – dodaj je teraz albo później na karcie kontrahenta.</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@(IsNew ? "Brak zadań – dodaj je teraz albo później na karcie kontrahenta." : "Brak zadań.")</MudText>
                         }
                         @for (var i = 0; i < _tasks.Count; i++)
                         {
                             var index = i;
+                            var existingTask = _existingTasks.GetValueOrDefault(_tasks[index]);
                             <div class="gaska-contact-row">
                                 <div class="d-flex align-center mb-2">
-                                    <MudText Typo="Typo.body2" Class="flex-grow-1"><strong>Zadanie @(index + 1)</strong></MudText>
-                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń zadanie" OnClick="() => _tasks.RemoveAt(index)" />
+                                    <MudText Typo="Typo.body2" Class="flex-grow-1">
+                                        <strong>@(existingTask is null ? $"Nowe zadanie {index + 1}" : $"Zadanie {index + 1}")</strong>
+                                        @if (existingTask is { IsDone: true })
+                                        {
+                                            <span class="mud-text-secondary"> · wykonane</span>
+                                        }
+                                    </MudText>
+                                    @if (existingTask is null)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" aria-label="Usuń zadanie" OnClick="() => _tasks.RemoveAt(index)" />
+                                    }
                                 </div>
-                                <TaskFields @key="_tasks[index]" Task="_tasks[index]" Contacts="ContactOptions" Compact="true" />
+                                <TaskFields @key="_tasks[index]" Task="_tasks[index]" Contacts="ContactOptions" Compact="true" AlreadyInGoNet="@(existingTask is not null)" AlreadyDone="@(existingTask?.IsDone == true)" />
                             </div>
                         }
                     </MudPaper>
@@ -249,6 +264,12 @@ else
     private ContractorInput _input = new();
     private readonly List<ContactInput> _contacts = [];
     private readonly List<TaskInput> _tasks = [];
+
+    // Editing: rows loaded from GoNet (by row object) with their id and a snapshot to save only what changed.
+    private readonly Dictionary<ContactInput, (int Id, string Snapshot)> _existingContacts = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<TaskInput, CrmTask> _existingTasks = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<TaskInput, string> _taskSnapshots = new(ReferenceEqualityComparer.Instance);
+    private bool _detailsLoaded;
     private IReadOnlyList<DictionaryItem> _voivodeships = [];
     private IReadOnlyList<DictionaryItem> _countries = [];
     private IReadOnlyList<DictionaryItem> _types = [];
@@ -290,8 +311,15 @@ else
         name is null ? null : _countries.FirstOrDefault(c => TextSearch.Normalize(c.Name) == TextSearch.Normalize(name))?.Id;
 
     /// <summary>Contacts of the new contractor for the task's person selector (index = temporary id).</summary>
+    /// <summary>
+    /// People a task can refer to: existing ones by their GoNet id, new rows by a temporary number -(row + 1),
+    /// replaced with the real id once the person is saved.
+    /// </summary>
     private IReadOnlyList<(int Id, string Name)> ContactOptions =>
-        _contacts.Select((c, i) => (i, c.Name)).Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
+        _contacts.Select((c, i) => (_existingContacts.TryGetValue(c, out var e) ? e.Id : -(i + 1), c.Name))
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToList();
+
+    private static string Snapshot(object value) => System.Text.Json.JsonSerializer.Serialize(value);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -330,6 +358,22 @@ else
             else if (await Contractors.GetAsync(Id!.Value) is { } existing)
             {
                 _input = ContractorInput.From(existing);
+                foreach (var contact in existing.Contacts)
+                {
+                    var row = ContactInput.From(contact);
+                    _contacts.Add(row);
+                    _existingContacts[row] = (contact.Id, Snapshot(row));
+                }
+
+                foreach (var task in await Tasks.GetForContractorAsync(Id.Value))
+                {
+                    var row = TaskInput.From(task);
+                    _tasks.Add(row);
+                    _existingTasks[row] = task;
+                    _taskSnapshots[row] = Snapshot(row);
+                }
+
+                _detailsLoaded = true;
             }
             else
             {
@@ -437,16 +481,17 @@ else
     {
         _contacts.RemoveAt(index);
 
-        // Tasks refer to contacts by their position on the list – keep those references valid.
+        // New rows are referred to by -(row + 1) – keep those references valid (existing people keep their GoNet id).
+        var removed = -(index + 1);
         foreach (var task in _tasks)
         {
-            if (task.ContactId == index)
+            if (task.ContactId == removed)
             {
                 task.ContactId = null;
             }
-            else if (task.ContactId > index)
+            else if (task.ContactId < removed)
             {
-                task.ContactId--;
+                task.ContactId++;
             }
         }
 
@@ -548,14 +593,15 @@ else
         }
 
         // A person row with an e-mail/phone but no name would be skipped silently – ask for the name instead.
-        if (IsNew && _contacts.FindIndex(c => string.IsNullOrWhiteSpace(c.Name) &&
+        if (_contacts.FindIndex(c => string.IsNullOrWhiteSpace(c.Name) &&
                 (!string.IsNullOrWhiteSpace(c.Email) || !string.IsNullOrWhiteSpace(c.Mobile) || !string.IsNullOrWhiteSpace(c.Phone1))) is var unnamed and >= 0)
         {
             _error = $"Osoba kontaktowa {unnamed + 1} ma e-mail lub telefon, ale nie ma imienia i nazwiska – uzupełnij je albo usuń wiersz.";
             return;
         }
 
-        if (IsNew && _tasks.FindIndex(t => t.IsDone(DateTime.Now) && string.IsNullOrWhiteSpace(t.Notes)) is var missing and >= 0)
+        if (_tasks.FindIndex(t => TaskChanged(t) && (_existingTasks.GetValueOrDefault(t)?.IsDone == true || t.IsDone(DateTime.Now)) &&
+                string.IsNullOrWhiteSpace(t.Notes)) is var missing and >= 0)
         {
             _error = $"Zadanie {missing + 1} ma termin w przeszłości i zapisze się jako wykonane – opisz jego przebieg w notatce.";
             return;
@@ -570,6 +616,7 @@ else
             {
                 await Contractors.UpdateAsync(Id!.Value, _input, _operator.Id);
                 await Audit.WriteAsync(AuditEvents.CrmContractorUpdated, user, $"GoNet #{Id} {_input.ShortName}");
+                await SaveContactsAndTasksAsync(Id.Value, user);
                 Snackbar.Add("Zapisano w GoNet i dodano do eksportu do XL.", Severity.Success);
                 Navigation.NavigateTo($"/kontrahenci/{Id}");
                 return;
@@ -604,6 +651,79 @@ else
     }
 
     /// <summary>The contractor is already saved – a failing task must not hide that.</summary>
+    private bool TaskChanged(TaskInput task) =>
+        !_taskSnapshots.TryGetValue(task, out var snapshot) || snapshot != Snapshot(task);
+
+    /// <summary>
+    /// Editing: changed people are updated and new ones added, then changed tasks updated and new ones added (a task
+    /// referring to a new person gets its saved id). Each item is saved on its own – one failure does not stop the rest.
+    /// </summary>
+    private async Task SaveContactsAndTasksAsync(int contractorId, string? user)
+    {
+        var newContactIds = new Dictionary<int, int>();
+        for (var i = 0; i < _contacts.Count; i++)
+        {
+            var contact = _contacts[i];
+            if (string.IsNullOrWhiteSpace(contact.Name))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (_existingContacts.TryGetValue(contact, out var existing))
+                {
+                    if (existing.Snapshot != Snapshot(contact))
+                    {
+                        await Contractors.UpdateContactAsync(contractorId, existing.Id, contact, _operator!.Id);
+                        await Audit.WriteAsync(AuditEvents.CrmContactSaved, user, $"GoNet kontrahent #{contractorId}: {contact.Name}");
+                    }
+                }
+                else
+                {
+                    newContactIds[-(i + 1)] = await Contractors.AddContactAsync(contractorId, contact, _operator!.Id);
+                    await Audit.WriteAsync(AuditEvents.CrmContactSaved, user, $"GoNet kontrahent #{contractorId}: {contact.Name}");
+                }
+            }
+            catch (CrmException ex)
+            {
+                Snackbar.Add($"Nie udało się zapisać osoby {contact.Name}: {ex.Message}", Severity.Warning);
+            }
+        }
+
+        for (var i = 0; i < _tasks.Count; i++)
+        {
+            var task = _tasks[i];
+            if (!TaskChanged(task))
+            {
+                continue;
+            }
+
+            if (task.ContactId is < 0 and var temporary)
+            {
+                task.ContactId = newContactIds.TryGetValue(temporary, out var saved) ? saved : null;
+            }
+
+            try
+            {
+                if (_existingTasks.TryGetValue(task, out var existing))
+                {
+                    await Tasks.UpdateTaskAsync(contractorId, existing.Id, task, _operator!.Id);
+                    await Audit.WriteAsync(AuditEvents.CrmTaskUpdated, user, $"GoNet kontrahent #{contractorId}, zadanie #{existing.Id}");
+                }
+                else
+                {
+                    var taskId = await Tasks.AddTaskAsync(contractorId, task, _operator!.Id);
+                    await Audit.WriteAsync(AuditEvents.CrmTaskAdded, user, $"GoNet kontrahent #{contractorId}, zadanie #{taskId}");
+                }
+            }
+            catch (CrmException ex)
+            {
+                Snackbar.Add($"Nie udało się zapisać zadania {i + 1}: {ex.Message}", Severity.Warning);
+            }
+        }
+    }
+
     private async Task AddTasksAfterCreateAsync(int contractorId, string? user)
     {
         ContractorDetails? saved = null;
@@ -612,8 +732,8 @@ else
             var task = _tasks[i];
             try
             {
-                // The task form referred to a contact by its position on the list – map it to the saved contact's id.
-                if (task.ContactId is { } index && index >= 0 && index < _contacts.Count)
+                // The task form referred to a new contact by -(row + 1) – map it to the saved contact's id.
+                if (task.ContactId is < 0 and var temporary && -temporary - 1 is var index && index < _contacts.Count)
                 {
                     saved ??= await Contractors.GetAsync(contractorId);
                     var name = TextSearch.Normalize(_contacts[index].Name);

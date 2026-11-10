@@ -26,6 +26,7 @@ public static class AuditEvents
     public const string CrmContractorUpdated = "crm.contractor_updated";
     public const string CrmContactSaved = "crm.contact_saved";
     public const string CrmTaskAdded = "crm.task_added";
+    public const string CrmTaskUpdated = "crm.task_updated";
     public const string RcpPunch = "rcp.punch";
     public const string HelpdeskTicketCreated = "helpdesk.ticket_created";
     public const string HelpdeskReply = "helpdesk.reply";

@@ -115,6 +115,12 @@ public sealed record CrmTask
     public string? Notes { get; init; }
     public string? AssigneeName { get; init; }
     public string? AuthorName { get; init; }
+
+    /// <summary>Ids for editing: task kind (topic), contractor's person, assigned operator.</summary>
+    public int? KindId { get; init; }
+    public int? ContactId { get; init; }
+    public int? AssigneeId { get; init; }
+
     public IReadOnlyList<CorrespondenceEntry> Correspondence { get; init; } = [];
 
     public bool IsDone => Status == 2 || PercentDone >= 100;
