@@ -405,7 +405,8 @@ else
         _input.PostalCode = Fill(_input.PostalCode, card.PostalCode);
 
         _input.Email = Fill(_input.Email, card.Emails.FirstOrDefault());
-        _input.Phone1 = Fill(_input.Phone1, card.Phones.FirstOrDefault());
+        // The card's first number is the person's mobile (it goes to the contact) – the company gets the other one.
+        _input.Phone1 = Fill(_input.Phone1, card.Phones.Count > 1 ? card.Phones[1] : card.Phones.FirstOrDefault());
         _input.Www = Fill(_input.Www, card.Www);
 
         // Official data from GUS / the VAT white list wins over OCR guesses.
@@ -436,7 +437,8 @@ else
             }
         }
 
-        _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(card.Nip, card.Emails, card.Phones, _input.FullName, card.Www));
+        _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(card.Nip, card.Emails, card.Phones, _input.FullName, card.Www,
+            card.PersonName, VerifyWeakMatches: true));
     }
 
     /// <summary>Everything typed in the form (company and its people) – checked against GoNet before a new contractor is saved.</summary>
@@ -449,7 +451,8 @@ else
             new[] { _input.Phone1, _input.Phone2, _input.Mobile }.Concat(people.SelectMany(c => new[] { c.Mobile, c.Phone1 }))
                 .OfType<string>().Where(p => !string.IsNullOrWhiteSpace(p)).ToList(),
             _input.FullName,
-            _input.Www);
+            _input.Www,
+            people.FirstOrDefault()?.Name);
     }
 
     /// <summary>Possible duplicates must be confirmed before saving – the same company must not be added twice.</summary>

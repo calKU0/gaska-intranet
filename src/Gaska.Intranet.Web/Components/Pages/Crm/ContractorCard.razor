@@ -32,6 +32,7 @@ else
             {
                 <MudButton Href="@($"/kontrahenci/{Id}/edycja")" Variant="Variant.Outlined" Color="Color.Secondary"
                            StartIcon="@Icons.Material.Outlined.Edit">Edytuj</MudButton>
+                <BusinessCardButton OnRead="OnCardReadAsync" />
                 <MudButton OnClick="AddTaskAsync" Variant="Variant.Filled" Color="Color.Primary"
                            StartIcon="@Icons.Material.Outlined.AddTask">Zadanie</MudButton>
             }
@@ -357,9 +358,27 @@ else
         }
     }
 
-    /// <summary>The card shows a person: a name, or at least a personal e-mail / phone (the name may not have been read).</summary>
-    private static bool HasPerson(BusinessCardData card) =>
-        !string.IsNullOrWhiteSpace(card.PersonName) || card.Emails.Count > 0 || card.Phones.Count > 0;
+    private static bool HasPerson(BusinessCardData card) => BusinessCardPhoto.HasPerson(card);
+
+    /// <summary>
+    /// "Wizytówka" on the card: a new person goes straight to the "add contact" form; a person already on the card is
+    /// only pointed out (banner above the tabs).
+    /// </summary>
+    private async Task OnCardReadAsync(BusinessCardData card)
+    {
+        if (!HasPerson(card))
+        {
+            Snackbar.Add("Nie rozpoznano osoby na wizytówce. Zrób zdjęcie jeszcze raz – z bliska, na wprost, bez odblasków.", Severity.Warning);
+            return;
+        }
+
+        Session.Draft = card;
+        Session.DraftContractorId = Id;
+        if (FindExistingContact(card) is null)
+        {
+            await AddContactFromDraftAsync();
+        }
+    }
 
     /// <summary>The card's person is already a contact – same name, e-mail or phone (last 7 digits, as GoNet compares).</summary>
     private ContractorContact? FindExistingContact(BusinessCardData card)

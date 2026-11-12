@@ -543,6 +543,10 @@ internal sealed class GlpiHelpdeskService(
                 HttpStatusCode.Forbidden => "Brak uprawnień w Helpdesku do tej operacji.",
                 HttpStatusCode.NotFound => "Nie znaleziono zgłoszenia albo nie masz do niego dostępu.",
                 HttpStatusCode.BadRequest => "Helpdesk odrzucił dane: " + (ErrorDetail(text) ?? "sprawdź formularz."),
+                // The web server in front of GLPI (e.g. IIS with the PHP handler limited to GET/POST) rejects PATCH/DELETE
+                // before GLPI sees them – retrying will not help.
+                HttpStatusCode.MethodNotAllowed => "Serwer Helpdesku nie przyjmuje tej operacji (blokuje metodę " + method.Method +
+                                                   "). Zgłoś to do działu IT.",
                 _ => $"Helpdesk (GLPI) odpowiedział błędem {(int)response.StatusCode}. Spróbuj za chwilę.",
             });
         }

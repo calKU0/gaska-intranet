@@ -19,6 +19,7 @@
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
             <span class="gaska-scan-label">Odczytuję wizytówkę…</span>
+            <span class="gaska-person-title">To zwykle kilkanaście sekund.</span>
         }
         else
         {
@@ -97,10 +98,9 @@
 
         try
         {
-            // Phones send large photos; the limit is checked again by the reader.
-            await using var stream = e.File.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024);
-            _card = await Reader.ReadAsync(stream);
-            _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(_card.Nip, _card.Emails, _card.Phones, _card.CompanyName, _card.Www));
+            _card = await BusinessCardPhoto.ReadAsync(e.File, Reader, Logger);
+            _matches = await Contractors.FindMatchesAsync(new ContractorMatchQuery(_card.Nip, _card.Emails, _card.Phones, _card.CompanyName, _card.Www,
+                _card.PersonName, VerifyWeakMatches: true));
             Session.Draft = _card;
 
             // Exactly one contractor matches – open the card. None – open the form with the data.
@@ -120,11 +120,6 @@
         catch (CrmException ex)
         {
             _error = ex.Message;
-        }
-        catch (IOException ex)
-        {
-            Logger.LogWarning(ex, "Business card upload failed");
-            _error = "Nie udało się przesłać zdjęcia (maks. 15 MB).";
         }
         finally
         {

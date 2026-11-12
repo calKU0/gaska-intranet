@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import sys
 import tempfile
 from pathlib import Path
@@ -110,6 +111,15 @@ def main() -> None:
                         "--allow-file-access-from-files", f"--user-data-dir={Path(tmp) / 'profile'}",
                         f"--print-to-pdf={pdf}", page.as_uri()],
                        check=True, timeout=180, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Newer Edge builds hand the job to another process and return before the file is written – wait for it.
+        deadline = time.monotonic() + 120
+        last = -1
+        while time.monotonic() < deadline:
+            size = pdf.stat().st_size if pdf.exists() else -1
+            if size >= 10_000 and size == last:
+                break
+            last = size
+            time.sleep(1)
         if not pdf.exists() or pdf.stat().st_size < 10_000:
             sys.exit("The browser did not produce the PDF.")
 

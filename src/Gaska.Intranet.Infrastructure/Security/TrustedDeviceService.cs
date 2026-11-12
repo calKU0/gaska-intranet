@@ -13,6 +13,8 @@ namespace Gaska.Intranet.Infrastructure.Security;
 /// <summary>
 /// The device token has the form "{id}.{secret}". The id locates the record, the 256-bit secret is
 /// compared with the hash in the database. The secret is rotated on every second-factor confirmation.
+/// Trust is bound to the device (cookie), not to its IP address – a laptop moving between office, home
+/// and VPN keeps it. The IP is stored for the admin view and the audit log only.
 /// </summary>
 internal sealed class TrustedDeviceService(
     IDbContextFactory<IntranetDbContext> dbFactory,
@@ -37,7 +39,6 @@ internal sealed class TrustedDeviceService(
 
         var trusted = device is not null
             && Matches(device, user.AccountName, secret, now)
-            && NetworkAddress.IsSameNetwork(device.IpAddress, client.IpAddress)
             && (user.PasswordLastSetUtc is null || device.VerifiedAtUtc >= user.PasswordLastSetUtc);
 
         if (trusted)
@@ -54,7 +55,7 @@ internal sealed class TrustedDeviceService(
         var now = clock.GetUtcNow().UtcDateTime;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        // Same device (e.g. after an IP change) – update the record instead of creating a new one.
+        // Same device (e.g. after its trust expired) – update the record instead of creating a new one.
         TrustedDevice? device = null;
         if (TryParse(existingToken, out var id, out var oldSecret))
         {

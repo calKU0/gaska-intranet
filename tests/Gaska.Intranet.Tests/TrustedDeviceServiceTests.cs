@@ -22,7 +22,7 @@ public sealed class TrustedDeviceServiceTests : IDisposable
         _service = new TrustedDeviceService(_db, Options.Create(new TwoFactorOptions { TrustedDeviceDays = 5 }), new NullAudit(), _clock);
 
     [Fact]
-    public async Task Trusted_device_skips_code_on_same_ip()
+    public async Task Trusted_device_skips_code()
     {
         var token = await _service.TrustAsync(_user, null, Office);
 
@@ -30,15 +30,16 @@ public sealed class TrustedDeviceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task New_ip_requires_code_again()
+    public async Task Trust_survives_ip_change()
     {
         var token = await _service.TrustAsync(_user, null, Office);
 
-        Assert.False(await _service.IsTrustedAsync(_user, token, Home));
+        Assert.True(await _service.IsTrustedAsync(_user, token, Home));
+        Assert.True(await _service.IsTrustedAsync(_user, token, new ClientInfo("2001:db8:abcd:99::1", null)));
     }
 
     [Fact]
-    public async Task Confirming_on_new_ip_moves_trust_and_rotates_token()
+    public async Task Confirming_again_rotates_token_of_same_device()
     {
         var first = await _service.TrustAsync(_user, null, Office);
         var second = await _service.TrustAsync(_user, first, Home);
@@ -47,15 +48,6 @@ public sealed class TrustedDeviceServiceTests : IDisposable
         Assert.Equal(first.Split('.')[0], second.Split('.')[0]);
         Assert.False(await _service.IsTrustedAsync(_user, first, Home));
         Assert.True(await _service.IsTrustedAsync(_user, second, Home));
-    }
-
-    [Fact]
-    public async Task Ipv6_address_change_within_same_64_network_keeps_trust()
-    {
-        var token = await _service.TrustAsync(_user, null, new ClientInfo("2001:db8:abcd:12::1", null));
-
-        Assert.True(await _service.IsTrustedAsync(_user, token, new ClientInfo("2001:db8:abcd:12:aaaa:bbbb:cccc:dddd", null)));
-        Assert.False(await _service.IsTrustedAsync(_user, token, new ClientInfo("2001:db8:abcd:99::1", null)));
     }
 
     [Fact]

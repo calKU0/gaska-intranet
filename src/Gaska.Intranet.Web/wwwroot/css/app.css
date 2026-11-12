@@ -1700,13 +1700,9 @@ html {
     flex: 0 0 auto;
 }
 
-/* First visit: no entry animations until Blazor has swapped the pre-rendered page for the interactive one (js/boot.js) –
-   otherwise everything animated twice. */
-.gaska-booting .gaska-main .mud-container > *,
-.gaska-booting .gaska-stagger > *,
-.gaska-booting .gaska-suggestion,
-.gaska-booting .gaska-task-mode,
-.gaska-booting .gaska-contact-row {
+/* First visit: the pre-rendered page animates in; the interactive copy Blazor swaps in right after must not
+   animate again (js/boot.js marks its elements). */
+.gaska-no-enter {
     animation: none !important;
 }
 
@@ -2954,4 +2950,10 @@ html.gaska-install-dismissed .gaska-install-banner {
 /* RCP: the punch being saved shows a spinner in its button. */
 .gaska-button-spinner {
     margin-right: 8px;
+}
+
+/* "Wizytówka" button: a label around a hidden file input, styled by the MudButton inside. */
+.gaska-file-button {
+    display: inline-flex;
+    cursor: pointer;
 }

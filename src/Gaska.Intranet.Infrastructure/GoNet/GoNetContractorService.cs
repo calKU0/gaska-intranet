@@ -1,6 +1,7 @@
 using System.Text;
 using FirebirdSql.Data.FirebirdClient;
 using Gaska.Intranet.Core.Crm;
+using Gaska.Intranet.Core.Text;
 using Microsoft.Extensions.Options;
 
 namespace Gaska.Intranet.Infrastructure.GoNet;
@@ -42,12 +43,22 @@ internal sealed class GoNetContractorService(
         }
 
         // Every word must appear in one of the searched columns (CONTAINING is case-insensitive).
-        var words = (query.Search ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        for (var i = 0; i < Math.Min(words.Length, 5); i++)
+        // A lone "&" / "+" / "and" is skipped ("Smith & Wesson" also finds "SMITH AND WESSON"); a word with a sign inside
+        // is searched in every spelling ("P&Q" = "P AND Q" = "P+Q" = "PQ").
+        var words = SearchWords(query.Search);
+
+        for (var i = 0; i < Math.Min(words.Count, 5); i++)
         {
             var p = $"@w{i}";
             var digits = new string(words[i].Where(char.IsDigit).ToArray());
             where.Append($" AND (k.SKROTNAZWY CONTAINING {p} OR k.PELNANAZWA CONTAINING {p} OR m.NAZWA CONTAINING {p} OR k.EMAIL CONTAINING {p}");
+            var variants = CompanyNames.SearchVariants(words[i], joinShortParts: false);
+            for (var v = 1; v < variants.Count; v++)
+            {
+                where.Append($" OR k.SKROTNAZWY CONTAINING {p}v{v} OR k.PELNANAZWA CONTAINING {p}v{v}");
+                parameters.Add(($"{p}v{v}", variants[v]));
+            }
+
             if (digits.Length >= 4)
             {
                 // Phone columns keep only the last 7 digits – a full number typed in the search must still match.
@@ -144,28 +155,72 @@ internal sealed class GoNetContractorService(
     }
 
     /// <summary>
-    /// Possible duplicates: same NIP, e-mail, phone, web/e-mail domain, or the same company name once legal forms and
-    /// punctuation are ignored ("NOVA GROUP, S.R.O." = "NOVA GROUP s.r.o."). Matches on hard data come first.
+    /// Possible matches of a business card / duplicates of a new contractor. Each signal is a separate query, so every
+    /// candidate knows why it was found; <see cref="ContractorMatching.Rank"/> then puts the strong ones (NIP, exact
+    /// e-mail, company name or acronym) first and – when there are none – keeps the weak ones (e-mail domain or website,
+    /// phone of the company or of a contact person, the contact person) whose name agrees at least partly.
     /// </summary>
     public async Task<IReadOnlyList<ContractorListItem>> FindMatchesAsync(ContractorMatchQuery query, CancellationToken ct = default)
     {
-        var conditions = new List<string>();
-        var parameters = new List<(string, object?)>();
+        await using var connection = await db.OpenAsync(ct);
+        var candidates = new List<ContractorCandidate>();
 
+        async Task AddAsync(MatchReason reason, string condition, params (string, object?)[] parameters)
+        {
+            await using var command = GoNetDatabase.Command(connection, null,
+                $"SELECT FIRST 20 {ListColumns} {ListFrom} AND ({condition})", parameters);
+            candidates.AddRange((await ReadListAsync(command, ct)).Select(c => new ContractorCandidate(c, reason)));
+        }
+
+        // NIP
         if (Nip.Normalize(query.Nip) is { } nip)
         {
-            conditions.Add("k.PROSTYNIP CONTAINING @nip");
-            parameters.Add(("@nip", nip));
+            await AddAsync(MatchReason.Nip, "k.PROSTYNIP CONTAINING @nip", ("@nip", nip));
         }
 
-        var emails = query.Emails.Where(e => !string.IsNullOrWhiteSpace(e)).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList();
-        for (var i = 0; i < emails.Count; i++)
+        // The exact e-mail – of the company or of one of its people.
+        var emails = query.Emails.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToList();
+        foreach (var email in emails)
         {
-            conditions.Add($"UPPER(k.EMAIL) = UPPER(@e{i}) OR EXISTS (SELECT 1 FROM KONTAKTY c WHERE c.IDKONTRAHENTA = k.ID AND c.USUNIETY = 0 AND UPPER(c.EMAIL) = UPPER(@e{i}))");
-            parameters.Add(($"@e{i}", emails[i].Trim()));
+            await AddAsync(MatchReason.Email,
+                "UPPER(k.EMAIL) = UPPER(@e) OR EXISTS (SELECT 1 FROM KONTAKTY c WHERE c.IDKONTRAHENTA = k.ID AND c.USUNIETY = 0 AND UPPER(c.EMAIL) = UPPER(@e))",
+                ("@e", email));
         }
 
-        // GoNet keeps only the last 7 digits in the PROSTY* phone columns ("+420 222 111 333" → "2111333").
+        // Company name or acronym: candidates containing a distinctive word, compared in C# without legal forms and
+        // punctuation ("NOVA GROUP, S.R.O." = "Nova Group s.r.o.", "X.Y.Z.A. SpA" = "XYZA").
+        var core = CompanyNames.Core(query.Name);
+        var compact = CompanyNames.Compact(query.Name);
+        // A name part with "&" / "+" / "and" ("P&Q", "Silva & Penas") is searched in every way it may be written.
+        var keywords = new[] { core.Split(' ').FirstOrDefault(w => w.Length >= 3), AcronymOf(query.Name) }
+            .OfType<string>()
+            .Select(k => (IReadOnlyList<string>)[k])
+            .Concat(ConnectedPart(query.Name) is { } connected ? [CompanyNames.SearchVariants(connected)] : [])
+            .ToList();
+        foreach (var variants in keywords)
+        {
+            var nameConditions = string.Join(" OR ", variants.Select((_, i) => $"k.PELNANAZWA CONTAINING @n{i} OR k.SKROTNAZWY CONTAINING @n{i}"));
+            await using var byName = GoNetDatabase.Command(connection, null,
+                $"SELECT FIRST 300 {ListColumns} {ListFrom} AND ({nameConditions})",
+                [.. variants.Select((v, i) => ($"@n{i}", (object?)v))]);
+            candidates.AddRange((await ReadListAsync(byName, ct))
+                .Where(c => CompanyNames.Similar(c.FullName, query.Name) || (core.Length >= 3 && CompanyNames.Core(c.ShortName) == core)
+                            || (compact.Length >= 2 && (CompanyNames.Compact(c.ShortName) == compact || CompanyNames.Compact(c.FullName) == compact)))
+                .Select(c => new ContractorCandidate(c, MatchReason.Name)));
+        }
+
+        // Website / e-mail domain ("www.klcz.cz" = "http://www.klcz.cz" = "info@klcz.cz"); public mailboxes are skipped.
+        var domains = new[] { query.Www }.Concat(emails).Select(CompanyNames.Domain).OfType<string>().Distinct().Take(3).ToList();
+        foreach (var domain in domains)
+        {
+            await AddAsync(MatchReason.Domain, """
+                k.WWW CONTAINING @d OR k.EMAIL CONTAINING @a
+                OR EXISTS (SELECT 1 FROM KONTAKTY c WHERE c.IDKONTRAHENTA = k.ID AND c.USUNIETY = 0 AND c.EMAIL CONTAINING @a)
+                """, ("@d", domain), ("@a", "@" + domain));
+        }
+
+        // Phones – the last 7 digits, as GoNet compares them ("+420 222 111 333" → "2111333"). The company keeps them in
+        // PROSTY* columns; for contact people those are mostly empty, so the digits are taken from the numbers as typed.
         var phones = query.Phones
             .Select(p => new string(p.Where(char.IsDigit).ToArray()))
             .Where(d => d.Length >= 7)
@@ -173,52 +228,96 @@ internal sealed class GoNetContractorService(
             .Distinct()
             .Take(5)
             .ToList();
-        for (var i = 0; i < phones.Count; i++)
+        foreach (var phone in phones)
         {
-            conditions.Add($"k.PROSTYTELEFON1 = @p{i} OR k.PROSTYTELEFON2 = @p{i} OR k.PROSTYTELEFONKOMORKOWY = @p{i}");
-            parameters.Add(($"@p{i}", phones[i]));
+            await AddAsync(MatchReason.Phone, $"""
+                k.PROSTYTELEFON1 = @p OR k.PROSTYTELEFON2 = @p OR k.PROSTYTELEFONKOMORKOWY = @p
+                OR EXISTS (SELECT 1 FROM KONTAKTY c WHERE c.IDKONTRAHENTA = k.ID AND c.USUNIETY = 0
+                           AND ({LastDigits("c.TELEFONKOMORKOWY")} = @p OR {LastDigits("c.TELEFON1")} = @p OR {LastDigits("c.TELEFON2")} = @p))
+                """, ("@p", phone));
         }
 
-        // Company website / e-mail domain ("www.klcz.cz" = "http://www.klcz.cz" = "info@klcz.cz"); public mailboxes are skipped.
-        var domains = new[] { query.Www }.Concat(emails)
-            .Select(CompanyNames.Domain)
-            .OfType<string>()
-            .Distinct()
-            .Take(3)
-            .ToList();
-        for (var i = 0; i < domains.Count; i++)
+        // Contact person: people containing the longest word of the name, then the whole name compared in C#.
+        var surname = TextSearch.Normalize(query.Person ?? string.Empty).Split(' ').Where(w => w.Length >= 3).MaxBy(w => w.Length);
+        if (surname is not null)
         {
-            conditions.Add($"""
-                k.WWW CONTAINING @d{i} OR k.EMAIL CONTAINING @a{i}
-                OR EXISTS (SELECT 1 FROM KONTAKTY c WHERE c.IDKONTRAHENTA = k.ID AND c.USUNIETY = 0 AND c.EMAIL CONTAINING @a{i})
-                """);
-            parameters.Add(($"@d{i}", domains[i]));
-            parameters.Add(($"@a{i}", "@" + domains[i]));
+            var ids = new List<int>();
+            await using (var people = GoNetDatabase.Command(connection, null,
+                "SELECT FIRST 200 IDKONTRAHENTA, KONTAKT FROM KONTAKTY WHERE USUNIETY = 0 AND KONTAKT CONTAINING @s", ("@s", surname)))
+            await using (var reader = await people.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    if (ContractorMatching.SamePerson(reader["KONTAKT"] as string, query.Person))
+                    {
+                        ids.Add(Convert.ToInt32(reader["IDKONTRAHENTA"]));
+                    }
+                }
+            }
+
+            ids = ids.Distinct().Take(20).ToList();
+            if (ids.Count > 0)
+            {
+                await AddAsync(MatchReason.Person, $"k.ID IN ({string.Join(", ", ids.Select((_, i) => $"@i{i}"))})",
+                    [.. ids.Select((id, i) => ($"@i{i}", (object?)id))]);
+            }
         }
 
-        await using var connection = await db.OpenAsync(ct);
-        var found = new List<ContractorListItem>();
-        if (conditions.Count > 0)
-        {
-            var sql = $"SELECT FIRST 20 {ListColumns} {ListFrom} AND (({string.Join(") OR (", conditions)})) ORDER BY k.SKROTNAZWY";
-            await using var command = GoNetDatabase.Command(connection, null, sql, [.. parameters]);
-            found.AddRange(await ReadListAsync(command, ct));
-        }
-
-        // Name: candidates containing the first distinctive word, compared in C# without legal forms and punctuation.
-        var core = CompanyNames.Core(query.Name);
-        var keyword = core.Split(' ').FirstOrDefault(w => w.Length >= 3);
-        if (keyword is not null)
-        {
-            await using var byName = GoNetDatabase.Command(connection, null,
-                $"SELECT FIRST 300 {ListColumns} {ListFrom} AND (k.PELNANAZWA CONTAINING @n OR k.SKROTNAZWY CONTAINING @n)",
-                ("@n", keyword));
-            found.AddRange((await ReadListAsync(byName, ct))
-                .Where(c => CompanyNames.Similar(c.FullName, query.Name) || CompanyNames.Core(c.ShortName) == core));
-        }
-
-        return found.DistinctBy(c => c.Id).Take(20).ToList();
+        return ContractorMatching.Rank(candidates, query.Name, query.VerifyWeakMatches);
     }
+
+    /// <summary>
+    /// Words of the list search; "p and q" / "silva & penas" stay together as one phrase (searched in every spelling),
+    /// any other lone "&amp;" / "+" / "and" is dropped.
+    /// </summary>
+    internal static IReadOnlyList<string> SearchWords(string? search)
+    {
+        var tokens = (search ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = new List<string>();
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            if (CompanyNames.IsConnector(tokens[i]) && words.Count > 0 && i + 1 < tokens.Length && !CompanyNames.IsConnector(tokens[i + 1])
+                && tokens[i] is not ("i" or "I" or "e" or "E" or "y" or "Y"))
+            {
+                words[^1] = $"{words[^1]} {tokens[i]} {tokens[++i]}";
+            }
+            else if (!CompanyNames.IsConnector(tokens[i]) || tokens.Length == 1)
+            {
+                words.Add(tokens[i]);
+            }
+        }
+
+        return words;
+    }
+
+    /// <summary>Last 7 digits of a phone column as typed ("+48 601-222 333" → "1222333").</summary>
+    private static string LastDigits(string column) =>
+        $"RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE({column}, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '/', ''), '.', ''), 7)";
+
+    /// <summary>
+    /// The part of a name around "&" / "+" / "and" – "P&Q Sp. z o.o." → "P&Q", "Silva & Penas, Lda." → "Silva & Penas";
+    /// null when the name has no connector.
+    /// </summary>
+    private static string? ConnectedPart(string? name)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(name ?? string.Empty,
+            @"[\p{L}\p{N}]+(?:\s*[&+]\s*|\s+(?:and|AND|And|und|UND)\s+)[\p{L}\p{N}]+");
+        return match.Success ? match.Value : null;
+    }
+
+    /// <summary>"X.Y.Z.A. SpA" → "XYZA": a name written as dotted letters, searched without the dots.</summary>
+    private static string? AcronymOf(string? name)
+    {
+        var first = (name ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (first is null || !first.Contains('.'))
+        {
+            return null;
+        }
+
+        var letters = new string(first.Where(char.IsLetterOrDigit).ToArray());
+        return letters.Length >= 3 && !CompanyNames.IsLegalWord(letters.ToLowerInvariant()) ? letters : null;
+    }
+
 
     public async Task<int> CreateAsync(ContractorInput input, IReadOnlyList<ContactInput> contacts, int operatorId, CancellationToken ct = default)
     {

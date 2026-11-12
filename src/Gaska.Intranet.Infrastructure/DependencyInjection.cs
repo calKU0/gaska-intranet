@@ -157,7 +157,10 @@ public static class DependencyInjection
         services.AddSingleton<IContractorService, GoNetContractorService>();
         services.AddSingleton<ICrmTaskService, GoNetTaskService>();
 
-        services.AddSingleton<IBusinessCardReader, TesseractBusinessCardReader>();
+        services.AddSingleton<TesseractBusinessCardReader>();
+        // No client timeout: BusinessCardReader limits each call (LlmTimeoutSeconds) and falls back to OCR.
+        services.AddHttpClient<OllamaCardReader>(client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.AddTransient<IBusinessCardReader, BusinessCardReader>();
         // Company registers: GUS (REGON) first, then the VAT white list.
         services.AddOptions<GusOptions>().Bind(configuration.GetSection(GusOptions.SectionName));
         services.AddHttpClient<GusBirRegistry>(client => client.Timeout = TimeSpan.FromSeconds(15));

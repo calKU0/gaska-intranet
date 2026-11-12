@@ -16,10 +16,22 @@ public sealed class BusinessCardOptions
 
     /// <summary>Largest accepted photo.</summary>
     public long MaxImageBytes { get; set; } = 15 * 1024 * 1024;
+
+    /// <summary>Ollama chat endpoint (e.g. http://host:11434/api/chat); empty = no language model, OCR only.</summary>
+    public string LlmEndpoint { get; set; } = string.Empty;
+
+    /// <summary>Ollama model that accepts images (capability "vision").</summary>
+    public string LlmModel { get; set; } = string.Empty;
+
+    /// <summary>After this the photo is read with OCR instead.</summary>
+    public int LlmTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>Longer side of the photo sent to the model, in pixels.</summary>
+    public int LlmImageMaxSide { get; set; } = 1280;
 }
 
 /// <summary>
-/// Free, local OCR (Tesseract) – the photo never leaves the server. The engine is not thread-safe and expensive to
+/// Free, local OCR (Tesseract) – the photo never leaves the server. Fallback when the language model is not available. The engine is not thread-safe and expensive to
 /// create, so one instance is shared and calls are serialised.
 /// </summary>
 internal sealed class TesseractBusinessCardReader : IBusinessCardReader, IDisposable

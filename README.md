@@ -17,7 +17,7 @@ The user interface is in Polish; code, comments and documentation are in English
 | **Pracownicy** (address book) | Searchable list of employees with phones, extensions, e-mail and department, straight from the directory; tap to call or write. |
 | **RCP** (time clock) | Start / end of work and breaks from the browser, recorded in the same system as the card readers; live timers, today's records and a weekly summary. |
 | **Helpdesk IT** | New tickets (problems and requests) with categories, locations, observers and attachments; the conversation with IT, replies and accepting solutions. Technicians also manage status, urgency, category and assignment. Integrated with GLPI, always acting as the signed-in user. |
-| **Kontrahenci** (CRM) | Customer and supplier cards from the company CRM: company data, contact people, visits and tasks with their notes. Adding and editing contractors, contacts and tasks, duplicate detection, company data from the Polish public registers by tax number, and **reading business cards** from a phone photo (local OCR). |
+| **Kontrahenci** (CRM) | Customer and supplier cards from the company CRM: company data, contact people, visits and tasks with their notes. Adding and editing contractors, contacts and tasks, duplicate detection, company data from the Polish public registers by tax number, and **reading business cards** from a phone photo (QR code with a vCard, a vision language model on the company's own server, OCR as a fallback). |
 | **Quick links** | Links to other company systems shown in the menu and on the home page. |
 | **Help** | Built-in user manual (also as a PDF) and an "install as an app" guide. |
 | **Administration** | Module permissions for users and AD groups, "company network only" modules, authenticator resets, trusted devices and an audit log. |
@@ -31,7 +31,7 @@ The user interface is in Polish; code, comments and documentation are in English
 | Identity | Active Directory (`System.DirectoryServices`), RFC 6238 TOTP, ASP.NET Core cookie authentication |
 | Application data | SQL Server (own schema, EF Core migrations) |
 | Integrations | Firebird (CRM), GLPI High-level API v2 and REST API, SMS gateway, SMTP (MailKit), public company registers, OpenStreetMap Nominatim |
-| OCR | Tesseract, running locally on the server – photos never leave it |
+| Business cards | QR codes (ZXing.Net), a vision language model on the company's own Ollama server, Tesseract OCR as a fallback – photos never leave the company network |
 | Logging | Serilog |
 | Hosting | IIS on Windows Server |
 | Tests | xUnit |

@@ -50,15 +50,6 @@
 
     private bool IsDark => ThemeCookies.ReadMode(HttpContext) == ThemeMode.Dark;
 
-    // gaska-booting: no entry animations until Blazor took over (js/boot.js); gaska-dark: dark theme chosen (cookie).
-    private string? HtmlClass
-    {
-        get
-        {
-            var dark = IsDark;
-            var classes = string.Join(' ', new[] { PageRenderMode is null ? null : "gaska-booting", dark ? "gaska-dark" : null }
-                .Where(c => c is not null));
-            return classes.Length == 0 ? null : classes;
-        }
-    }
+    // gaska-dark: dark theme chosen (cookie).
+    private string? HtmlClass => IsDark ? "gaska-dark" : null;
 }

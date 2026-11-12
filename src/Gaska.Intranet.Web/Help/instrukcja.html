@@ -75,9 +75,9 @@ Gdy zmienisz hasło do komputera, w intranecie od razu używasz nowego.</p>
 </div>
 
 <h3>„Zapamiętaj to urządzenie”</h3>
-<p>Gdy to pole jest zaznaczone, przez <strong>5 dni</strong> na tym urządzeniu i w tej samej sieci nie trzeba wpisywać kodu
-(hasło nadal tak). Po zmianie hasła do komputera kod będzie potrzebny ponownie. <strong>Nie zaznaczaj go na wspólnym lub cudzym komputerze.</strong> Z innej sieci – np. z domu zamiast
-z biura – kod i tak będzie potrzebny.</p>
+<p>Gdy to pole jest zaznaczone, przez <strong>5 dni</strong> na tym urządzeniu i w tej przeglądarce nie trzeba wpisywać kodu
+(hasło nadal tak) – także po zmianie sieci, np. z biura na dom albo VPN. Po zmianie hasła do komputera kod będzie potrzebny ponownie.
+<strong>Nie zaznaczaj go na wspólnym lub cudzym komputerze.</strong></p>
 
 <h3>Wylogowanie</h3>
 <figure>
@@ -251,7 +251,8 @@ od razu jest w GoNet.</p>
     <figcaption>Lista kontrahentów</figcaption>
 </figure>
 <ul>
-    <li><strong>Szukaj</strong> po nazwie, NIP, mieście, telefonie lub e-mailu. <strong>Tylko moi</strong> – kontrahenci, których prowadzisz.</li>
+    <li><strong>Szukaj</strong> po nazwie, NIP, mieście, telefonie lub e-mailu. „&amp;”, „+” i „and” są traktowane tak samo –
+        „Kowalski and Nowak” znajdzie też „KOWALSKI &amp; NOWAK”. <strong>Tylko moi</strong> – kontrahenci, których prowadzisz.</li>
     <li><strong>Dodaj kontrahenta</strong> – nowy kontrahent. <strong>Wizytówka</strong> – dodanie ze zdjęcia wizytówki.</li>
 </ul>
 
@@ -309,8 +310,15 @@ od razu jest w GoNet.</p>
 </figure>
 <p>Zrób zdjęcie wizytówki (na telefonie otworzy się aparat) albo wybierz plik ze zdjęciem. Intranet odczyta dane
 i sprawdzi, czy firma jest już w GoNet – jeśli tak, otworzy jej kartę i zaproponuje dodanie nowej osoby; jeśli nie,
-przygotuje formularz nowego kontrahenta. Zdjęcie rób na płasko, z bliska i przy dobrym świetle,
-a przed zapisem zawsze sprawdź odczytane dane.</p>
+przygotuje formularz nowego kontrahenta. Odczyt trwa zwykle kilkanaście sekund. Jeśli wizytówka ma kod QR,
+zmieść go w kadrze – dane z kodu są najdokładniejsze. Zdjęcie rób na płasko, z bliska i przy dobrym świetle,
+a przed zapisem zawsze sprawdź odczytane dane. Numery telefonów trafiają do GoNet bez spacji i myślników.</p>
+<p>Firmę w GoNet intranet szuka najpierw po NIP-ie, adresie e-mail i nazwie (także skrótowej, np. „X.Y.Z.A.” = „XYZA”; „&amp;”, „+” i „and” traktuje tak samo).
+Jeśli tak jej nie znajdzie, sprawdza domenę e-maila i stronę www, telefony firmy i jej osób oraz osobę z wizytówki –
+ale pokaże taką firmę tylko wtedy, gdy jej nazwa choć trochę zgadza się z nazwą na wizytówce.</p>
+<p>Osobę do firmy, która już jest w GoNet, dodasz też prosto z jej karty: przycisk <strong>Wizytówka</strong> obok
+<strong>Edytuj</strong> zrobi zdjęcie i otworzy formularz nowej osoby z odczytanymi danymi. Jeśli ta osoba już jest na karcie,
+intranet to pokaże zamiast dodawać ją drugi raz.</p>
 <p class="manual-tip">Nie możesz nic zapisać, a na górze widzisz „Nie znaleziono Twojego konta w GoNet”? Zgłoś to do działu IT.</p>
 </section>
 

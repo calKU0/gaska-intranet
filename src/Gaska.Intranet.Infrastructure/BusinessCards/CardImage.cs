@@ -312,7 +312,7 @@ internal static class CardImage
     }
 
     /// <summary>8-bit image → one byte per pixel, row by row.</summary>
-    private static byte[] Read(Pix gray)
+    internal static byte[] Read(Pix gray)
     {
         int w = gray.Width, h = gray.Height;
         var data = gray.GetData();

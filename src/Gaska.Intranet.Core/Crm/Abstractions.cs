@@ -21,7 +21,19 @@ public interface IContractorService
 }
 
 /// <summary>Data of a contractor being added – used to find possible duplicates.</summary>
-public sealed record ContractorMatchQuery(string? Nip, IReadOnlyList<string> Emails, IReadOnlyList<string> Phones, string? Name, string? Www = null);
+/// <param name="Person">Contact person (business card) – looked up among the contractors' contact people.</param>
+/// <param name="VerifyWeakMatches">
+/// Business card lookup: a contractor found only by a weak signal (domain, phone, person) must also have a similar
+/// name. Off for the duplicate check before saving, where showing one candidate too many is harmless.
+/// </param>
+public sealed record ContractorMatchQuery(
+    string? Nip,
+    IReadOnlyList<string> Emails,
+    IReadOnlyList<string> Phones,
+    string? Name,
+    string? Www = null,
+    string? Person = null,
+    bool VerifyWeakMatches = false);
 
 /// <summary>Tasks and correspondence of a contractor.</summary>
 public interface ICrmTaskService

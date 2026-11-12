@@ -1,0 +1,46 @@
+@* "Wizytówka" button: takes a photo (the camera on a phone), reads the card and hands the data to the page. *@
+@inject IBusinessCardReader Reader
+@inject ISnackbar Snackbar
+@inject ILogger<BusinessCardButton> Logger
+
+<label class="gaska-file-button" title="Zrób zdjęcie wizytówki">
+    <InputFile OnChange="OnFileAsync" accept="image/*" capture="environment" disabled="@_busy" class="gaska-scan-input" />
+    <MudButton HtmlTag="span" Variant="Variant.Outlined" Color="Color.Secondary" Disabled="_busy"
+               StartIcon="@(_busy ? null : Icons.Material.Outlined.ContactMail)">
+        @if (_busy)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" Style="width:18px;height:18px" />
+            <span>Odczytuję…</span>
+        }
+        else
+        {
+            <span>Wizytówka</span>
+        }
+    </MudButton>
+</label>
+
+@code {
+    [Parameter, EditorRequired]
+    public EventCallback<BusinessCardData> OnRead { get; set; }
+
+    private bool _busy;
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        StateHasChanged();
+        try
+        {
+            var card = await BusinessCardPhoto.ReadAsync(e.File, Reader, Logger);
+            await OnRead.InvokeAsync(card);
+        }
+        catch (CrmException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

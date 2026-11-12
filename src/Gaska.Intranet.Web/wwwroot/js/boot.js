@@ -14,32 +14,53 @@
     };
 })();
 
-// Starts Blazor and switches entry animations on only once the interactive page has replaced the pre-rendered one.
-// Without this the first visit animated twice: once for the server-rendered HTML and again when Blazor swapped it
-// for the interactive copy, which looked like the page reloading itself.
-// <html class="gaska-booting"> (set by App.razor on interactive pages) suppresses the animations until then.
+// Starts Blazor without replaying the entry animations. The server-rendered page animates in once; a moment later
+// Blazor swaps it for the interactive copy (new elements), which would animate again and look like the page
+// reloading itself. Elements inserted by that swap – and by the first data loads right after it, which only repeat
+// what the server already showed – get "gaska-no-enter". The class is never removed: taking an animation away and
+// giving it back would restart it. Pages opened later inside the app animate normally.
 (function () {
-    const root = document.documentElement;
+    const ENTER = ".gaska-main .mud-container > *, .gaska-stagger > *, .gaska-suggestion, .gaska-task-mode, .gaska-contact-row";
     const prerendered = document.querySelector(".gaska-page");
-    const started = performance.now();
+    let swappedAt = 0;
 
-    function finish() {
-        // A short pause lets the browser paint the interactive DOM without animations first.
-        // (Timers, not animation frames: those never fire in a tab opened in the background.)
-        setTimeout(() => root.classList.remove("gaska-booting"), 50);
-    }
-
-    function waitForSwap() {
-        const swapped = !prerendered || !prerendered.isConnected;
-        if (swapped || performance.now() - started > 5000) {
-            finish();
+    function mark(node) {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
             return;
         }
 
-        setTimeout(waitForSwap, 16);
+        if (node.matches(ENTER)) {
+            node.classList.add("gaska-no-enter");
+        }
+
+        node.querySelectorAll(ENTER).forEach(e => e.classList.add("gaska-no-enter"));
     }
 
-    Blazor.start().then(waitForSwap, finish);
+    // Mutation callbacks run before the browser paints, so the new elements never show a first animation frame.
+    const observer = new MutationObserver(records => {
+        if (!swappedAt) {
+            if (prerendered.isConnected) {
+                return;
+            }
+
+            swappedAt = performance.now();
+        }
+
+        if (performance.now() - swappedAt > 1500) {
+            observer.disconnect();
+            return;
+        }
+
+        records.forEach(r => r.addedNodes.forEach(mark));
+    });
+
+    if (prerendered) {
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Safety net (e.g. the circuit could not start) – stop watching.
+        setTimeout(() => observer.disconnect(), 15000);
+    }
+
+    Blazor.start();
 })();
 
 // Scrolls an element into view (centred) and focuses a field inside it – e.g. "Napisz odpowiedź" in a long thread.
