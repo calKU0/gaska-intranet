@@ -186,6 +186,15 @@ public sealed record HelpdeskTicketDetails(HelpdeskTicket Ticket, IReadOnlyList<
             : null;
 }
 
+/// <summary>How the "new ticket" form behaves.</summary>
+/// <param name="LocationRequired">GLPI's ticket template makes the location mandatory.</param>
+/// <param name="DefaultLocation">Location name chosen in advance (e.g. the main office); null = none.</param>
+public sealed record NewTicketForm(bool LocationRequired, string? DefaultLocation)
+{
+    /// <summary>The category is always required – it routes the ticket to the right technician.</summary>
+    public bool CategoryRequired => true;
+}
+
 public sealed class NewTicketInput
 {
     [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Podaj tytuł zgłoszenia.")]
@@ -265,6 +274,9 @@ public interface IHelpdeskService
 
     /// <summary>Creates the ticket, then adds the observers (a failed observer does not undo the ticket).</summary>
     Task<NewTicketResult> CreateTicketAsync(string userSid, NewTicketInput input, CancellationToken ct = default);
+
+    /// <summary>Required fields and defaults of the "new ticket" form (GLPI ticket template + configuration).</summary>
+    Task<NewTicketForm> GetNewTicketFormAsync(CancellationToken ct = default);
 
     Task AddObserverAsync(string userSid, int ticketId, int glpiUserId, CancellationToken ct = default);
 

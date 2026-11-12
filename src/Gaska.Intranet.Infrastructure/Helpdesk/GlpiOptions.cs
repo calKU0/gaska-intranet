@@ -27,6 +27,9 @@ public sealed class GlpiOptions
     /// <summary>Saves – GLPI runs ticket rules and sends notification e-mails before it answers.</summary>
     public int WriteTimeoutSeconds { get; set; } = 60;
 
+    /// <summary>Location chosen in advance on a new ticket – its name in GLPI (appsettings.Local.json); empty = none.</summary>
+    public string DefaultLocation { get; set; } = string.Empty;
+
     /// <summary>How many tickets the list shows (newest changes first).</summary>
     public int MaxTickets { get; set; } = 200;
 

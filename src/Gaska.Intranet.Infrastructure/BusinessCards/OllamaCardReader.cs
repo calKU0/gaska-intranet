@@ -40,7 +40,7 @@ internal sealed class OllamaCardReader(HttpClient http, IOptions<BusinessCardOpt
             ["stream"] = false,
             ["think"] = false,
             ["format"] = Schema.DeepClone(),
-            ["options"] = new JsonObject { ["temperature"] = 0 },
+            ["options"] = RequestOptions(),
             ["messages"] = new JsonArray(new JsonObject
             {
                 ["role"] = "user",
@@ -54,6 +54,17 @@ internal sealed class OllamaCardReader(HttpClient http, IOptions<BusinessCardOpt
         var reply = await response.Content.ReadFromJsonAsync<ChatReply>(ct);
         var content = reply?.Message?.Content ?? throw new JsonException("Empty answer from the model.");
         return JsonSerializer.Deserialize<CardAnswer>(content)?.ToFields() ?? throw new JsonException("Unreadable answer from the model.");
+    }
+
+    private JsonObject RequestOptions()
+    {
+        var options = new JsonObject { ["temperature"] = 0 };
+        if (_options.LlmContextLength > 0)
+        {
+            options["num_ctx"] = _options.LlmContextLength;
+        }
+
+        return options;
     }
 
     /// <summary>

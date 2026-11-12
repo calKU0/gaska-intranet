@@ -3,8 +3,8 @@
 @inject ISnackbar Snackbar
 @inject ILogger<BusinessCardButton> Logger
 
-<label class="gaska-file-button" title="Zrób zdjęcie wizytówki">
-    <InputFile OnChange="OnFileAsync" accept="image/*" capture="environment" disabled="@_busy" class="gaska-scan-input" />
+<label class="gaska-file-button" title="Zrób zdjęcie wizytówki" data-gaska-camera>
+    <InputFile OnChange="OnFileAsync" accept="image/*" disabled="@_busy" class="gaska-scan-input" />
     <MudButton HtmlTag="span" Variant="Variant.Outlined" Color="Color.Secondary" Disabled="_busy"
                StartIcon="@(_busy ? null : Icons.Material.Outlined.ContactMail)">
         @if (_busy)

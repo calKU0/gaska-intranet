@@ -2957,3 +2957,152 @@ html.gaska-install-dismissed .gaska-install-banner {
     display: inline-flex;
     cursor: pointer;
 }
+
+/* =========================================================================
+   Business card camera (js/camera.js) – full screen, dark, one big button.
+   ========================================================================= */
+html.gaska-camera-open,
+html.gaska-camera-open body {
+    overflow: hidden;
+}
+
+.gaska-camera {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    color: #fff;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.gaska-camera-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.gaska-camera-stage[hidden],
+.gaska-camera-message[hidden] {
+    display: none;
+}
+
+.gaska-camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Business card proportions (85 × 55 mm); the dimmed area around it shows where the card goes. */
+.gaska-camera-frame {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(88%, 560px);
+    aspect-ratio: 85 / 55;
+    transform: translate(-50%, -50%);
+    border: 3px solid var(--gaska-yellow, #f5c400);
+    border-radius: 14px;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45);
+}
+
+.gaska-camera-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 16px;
+    text-align: center;
+    font-weight: 600;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}
+
+.gaska-camera-message {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.5;
+}
+
+.gaska-camera-message h2 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+}
+
+.gaska-camera-message p {
+    margin: 0;
+    color: rgba(255, 255, 255, .85);
+}
+
+.gaska-camera-icon {
+    color: var(--gaska-yellow, #f5c400);
+}
+
+.gaska-camera-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px 20px;
+    min-height: 104px;
+}
+
+.gaska-camera-spacer {
+    width: 72px;
+}
+
+.gaska-camera-button {
+    min-width: 88px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .14);
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.gaska-camera-button.is-text {
+    background: transparent;
+}
+
+.gaska-camera-button.is-primary {
+    background: var(--gaska-yellow, #f5c400);
+    color: #111;
+}
+
+/* The shutter: a big white ring – the familiar camera button. */
+.gaska-camera-shutter {
+    width: 72px;
+    min-width: 72px;
+    height: 72px;
+    padding: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 4px #000, 0 0 0 7px #fff;
+}
+
+.gaska-camera-shutter:active {
+    transform: scale(.94);
+}
+
+/* Message screens (no access, explanation): the main action gets its own full-width row above the others. */
+.gaska-camera-bar:has(.is-primary) {
+    flex-wrap: wrap;
+}
+
+.gaska-camera-bar .is-primary {
+    order: -1;
+    flex: 1 1 100%;
+    min-height: 52px;
+    font-size: 1.05rem;
+}

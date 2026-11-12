@@ -26,6 +26,12 @@ public sealed class BusinessCardOptions
     /// <summary>After this the photo is read with OCR instead.</summary>
     public int LlmTimeoutSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// Context size sent with every request (num_ctx); 0 = the server's default. Must equal the size other clients of the
+    /// same Ollama server use for this model – a different size makes Ollama reload the whole model (a minute or more).
+    /// </summary>
+    public int LlmContextLength { get; set; }
+
     /// <summary>Longer side of the photo sent to the model, in pixels.</summary>
     public int LlmImageMaxSide { get; set; } = 1280;
 }

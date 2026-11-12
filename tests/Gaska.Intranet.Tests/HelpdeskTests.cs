@@ -280,13 +280,26 @@ public sealed class GlpiHelpdeskServiceTests : IDisposable
         // GLPI's web server never answers chunked requests – saves used to hang until the timeout.
         await _connector.ConnectAsync(_user, "Haslo123!");
 
-        var result = await _service.CreateTicketAsync(_user.Sid, new NewTicketInput { Title = "Test", Description = "Opis", LocationId = 4 });
+        var result = await _service.CreateTicketAsync(_user.Sid, new NewTicketInput { Title = "Test", Description = "Opis", CategoryId = 2, LocationId = 4 });
 
         Assert.Equal(13, result.Id);
         Assert.True(_api.CreateBodyHadLength);
         Assert.Contains("\"location\":{\"id\":4}", _api.CreateBody);
         // GLPI's API does not make the author the requester (its own form does).
         Assert.Contains(("POST", "/Assistance/Ticket/13/TeamMember", """{"type":"User","id":7,"role":"requester"}"""), _api.Calls);
+    }
+
+    [Fact]
+    public async Task Ticket_without_category_is_refused_before_GLPI()
+    {
+        await _connector.ConnectAsync(_user, "Haslo123!");
+        var calls = _api.Calls.Count;
+
+        var error = await Assert.ThrowsAsync<HelpdeskException>(() =>
+            _service.CreateTicketAsync(_user.Sid, new NewTicketInput { Title = "Test", Description = "Opis" }));
+
+        Assert.Contains("kategori", error.Message);
+        Assert.DoesNotContain(_api.Calls.Skip(calls), c => c.Item1 == "POST");
     }
 
     [Theory]

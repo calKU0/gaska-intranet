@@ -29,7 +29,8 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
             headers.XContentTypeOptions = "nosniff";
             headers.XFrameOptions = "DENY";
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-            headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
+            // camera=(self): the business card scanner shows the camera inside the page (js/camera.js); never for other sites.
+            headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), payment=(), usb=()";
             headers["Cross-Origin-Opener-Policy"] = "same-origin";
             headers["Cross-Origin-Resource-Policy"] = "same-origin";
             // Internal site: keep it out of search engines, previews and AI training (robots.txt says the same).

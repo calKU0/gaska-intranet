@@ -120,6 +120,70 @@ internal sealed class GlpiLegacyUploader(
         }, ct);
     }
 
+    /// <summary>
+    /// Adds the requester as the service account. API v2 adds people to a ticket only with the right to update it, which
+    /// a Self-Service user lacks – GLPI's own form sets the author as the requester while creating the ticket.
+    /// The caller passes the ticket the user has just created and the user's own GLPI id.
+    /// </summary>
+    public async Task AddRequesterAsync(int ticketId, int glpiUserId, CancellationToken ct) =>
+        await WithSessionAsync(async (http, session) =>
+        {
+            using var request = Request(HttpMethod.Post, "Ticket_User/", session);
+            request.Content = Json(new JsonObject
+            {
+                ["input"] = new JsonObject { ["tickets_id"] = ticketId, ["users_id"] = glpiUserId, ["type"] = 1 }, // 1 = requester
+            });
+            await SendAsync(http, request, "Ticket_User", ct);
+            return 0;
+        }, ct);
+
+    /// <summary>
+    /// Fields GLPI's ticket templates make mandatory, as GLPI search option numbers (7 = category, 83 = location…):
+    /// the template of the root entity and those of the profiles with the simplified interface (Self-Service).
+    /// </summary>
+    public async Task<IReadOnlySet<int>> GetMandatoryTicketFieldsAsync(CancellationToken ct) =>
+        await WithSessionAsync(async (http, session) =>
+        {
+            var templates = new HashSet<int>();
+            using (var entity = Request(HttpMethod.Get, "Entity/0", session))
+            {
+                if (await SendAsync(http, entity, "Entity", ct) is JsonObject root && IntOf(root["tickettemplates_id"]) is > 0 and var id)
+                {
+                    templates.Add(id);
+                }
+            }
+
+            try
+            {
+                using var profiles = Request(HttpMethod.Get, "Profile/?range=0-200", session);
+                foreach (var profile in (await SendAsync(http, profiles, "Profile", ct) as JsonArray)?.OfType<JsonObject>() ?? [])
+                {
+                    if (string.Equals(profile["interface"]?.ToString(), "helpdesk", StringComparison.OrdinalIgnoreCase)
+                        && IntOf(profile["tickettemplates_id"]) is > 0 and var id)
+                    {
+                        templates.Add(id);
+                    }
+                }
+            }
+            catch (HelpdeskException ex)
+            {
+                // Reading profiles needs the right to see them – the entity's template is the general rule anyway.
+                logger.LogInformation(ex, "GLPI profiles could not be read for ticket templates");
+            }
+
+            var fields = new HashSet<int>();
+            foreach (var template in templates)
+            {
+                using var request = Request(HttpMethod.Get, $"TicketTemplate/{template}/TicketTemplateMandatoryField?range=0-200", session);
+                foreach (var field in (await SendAsync(http, request, "TicketTemplateMandatoryField", ct) as JsonArray)?.OfType<JsonObject>() ?? [])
+                {
+                    fields.Add(IntOf(field["num"]));
+                }
+            }
+
+            return (IReadOnlySet<int>)fields;
+        }, ct);
+
     /// <summary>Downloads a document as the service account – the caller must have checked the user may see it.</summary>
     public async Task<HelpdeskFile> DownloadAsync(int documentId, CancellationToken ct) =>
         await WithSessionAsync(async (http, session) =>

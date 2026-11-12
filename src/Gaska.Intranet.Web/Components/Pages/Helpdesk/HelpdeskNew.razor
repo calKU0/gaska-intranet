@@ -20,7 +20,7 @@
 }
 else
 {
-    <EditForm Model="_input" OnValidSubmit="SubmitAsync" OnInvalidSubmit="() => JS.RevealInvalidFieldAsync()" Context="form">
+    <EditForm Model="_input" OnValidSubmit="SubmitAsync" OnInvalidSubmit="InvalidSubmitAsync" Context="form">
         <DataAnnotationsValidator />
         <MudPaper Class="gaska-card pa-4 pa-sm-5 gaska-helpdesk-form" Elevation="0">
             <MudGrid Spacing="3">
@@ -44,7 +44,8 @@ else
                 </MudItem>
 
                 <MudItem xs="12" sm="8">
-                    <SearchSelect TValue="int?" @bind-Value="_input.CategoryId" Label="Kategoria" Clearable="true" Disabled="_loadingCategories"
+                    <SearchSelect TValue="int?" Value="_input.CategoryId" ValueChanged="SetCategory" Label="Kategoria" Clearable="true"
+                                  Disabled="_loadingCategories" Required="CategoryRequired" ErrorText="@_categoryError"
                                   HelperText="@(_categories.Count == 0 && !_loadingCategories ? "Brak kategorii – pomiń to pole." : "Pomaga trafić do właściwej osoby.")"
                                   Options="@(_categories.Select(c => new SelectOption<int?>(c.Id, c.Name)).ToList())" />
                 </MudItem>
@@ -62,6 +63,7 @@ else
                                      Variant="Variant.Outlined" Margin="Margin.Dense" SearchFunc="SearchLocations"
                                      ToStringFunc="@(l => l?.Name)" Clearable="true" ResetValueOnEmptyText="true" CoerceText="true"
                                      MaxItems="50" Disabled="_locations.Count == 0" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                                     Required="LocationRequired" Error="@(_locationError is not null)" ErrorText="@_locationError"
                                      HelperText="@(_locations.Count == 0 ? "Brak lokalizacji w Helpdesku." : "Gdzie jest problem (biuro, magazyn…).")" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
@@ -123,6 +125,13 @@ else
     private bool _needsConnection;
     private bool _saving;
     private string? _error;
+    private string? _categoryError;
+    private string? _locationError;
+    private NewTicketForm _form = new(LocationRequired: false, DefaultLocation: null);
+
+    // Required only when there is something to pick – without a list from GLPI the ticket must still go through.
+    private bool CategoryRequired => _form.CategoryRequired && (_categories.Count > 0 || _loadingCategories);
+    private bool LocationRequired => _form.LocationRequired && _locations.Count > 0;
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
@@ -134,6 +143,7 @@ else
         if (RendererInfo.IsInteractive)
         {
             await LoadCategoriesAsync();
+            _form = await Helpdesk.GetNewTicketFormAsync();
             await LoadLocationsAsync();
         }
     }
@@ -143,6 +153,10 @@ else
         try
         {
             _locations = await Helpdesk.GetLocationsAsync(await SidAsync());
+            if (_location is null && DefaultLocation() is { } location)
+            {
+                SetLocation(location);
+            }
         }
         catch (HelpdeskException)
         {
@@ -156,10 +170,44 @@ else
             ? _locations.AsEnumerable()
             : _locations.Where(l => TextSearch.Matches(text, l.Name)));
 
+    /// <summary>The configured default ("Biuro"): the location with exactly that name, else one whose last level has it.</summary>
+    private HelpdeskLocation? DefaultLocation()
+    {
+        if (_form.DefaultLocation is not { } name)
+        {
+            return null;
+        }
+
+        return _locations.FirstOrDefault(l => string.Equals(l.Name.Trim(), name, StringComparison.CurrentCultureIgnoreCase))
+            ?? _locations.FirstOrDefault(l => string.Equals(l.Name.Split('>').Last().Trim(), name, StringComparison.CurrentCultureIgnoreCase));
+    }
+
     private void SetLocation(HelpdeskLocation? location)
     {
         _location = location;
         _input.LocationId = location?.Id;
+        _locationError = null;
+    }
+
+    private void SetCategory(int? categoryId)
+    {
+        _input.CategoryId = categoryId;
+        _categoryError = null;
+    }
+
+    /// <summary>Fields GLPI requires that the data annotations cannot know about; true = all filled.</summary>
+    private bool CheckRequiredFields()
+    {
+        _categoryError = CategoryRequired && _input.CategoryId is null ? "Wybierz kategorię." : null;
+        _locationError = LocationRequired && _input.LocationId is null ? "Wybierz lokalizację." : null;
+        return _categoryError is null && _locationError is null;
+    }
+
+    private async Task InvalidSubmitAsync()
+    {
+        // Show the GLPI-required fields together with the title / description messages.
+        CheckRequiredFields();
+        await JS.RevealInvalidFieldAsync();
     }
 
     private void AddObserver(HelpdeskUser user)
@@ -202,6 +250,12 @@ else
 
     private async Task SubmitAsync()
     {
+        if (!CheckRequiredFields())
+        {
+            await JS.RevealInvalidFieldAsync();
+            return;
+        }
+
         _saving = true;
         _error = null;
         try

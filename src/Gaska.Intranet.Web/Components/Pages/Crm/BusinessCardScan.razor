@@ -13,8 +13,9 @@
 <CrmOperatorNotice />
 
 <MudPaper Elevation="0" Class="gaska-card pa-5 gaska-scan">
-    <label class="gaska-scan-drop @(_busy ? "is-disabled" : null)">
-        <InputFile OnChange="OnFileAsync" accept="image/*" capture="environment" disabled="@_busy" class="gaska-scan-input" />
+    @* data-gaska-camera: on a phone the camera opens inside the page (js/camera.js), on a computer the file dialog. *@
+    <label class="gaska-scan-drop @(_busy ? "is-disabled" : null)" data-gaska-camera>
+        <InputFile OnChange="OnFileAsync" accept="image/*" disabled="@_busy" class="gaska-scan-input" />
         @if (_busy)
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />

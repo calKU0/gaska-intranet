@@ -28,6 +28,7 @@
     <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
     <script src="@Assets["js/boot.js"]"></script>
     <script src="@Assets["js/forms.js"]"></script>
+    <script src="@Assets["js/camera.js"]"></script>
     @if (HttpContext.User.Identity?.IsAuthenticated == true)
     {
         <script src="@Assets["js/session.js"]" data-idle-minutes="@Session.Value.IdleTimeoutMinutes"

@@ -199,13 +199,53 @@ internal sealed class GlpiHelpdeskService(
                 return;
             }
 
-            await SendAsync(userSid, HttpMethod.Post, $"Assistance/Ticket/{ticketId}/TeamMember", TeamMember(userId, "requester"), ct);
+            try
+            {
+                await SendAsync(userSid, HttpMethod.Post, $"Assistance/Ticket/{ticketId}/TeamMember", TeamMember(userId, "requester"), ct);
+            }
+            catch (HelpdeskException ex) when (ex is not HelpdeskNotConnectedException && uploader.IsConfigured)
+            {
+                // A Self-Service user may not change the people of a ticket, not even their own new one – the service
+                // account adds them (the user has just created this ticket with their own token).
+                logger.LogInformation(ex, "Requester of GLPI ticket {Id} not added with the user's token – adding it as the service account", ticketId);
+                await uploader.AddRequesterAsync(ticketId, userId, ct);
+            }
         }
         catch (HelpdeskException ex) when (ex is not HelpdeskNotConnectedException)
         {
             // The ticket exists – a missing requester must not turn the creation into an error (no duplicate on retry).
-            logger.LogWarning(ex, "Adding the requester to GLPI ticket {Id} failed", ticketId);
+            logger.LogWarning(ex, "Adding the requester to GLPI ticket {Id} failed – the ticket has no requester", ticketId);
         }
+    }
+
+    /// <summary>GLPI search option number of the ticket's location (ticket templates list mandatory fields by it).</summary>
+    private const int LocationField = 83;
+
+    public async Task<NewTicketForm> GetNewTicketFormAsync(CancellationToken ct = default)
+    {
+        var defaultLocation = string.IsNullOrWhiteSpace(Options.DefaultLocation) ? null : Options.DefaultLocation.Trim();
+        if (!uploader.IsConfigured)
+        {
+            return new NewTicketForm(LocationRequired: false, defaultLocation);
+        }
+
+        // Ticket templates change rarely – read them once in a while, not for every form.
+        var mandatory = await cache.GetOrCreateAsync("glpi:mandatory-ticket-fields", async entry =>
+        {
+            try
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+                return await uploader.GetMandatoryTicketFieldsAsync(ct);
+            }
+            catch (HelpdeskException ex)
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
+                logger.LogWarning(ex, "GLPI ticket templates could not be read – only the category is required");
+                return (IReadOnlySet<int>)new HashSet<int>();
+            }
+        });
+
+        return new NewTicketForm(mandatory!.Contains(LocationField), defaultLocation);
     }
 
     private static JsonObject TeamMember(int glpiUserId, string role) =>
@@ -375,6 +415,11 @@ internal sealed class GlpiHelpdeskService(
     public async Task<NewTicketResult> CreateTicketAsync(string userSid, NewTicketInput input, CancellationToken ct = default)
     {
         CheckAttachments(input.Attachments);
+        if (input.CategoryId is null or <= 0)
+        {
+            throw new HelpdeskException("Wybierz kategorię zgłoszenia.");
+        }
+
         var body = new JsonObject
         {
             ["name"] = input.Title.Trim(),

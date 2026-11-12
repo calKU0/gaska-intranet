@@ -6,6 +6,7 @@
 {
     <MudAutocomplete T="SelectOption<TValue>" Value="Selected" ValueChanged="PickAsync" Label="@Label" Placeholder="Wpisz, aby zawęzić listę…"
                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="@Class" HelperText="@HelperText" Disabled="Disabled"
+                     Required="Required" Error="@(ErrorText is not null)" ErrorText="@ErrorText"
                      SearchFunc="Search" ToStringFunc="@(o => o?.Text)" Strict="false" CoerceText="true"
                      Clearable="Clearable" ResetValueOnEmptyText="Clearable" MaxItems="null" MaxHeight="320"
                      AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" />
@@ -14,6 +15,7 @@ else
 {
     <MudSelect T="TValue" Value="Value" ValueChanged="ValueChanged" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense"
                Class="@Class" HelperText="@HelperText" Disabled="Disabled" Clearable="Clearable" MaxHeight="320"
+               Required="Required" Error="@(ErrorText is not null)" ErrorText="@ErrorText"
                AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
         @foreach (var option in Options)
         {
@@ -50,6 +52,14 @@ else
 
     [Parameter]
     public bool Disabled { get; set; }
+
+    /// <summary>Marks the field as required (asterisk); the check itself is the page's.</summary>
+    [Parameter]
+    public bool Required { get; set; }
+
+    /// <summary>Shown under the field in red; null = no error.</summary>
+    [Parameter]
+    public string? ErrorText { get; set; }
 
     private SelectOption<TValue>? Selected => Options.FirstOrDefault(o => EqualityComparer<TValue>.Default.Equals(o.Value, Value));
 

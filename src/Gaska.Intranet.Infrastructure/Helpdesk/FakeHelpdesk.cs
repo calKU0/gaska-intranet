@@ -135,7 +135,10 @@ internal sealed class FakeHelpdesk : IHelpdeskService, IHelpdeskConnector
 
     public Task<IReadOnlyList<HelpdeskLocation>> GetLocationsAsync(string userSid, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<HelpdeskLocation>>(
-            [new(1, "Biuro > Parter"), new(2, "Biuro > Piętro 1 > Sala konferencyjna"), new(3, "Magazyn > Hala B > Rampa 3")]);
+            [new(4, "Biuro"), new(1, "Biuro > Parter"), new(2, "Biuro > Piętro 1 > Sala konferencyjna"), new(3, "Magazyn > Hala B > Rampa 3")]);
+
+    public Task<NewTicketForm> GetNewTicketFormAsync(CancellationToken ct = default) =>
+        Task.FromResult(new NewTicketForm(LocationRequired: true, DefaultLocation: "Biuro"));
 
     public Task<IReadOnlyList<HelpdeskUser>> SearchUsersAsync(string userSid, string text, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<HelpdeskUser>>(Users
