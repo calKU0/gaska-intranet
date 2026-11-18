@@ -1,4 +1,5 @@
 using Gaska.Intranet.Core.Access;
+using Gaska.Intranet.Core.Analytics;
 using Gaska.Intranet.Core.Auditing;
 using Gaska.Intranet.Core.Security;
 using Gaska.Intranet.Infrastructure.Helpdesk;
@@ -24,6 +25,8 @@ public class IntranetDbContext(DbContextOptions<IntranetDbContext> options)
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<GlpiConnection> GlpiConnections => Set<GlpiConnection>();
+    public DbSet<Dashboard> Dashboards => Set<Dashboard>();
+    public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

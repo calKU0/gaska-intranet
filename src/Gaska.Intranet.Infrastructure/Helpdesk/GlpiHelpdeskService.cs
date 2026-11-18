@@ -134,26 +134,63 @@ internal sealed class GlpiHelpdeskService(
         // Filtered here, like GLPI's own form: a category can be limited to problems (incidents) or requests,
         // and hidden from the simplified interface altogether.
         var visibleFor = type == TicketType.Incident ? "is_incident_visible" : "is_request_visible";
-        var (json, _) = await SendAsync(userSid, HttpMethod.Get, "Dropdowns/ITILCategory?limit=1000&sort=completename", null, ct);
-        return json is JsonArray items
-            ? items.OfType<JsonObject>()
-                .Where(c => Bool(c, "is_helpdesk_visible") != false && Bool(c, visibleFor) != false)
-                .Select(c => new HelpdeskCategory(Int(c, "id") ?? 0, Str(c, "completename") ?? Str(c, "name") ?? "?"))
-                .Where(c => c.Id > 0)
-                .ToList()
-            : [];
+        var own = await OwnDropdownAsync(userSid, "ITILCategory", items => items
+            .Where(c => Bool(c, "is_helpdesk_visible") != false && Bool(c, visibleFor) != false)
+            .Select(c => new HelpdeskCategory(Int(c, "id") ?? 0, Str(c, "completename") ?? Str(c, "name") ?? "?"))
+            .Where(c => c.Id > 0)
+            .ToList(), ct);
+        if (own.Count > 0 || !uploader.IsConfigured)
+        {
+            return own;
+        }
+
+        var all = await SharedDropdownAsync("glpi:categories", uploader.GetCategoriesAsync, ct);
+        return all
+            .Where(c => c.HelpdeskVisible && (type == TicketType.Incident ? c.Incident : c.Request))
+            .Select(c => new HelpdeskCategory(c.Id, c.Name))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<HelpdeskLocation>> GetLocationsAsync(string userSid, CancellationToken ct = default)
     {
-        var (json, _) = await SendAsync(userSid, HttpMethod.Get, "Dropdowns/Location?limit=1000&sort=completename", null, ct);
-        return json is JsonArray items
-            ? items.OfType<JsonObject>()
-                .Select(l => new HelpdeskLocation(Int(l, "id") ?? 0, Str(l, "completename") ?? Str(l, "name") ?? "?"))
-                .Where(l => l.Id > 0)
-                .ToList()
-            : [];
+        var own = await OwnDropdownAsync(userSid, "Location", items => items
+            .Select(l => new HelpdeskLocation(Int(l, "id") ?? 0, Str(l, "completename") ?? Str(l, "name") ?? "?"))
+            .Where(l => l.Id > 0)
+            .ToList(), ct);
+
+        return own.Count > 0 || !uploader.IsConfigured
+            ? own
+            : await SharedDropdownAsync("glpi:locations", uploader.GetLocationsAsync, ct);
     }
+
+    /// <summary>
+    /// A dictionary read with the user's own token. GLPI's API lists a dictionary only for profiles with the right to
+    /// read it – a Self-Service user gets an error or an empty list, although GLPI's own form shows them the entries.
+    /// With a service account configured that is not final: the caller falls back to <see cref="SharedDropdownAsync"/>.
+    /// The user must still be connected to the helpdesk – a missing connection is reported as usual.
+    /// </summary>
+    private async Task<IReadOnlyList<T>> OwnDropdownAsync<T>(
+        string userSid, string dropdown, Func<IEnumerable<JsonObject>, IReadOnlyList<T>> map, CancellationToken ct)
+    {
+        try
+        {
+            var (json, _) = await SendAsync(userSid, HttpMethod.Get, $"Dropdowns/{dropdown}?limit=1000&sort=completename", null, ct);
+            return json is JsonArray items ? map(items.OfType<JsonObject>()) : [];
+        }
+        catch (HelpdeskException ex) when (ex is not HelpdeskNotConnectedException && uploader.IsConfigured)
+        {
+            logger.LogInformation(ex, "GLPI {Dropdown} not readable with the user's token – reading it as the service account", dropdown);
+            return [];
+        }
+    }
+
+    /// <summary>The same dictionary for everyone, read as the service account once in a while.</summary>
+    private async Task<IReadOnlyList<T>> SharedDropdownAsync<T>(string cacheKey, Func<CancellationToken, Task<IReadOnlyList<T>>> read, CancellationToken ct) =>
+        await cache.GetOrCreateAsync(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
+            return read(ct);
+        }) ?? [];
 
     public async Task<IReadOnlyList<HelpdeskUser>> SearchUsersAsync(string userSid, string text, CancellationToken ct = default)
     {

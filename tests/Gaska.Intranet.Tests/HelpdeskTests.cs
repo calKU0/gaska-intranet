@@ -264,6 +264,43 @@ public sealed class GlpiHelpdeskServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Self_service_user_gets_categories_and_locations_read_by_the_service_account()
+    {
+        // GLPI's API refuses dictionaries to profiles without the right to read them – its own form shows them anyway.
+        await _connector.ConnectAsync(_user, "Haslo123!");
+        _api.DropdownsForbidden = true;
+
+        var incidents = await _service.GetCategoriesAsync(_user.Sid, TicketType.Incident);
+        var requests = await _service.GetCategoriesAsync(_user.Sid, TicketType.Request);
+        var locations = await _service.GetLocationsAsync(_user.Sid);
+
+        Assert.Equal(["Sprzęt", "Sprzęt > Drukarki"], incidents.Select(c => c.Name));
+        Assert.Equal(["Dostępy", "Sprzęt > Drukarki"], requests.Select(c => c.Name));
+        Assert.Equal(["Biuro", "Magazyn > Hala A"], locations.Select(l => l.Name));
+
+        // Only the administrator profile of the service account may read dictionaries – it is found once and remembered;
+        // one successful read of each dictionary serves both ticket types (and the next users).
+        Assert.Equal(4, _api.ActiveProfile);
+        Assert.Single(_api.DictionaryReads, c => c.Path == "/apirest.php/ITILCategory/");
+        Assert.Single(_api.DictionaryReads, c => c.Path == "/apirest.php/Location/");
+        Assert.Single(_api.Calls, c => c.Path == "/apirest.php/Location/");
+    }
+
+    [Fact]
+    public async Task Empty_category_list_of_the_user_is_replaced_by_the_service_accounts()
+    {
+        await _connector.ConnectAsync(_user, "Haslo123!");
+        _api.DropdownsEmpty = true;
+
+        Assert.Equal(["Sprzęt", "Sprzęt > Drukarki"], (await _service.GetCategoriesAsync(_user.Sid, TicketType.Incident)).Select(c => c.Name));
+        Assert.Equal(2, (await _service.GetLocationsAsync(_user.Sid)).Count);
+    }
+
+    [Fact]
+    public async Task Disconnected_user_is_not_served_from_the_service_account() =>
+        await Assert.ThrowsAsync<HelpdeskNotConnectedException>(() => _service.GetCategoriesAsync("S-1-5-21-404", TicketType.Incident));
+
+    [Fact]
     public async Task People_are_shown_with_their_AD_names()
     {
         await _connector.ConnectAsync(_user, "Haslo123!");
@@ -429,6 +466,15 @@ public sealed class GlpiHelpdeskServiceTests : IDisposable
         public readonly List<(string Method, string Path, string? Body)> Calls = [];
         public int ActiveProfile = 1;
 
+        /// <summary>Dictionary reads GLPI answered (the profile had the right).</summary>
+        public readonly List<(string Method, string Path, string? Body)> DictionaryReads = [];
+
+        /// <summary>The user's profile may not read dictionaries through the API (Self-Service).</summary>
+        public bool DropdownsForbidden;
+
+        /// <summary>The API answers, but lists nothing for the user's profile.</summary>
+        public bool DropdownsEmpty;
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -444,6 +490,13 @@ public sealed class GlpiHelpdeskServiceTests : IDisposable
                 {
                     Calls.Add((request.Method.Method, path.Replace("/api.php/v2.3", string.Empty), sent));
                 }
+            }
+
+            if (path.Contains("/Dropdowns/") && (DropdownsForbidden || DropdownsEmpty))
+            {
+                return DropdownsForbidden
+                    ? new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent("""{"status":"ERROR_RIGHT_MISSING"}""", Encoding.UTF8, "application/json") }
+                    : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]", Encoding.UTF8, "application/json") };
             }
 
             if (path.Contains("/Ticket/9999"))
@@ -531,20 +584,49 @@ public sealed class GlpiHelpdeskServiceTests : IDisposable
 
             if (path == "/apirest.php/changeActiveProfile")
             {
-                ActiveProfile = body!.Contains("\"profiles_id\":6") ? 6 : ActiveProfile;
+                ActiveProfile = body!.Contains("\"profiles_id\":6") ? 6 : body.Contains("\"profiles_id\":4") ? 4 : body.Contains("\"profiles_id\":1") ? 1 : ActiveProfile;
+            }
+
+            // As in a default GLPI: only the administrator profile may read dictionaries.
+            if (path is "/apirest.php/ITILCategory/" or "/apirest.php/Location/")
+            {
+                if (ActiveProfile != 4)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                    {
+                        Content = new StringContent("""["ERROR_RIGHT_MISSING","Brak uprawnień"]""", Encoding.UTF8, "application/json"),
+                    };
+                }
+
+                lock (Calls)
+                {
+                    DictionaryReads.Add(Calls[^1]);
+                }
             }
 
             var json = path switch
             {
                 "/apirest.php/initSession" => """{ "session_token": "sess-1" }""",
-                "/apirest.php/getActiveProfile" => ActiveProfile == 6
-                    ? """{ "active_profile": { "id": 6, "name": "Technician", "interface": "central" } }"""
-                    : """{ "active_profile": { "id": 1, "name": "Self-Service", "interface": "helpdesk" } }""",
+                "/apirest.php/getActiveProfile" => ActiveProfile switch
+                {
+                    6 => """{ "active_profile": { "id": 6, "name": "Technician", "interface": "central" } }""",
+                    4 => """{ "active_profile": { "id": 4, "name": "Super-Admin", "interface": "central" } }""",
+                    _ => """{ "active_profile": { "id": 1, "name": "Self-Service", "interface": "helpdesk" } }""",
+                },
                 "/apirest.php/getMyProfiles" => """{ "myprofiles": [ { "id": 1, "name": "Self-Service" }, { "id": 4, "name": "Super-Admin" }, { "id": 6, "name": "Technician" } ] }""",
                 "/apirest.php/Document/" => """{ "id": 55, "message": "" }""",
                 "/apirest.php/Document_Item/" => """{ "id": 90, "message": "" }""",
                 "/apirest.php/ITILFollowup/77/Document_Item" => """[ { "id": 90, "documents_id": 55, "itemtype": "ITILFollowup", "items_id": 77 } ]""",
                 "/apirest.php/ITILFollowup/78/Document_Item" => "[]",
+                "/apirest.php/ITILCategory/" => """
+                    [ { "id": 2, "name": "Drukarki", "completename": "Sprzęt > Drukarki", "is_helpdeskvisible": 1, "is_incident": 1, "is_request": 1 },
+                      { "id": 1, "name": "Sprzęt", "completename": "Sprzęt", "is_helpdeskvisible": 1, "is_incident": 1, "is_request": 0 },
+                      { "id": 3, "name": "Dostępy", "completename": "Dostępy", "is_helpdeskvisible": 1, "is_incident": 0, "is_request": 1 },
+                      { "id": 4, "name": "Tylko dla techników", "completename": "Tylko dla techników", "is_helpdeskvisible": 0, "is_incident": 1, "is_request": 1 } ]
+                    """,
+                "/apirest.php/Location/" => """
+                    [ { "id": 5, "name": "Hala A", "completename": "Magazyn > Hala A" }, { "id": 4, "name": "Biuro", "completename": "Biuro" } ]
+                    """,
                 "/apirest.php/Document/55" => """{ "id": 55, "name": "zrzut", "filename": "zrzut-ekranu.png", "mime": "image/png" }""",
                 _ => "true",
             };

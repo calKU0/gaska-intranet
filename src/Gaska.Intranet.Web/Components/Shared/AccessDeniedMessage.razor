@@ -36,6 +36,7 @@
         // The module is recognised by its route – the longest matching prefix wins.
         var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
         var module = Catalog.All
+            .Where(m => m.Kind == ModuleKind.Page)
             .Where(m => path.Equals(m.Route, StringComparison.OrdinalIgnoreCase) ||
                         path.StartsWith(m.Route.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .MaxBy(m => m.Route.Length);

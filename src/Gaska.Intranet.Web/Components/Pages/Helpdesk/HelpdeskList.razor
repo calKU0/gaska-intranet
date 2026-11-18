@@ -70,7 +70,7 @@ else
             </MudToggleGroup>
         </div>
 
-        <MudDataGrid T="HelpdeskTicket" Items="Filtered" Loading="_loading" Hover="true" Dense="true" Elevation="0"
+        <MudDataGrid T="HelpdeskTicket" SortMode="SortMode.Single" ShowColumnOptions="false" Items="Filtered" Loading="_loading" Hover="true" Dense="true" Elevation="0"
                      RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid gaska-clickable-rows" Culture="@GaskaTheme.Polish"
                      RowClick="@(args => Navigation.NavigateTo($"/helpdesk/{args.Item.Id}"))">
             <Columns>

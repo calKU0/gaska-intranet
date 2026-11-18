@@ -1,6 +1,8 @@
 @page "/kontrahenci"
 @attribute [ModuleAuthorize(ModuleKeys.Contractors)]
 @inject IContractorService Contractors
+@inject ICrmDirectory Directory
+@inject IContractorCaretakerService Caretakers
 @inject CrmSession Session
 @inject NavigationManager Navigation
 
@@ -35,18 +37,51 @@
                       Immediate="true" DebounceInterval="400" Clearable="true"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
 
-        @if (_operatorId is not null)
+        @* My contractors: where I am the account manager or the sales representative (GoNet's manager when the ERP has none). *@
+        <MudSwitch T="bool" Value="_mineOnly" ValueChanged="MineOnlyChangedAsync" Color="Color.Primary" Label="Tylko moi" />
+
+        @if (_options is not null)
         {
-            <MudSwitch T="bool" Value="_mineOnly" ValueChanged="MineOnlyChangedAsync" Color="Color.Primary" Label="Tylko moi" />
+            @* Phones: the filters hide behind this button; from the "md" breakpoint up they are always visible. *@
+            <MudButton Class="gaska-filters-toggle" Variant="Variant.Outlined" Color="@(_filter.ActiveCount > 0 ? Color.Primary : Color.Secondary)"
+                       StartIcon="@Icons.Material.Outlined.FilterList" OnClick="() => _filtersOpen = !_filtersOpen"
+                       aria-expanded="@(_filtersOpen ? "true" : "false")">
+                Filtry@(_filter.ActiveCount > 0 ? $" ({_filter.ActiveCount})" : "")
+            </MudButton>
         }
     </div>
 
-    <MudDataGrid @ref="_grid" T="ContractorListItem" ServerData="LoadAsync" Hover="true" Dense="true" Elevation="0"
+    @if (_options is not null)
+    {
+        <div class="gaska-filters @(_filtersOpen ? "is-open" : null)">
+            <MultiSearchSelect TValue="int" Label="Kraj" Options="Choices(_options.Countries, TaskFields.Title)" Selected="_filter.CountryIds"
+                               SelectedChanged="@(v => FilterChangedAsync(_filter with { CountryIds = v }))" />
+            <MultiSearchSelect TValue="int" Label="Województwo" Options="Choices(_options.Voivodeships, n => n.ToLowerInvariant())" Selected="_filter.VoivodeshipIds"
+                               SelectedChanged="@(v => FilterChangedAsync(_filter with { VoivodeshipIds = v }))" />
+            <MultiSearchSelect TValue="int" Label="Status" Options="Choices(_options.Statuses, TaskFields.Pretty)" Selected="_filter.StatusIds"
+                               SelectedChanged="@(v => FilterChangedAsync(_filter with { StatusIds = v }))" />
+            <MultiSearchSelect TValue="int" Label="Typ" Options="Choices(_options.Types, TaskFields.Pretty)" Selected="_filter.TypeIds"
+                               SelectedChanged="@(v => FilterChangedAsync(_filter with { TypeIds = v }))" />
+            @if (_caretakerNames.Count > 0)
+            {
+                @* Account managers and sales representatives alike. *@
+                <MultiSearchSelect TValue="string" Label="Opiekun" Options="_caretakerOptions" Selected="_filter.Caretakers"
+                                   SelectedChanged="@(v => FilterChangedAsync(_filter with { Caretakers = v }))" />
+            }
+            @if (_filter.ActiveCount > 0)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Outlined.FilterListOff"
+                           OnClick="() => FilterChangedAsync(new ContractorFilter())">Wyczyść filtry</MudButton>
+            }
+        </div>
+    }
+
+    <MudDataGrid @ref="_grid" T="ContractorListItem" SortMode="SortMode.Single" ShowColumnOptions="false" ServerData="LoadAsync" Hover="true" Dense="true" Elevation="0"
                  RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid gaska-clickable-rows" Culture="@GaskaTheme.Polish"
                  RowClick="@(args => Navigation.NavigateTo($"/kontrahenci/{args.Item.Id}"))">
         <Columns>
             @* Phones: one compact column (name + full name and city below); the rest from the "sm" breakpoint up. *@
-            <PropertyColumn Property="c => c.ShortName" Title="Nazwa skrócona" SortBy="@(c => c.ShortName)">
+            <PropertyColumn Property="c => c.ShortName" Title="Akronim" SortBy="@(c => c.ShortName)">
                 <CellTemplate>
                     <div class="gaska-row-main">
                         <span class="gaska-person-name">@context.Item.ShortName</span>
@@ -61,7 +96,19 @@
             <PropertyColumn Property="c => c.Nip" Title="NIP" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
             <PropertyColumn Property="c => c.City" Title="Miasto" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs" />
             <PropertyColumn Property="c => c.Phone" Title="Telefon" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md gaska-nowrap" />
-            <PropertyColumn Property="c => c.ManagerName" Title="Prowadzący" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md" />
+            <TemplateColumn T="ContractorListItem" Title="Opiekun handlowy" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md">
+                <CellTemplate>
+                    @{ var caretakers = CaretakersOf(context.Item); }
+                    @caretakers.AccountManager
+                    @if (caretakers.AccountManagerFromGoNet)
+                    {
+                        <span class="gaska-muted-inline" title="W ERP XL kontrahent nie ma opiekuna – to osoba prowadząca z GoNet."> (GoNet)</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="ContractorListItem" Title="Przedstawiciel handlowy" Sortable="false" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md">
+                <CellTemplate>@CaretakersOf(context.Item).SalesRepresentative</CellTemplate>
+            </TemplateColumn>
         </Columns>
         <LoadingContent>
             <GridSkeleton />
@@ -80,14 +127,81 @@
     private MudDataGrid<ContractorListItem>? _grid;
     private string? _search;
     private bool _mineOnly;
+    private ContractorFilter _filter = new();
+    private ContractorFilterOptions? _options;
+    private bool _filtersOpen;
     private bool _canEdit;
     private int? _operatorId;
     private string? _error;
+    private IReadOnlyDictionary<int, IReadOnlyList<CaretakerAssignment>> _caretakers = new Dictionary<int, IReadOnlyList<CaretakerAssignment>>();
+    private IReadOnlyList<string> _caretakerNames = [];
+    private IReadOnlyList<SelectOption<string>> _caretakerOptions = [];
+    private List<string> _myNames = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
-        _operatorId = (await Session.GetOperatorAsync())?.Id;
+        var me = await Session.GetOperatorAsync();
+        _operatorId = me?.Id;
         _canEdit = _operatorId is not null;
+
+        // "Tylko moi" looks for me by name: as in the directory, and as in GoNet.
+        _myNames = new[] { (await AuthState).User.GetDisplayName(), me?.FullName }
+            .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!).ToList();
+
+        // GoNet is asked once, by the interactive render. Without the dictionaries the list still works – just unfiltered.
+        if (RendererInfo.IsInteractive)
+        {
+            try
+            {
+                _options = await Directory.GetContractorFilterOptionsAsync();
+            }
+            catch (CrmException)
+            {
+                _options = null;
+            }
+
+            try
+            {
+                _caretakerNames = await Caretakers.GetNamesAsync();
+                _caretakerOptions = _caretakerNames.Select(n => new SelectOption<string>(n, n)).ToList();
+            }
+            catch (CrmException)
+            {
+                _caretakerNames = [];
+            }
+        }
+    }
+
+    private static IReadOnlyList<SelectOption<int>> Choices(IReadOnlyList<DictionaryItem> items, Func<string, string> text) =>
+        items.Select(i => new SelectOption<int>(i.Id, text(i.Name))).ToList();
+
+    /// <summary>
+    /// Contractors allowed by the caretaker filter and "Tylko moi" (both must match when both are on); null = no limit.
+    /// </summary>
+    private async Task<IReadOnlyCollection<int>?> OnlyIdsAsync(CancellationToken ct)
+    {
+        IReadOnlySet<int>? ids = null;
+        if (_filter.Caretakers.Count > 0)
+        {
+            ids = await Caretakers.FindContractorsAsync(_filter.Caretakers, ct);
+        }
+
+        if (_mineOnly)
+        {
+            var mine = await Caretakers.FindContractorsAsync(_myNames, ct);
+            ids = ids is null ? mine : ids.Where(mine.Contains).ToHashSet();
+        }
+
+        return ids;
+    }
+
+    private async Task FilterChangedAsync(ContractorFilter filter)
+    {
+        _filter = filter;
+        await ReloadAsync();
     }
 
     private async Task<GridData<ContractorListItem>> LoadAsync(GridState<ContractorListItem> state, CancellationToken ct)
@@ -106,12 +220,14 @@
             _error = null;
             var result = await Contractors.SearchAsync(new ContractorQuery(
                 _search,
-                _mineOnly ? _operatorId : null,
+                await OnlyIdsAsync(ct),
                 state.Page * state.PageSize,
                 state.PageSize,
                 sortBy,
-                sort?.Descending ?? false), ct);
+                sort?.Descending ?? false,
+                _filter.ActiveCount > 0 ? _filter : null), ct);
 
+            await LoadCaretakersAsync(result.Items, ct);
             return new GridData<ContractorListItem> { Items = result.Items, TotalItems = result.TotalCount };
         }
         catch (CrmException ex)
@@ -120,6 +236,22 @@
             return new GridData<ContractorListItem> { Items = [], TotalItems = 0 };
         }
     }
+
+    /// <summary>Caretakers of the shown page from the ERP (one query); without the ERP GoNet's account managers are shown.</summary>
+    private async Task LoadCaretakersAsync(IReadOnlyList<ContractorListItem> items, CancellationToken ct)
+    {
+        try
+        {
+            _caretakers = await Caretakers.GetAsync(items.Select(i => new ContractorKey(i.Id, i.ShortName, i.Nip)).ToList(), ct);
+        }
+        catch (CrmException)
+        {
+            _caretakers = new Dictionary<int, IReadOnlyList<CaretakerAssignment>>();
+        }
+    }
+
+    private ContractorCaretakers CaretakersOf(ContractorListItem item) =>
+        ContractorCaretakers.From(_caretakers.GetValueOrDefault(item.Id) ?? [], item.ManagerName);
 
     private async Task SearchChangedAsync(string? value)
     {

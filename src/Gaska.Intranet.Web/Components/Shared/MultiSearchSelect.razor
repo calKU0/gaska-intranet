@@ -1,0 +1,124 @@
+@* Multiple choice from a list (filters). Long lists (more than SearchLimit options) get a search box – typing narrows
+   the list as in SearchSelect. Options stay on one line; the list is as wide as its longest option needs. *@
+@typeparam TValue
+
+@* While the list is open the field looks focused (raised label, accent outline) – the focus itself moves to the search box. *@
+<div class="gaska-multiselect @(_open ? "is-open" : null) @Class" @onkeydown="OnKeyDown">
+    <div class="gaska-multiselect-field" @onclick="ToggleAsync">
+        <MudTextField T="string" Value="@Summary" Label="@Label" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      ShrinkLabel="@(_open || Selected.Count > 0)"
+                      Adornment="Adornment.End" AdornmentIcon="@(_open ? Icons.Material.Filled.ArrowDropUp : Icons.Material.Filled.ArrowDropDown)"
+                      aria-haspopup="listbox" aria-expanded="@(_open ? "true" : "false")"
+                      title="@Summary" />
+    </div>
+
+    <MudPopover Open="_open" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft" RelativeWidth="DropdownWidth.Adaptive"
+                Class="gaska-multiselect-popover" Paper="true" Elevation="8">
+        @if (Options.Count > SearchLimit)
+        {
+            <div class="gaska-multiselect-search">
+                <MudTextField T="string" Value="_search" ValueChanged="s => _search = s" Immediate="true" AutoFocus="true"
+                              Placeholder="Wpisz, aby zawęzić listę…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" />
+            </div>
+        }
+
+        <div class="gaska-multiselect-list" role="listbox" aria-multiselectable="true" aria-label="@Label">
+            @foreach (var option in Filtered)
+            {
+                var selected = IsSelected(option.Value);
+                <button type="button" role="option" aria-selected="@(selected ? "true" : "false")"
+                        class="gaska-multiselect-item @(selected ? "is-selected" : null)" @onclick="() => ToggleOptionAsync(option.Value)">
+                    <MudIcon Icon="@(selected ? Icons.Material.Filled.CheckBox : Icons.Material.Filled.CheckBoxOutlineBlank)" Size="Size.Small" />
+                    <span class="gaska-multiselect-text">@option.Text</span>
+                </button>
+            }
+
+            @if (!Filtered.Any())
+            {
+                <div class="gaska-multiselect-empty">Nic nie pasuje do wyszukiwania.</div>
+            }
+        </div>
+
+        @if (Selected.Count > 0)
+        {
+            <div class="gaska-multiselect-foot">
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" StartIcon="@Icons.Material.Outlined.FilterListOff"
+                           OnClick="ClearAsync">Wyczyść (@Selected.Count)</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="CloseAsync">Gotowe</MudButton>
+            </div>
+        }
+    </MudPopover>
+
+    <MudOverlay Visible="_open" OnClick="CloseAsync" LockScroll="false" />
+</div>
+
+@code {
+    private bool _open;
+    private string? _search;
+
+    /// <summary>Lists longer than this get a search box.</summary>
+    public const int SearchLimit = 10;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SelectOption<TValue>> Options { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<TValue> Selected { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<IReadOnlyList<TValue>> SelectedChanged { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private IEnumerable<SelectOption<TValue>> Filtered =>
+        string.IsNullOrWhiteSpace(_search) ? Options : Options.Where(o => TextSearch.Matches(_search, o.Text));
+
+    /// <summary>"Polska", "Polska, Niemcy", "Polska +3".</summary>
+    private string Summary
+    {
+        get
+        {
+            var names = Options.Where(o => IsSelected(o.Value)).Select(o => o.Text).ToList();
+            return names.Count <= 2 ? string.Join(", ", names) : $"{names[0]} +{names.Count - 1}";
+        }
+    }
+
+    private bool IsSelected(TValue value) => Selected.Contains(value);
+
+    private Task ToggleAsync() => _open ? CloseAsync() : OpenAsync();
+
+    private Task OpenAsync()
+    {
+        _open = true;
+        _search = null;
+        return Task.CompletedTask;
+    }
+
+    private Task CloseAsync()
+    {
+        _open = false;
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleOptionAsync(TValue value)
+    {
+        // Keeps the order of the options, whatever order they were clicked in.
+        var chosen = IsSelected(value) ? Selected.Where(v => !EqualityComparer<TValue>.Default.Equals(v, value)) : Selected.Append(value);
+        var set = chosen.ToHashSet();
+        return SelectedChanged.InvokeAsync(Options.Select(o => o.Value).Where(set.Contains).ToList());
+    }
+
+    private Task ClearAsync() => SelectedChanged.InvokeAsync([]);
+
+    private Task OnKeyDown(KeyboardEventArgs e) => e.Key switch
+    {
+        "Escape" when _open => CloseAsync(),
+        "ArrowDown" or "Enter" when !_open => OpenAsync(),
+        _ => Task.CompletedTask,
+    };
+}

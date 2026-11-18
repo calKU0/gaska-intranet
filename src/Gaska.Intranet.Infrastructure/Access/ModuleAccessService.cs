@@ -38,7 +38,7 @@ internal sealed class ModuleAccessService(
     public async Task<IReadOnlyList<ModuleDefinition>> GetAccessibleModulesAsync(ClaimsPrincipal user, CancellationToken ct = default)
     {
         var snapshot = await GetSnapshotAsync(ct);
-        return catalog.All.Where(m => CanAccess(user, m, snapshot)).ToList();
+        return catalog.All.Where(m => m.Kind == ModuleKind.Page && CanAccess(user, m, snapshot)).ToList();
     }
 
     public async Task<IReadOnlyList<ModuleAccessOverview>> GetOverviewAsync(CancellationToken ct = default)

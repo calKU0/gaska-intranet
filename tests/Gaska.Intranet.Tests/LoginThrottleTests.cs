@@ -9,7 +9,26 @@ public class LoginThrottleTests
 {
     private readonly LoginThrottle _throttle = new(
         new MemoryCache(new MemoryCacheOptions()),
-        Options.Create(new TwoFactorOptions { MaxPasswordFailuresPer15Minutes = 3, MaxPasswordFailuresPerIpPer15Minutes = 5 }));
+        Options.Create(new TwoFactorOptions { MaxPasswordFailuresPer15Minutes = 3, MaxPasswordFailuresPerIpPer15Minutes = 5 }),
+        Options.Create(new ClientAddressOptions { SharedClientAddresses = ["192.0.2.1"] }));
+
+    [Fact]
+    public void A_shared_nat_address_does_not_lock_out_everyone_but_accounts_stay_protected()
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            _throttle.RegisterFailure($"user{i}", "192.0.2.1");
+        }
+
+        Assert.False(_throttle.IsLockedOut("someone-else", "192.0.2.1"));
+
+        for (var i = 0; i < 3; i++)
+        {
+            _throttle.RegisterFailure("jan", "192.0.2.1");
+        }
+
+        Assert.True(_throttle.IsLockedOut("jan", "192.0.2.1"));
+    }
 
     [Fact]
     public void Locks_account_after_failures()

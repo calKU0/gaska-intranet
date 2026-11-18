@@ -44,7 +44,7 @@
     </div>
 
     <MudDataGrid T="Employee" Items="Filtered" Loading="_loading" Hover="true" Dense="true" Elevation="0"
-                 SortMode="SortMode.Single" RowsPerPage="50" Breakpoint="Breakpoint.None"
+                 SortMode="SortMode.Single" ShowColumnOptions="false" RowsPerPage="50" Breakpoint="Breakpoint.None"
                  Culture="@GaskaTheme.Polish"
                  Class="gaska-grid gaska-clickable-rows" RowClick="@(args => OpenAsync(args.Item))">
         <Columns>

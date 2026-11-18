@@ -1,0 +1,66 @@
+@* A data tab of the contractor card (B2B activity, returns and complaints, correspondence): the dashboard charts
+   narrowed to this contractor, with one period selector for the whole tab. Shown only to users with access to the
+   data scope (checked again for every chart by the analytics service). *@
+<div class="gaska-insights">
+    <div class="gaska-insights-controls">
+        <MudSelect T="PeriodPreset" @bind-Value="_period" Label="Okres" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-insights-period">
+            @foreach (var (preset, name) in Periods.Presets.Where(p => p.Preset != PeriodPreset.Custom))
+            {
+                <MudSelectItem Value="preset">@name</MudSelectItem>
+            }
+        </MudSelect>
+        @if (Link.ErpAcronyms.Count > 0 && RequiresErpCard)
+        {
+            <span class="gaska-person-title">Karta w ERP: @string.Join(", ", Link.ErpAcronyms)</span>
+        }
+    </div>
+
+    @if (RequiresErpCard && !Link.Contractor.HasErpCard)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+            Nie znaleziono tego kontrahenta w ERP (szukano akronimu i numeru NIP) – brak danych do pokazania.
+        </MudAlert>
+    }
+    else
+    {
+        <div class="gaska-dash-wrap mt-4">
+            <div class="gaska-dash-grid">
+                @foreach (var item in Layout)
+                {
+                    <div class="gaska-dash-cell gaska-dash-cell--@item.Width.ToString().ToLowerInvariant()">
+                        @if (item.Kind == WidgetKind.Heading)
+                        {
+                            <div class="gaska-dash-heading">
+                                <div class="gaska-dash-heading-text">
+                                    <h3>@item.Title</h3>
+                                    <p>@item.Description</p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <MetricCard Settings="item" PeriodOverride="_period" Contractor="Link.Contractor" Height="180"
+                                        Compact="@(item.Width is WidgetWidth.Small or WidgetWidth.Quarter)" />
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private PeriodPreset _period = PeriodPreset.Last12Months;
+
+    /// <summary>The contractor with its ERP cards.</summary>
+    [Parameter, EditorRequired]
+    public ContractorLink Link { get; set; } = default!;
+
+    /// <summary>Charts and group headings of the tab (<see cref="ContractorLayouts"/>).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WidgetInput> Layout { get; set; } = [];
+
+    /// <summary>The tab's data is kept by ERP card (ERP, B2B) – without a card there is nothing to show.</summary>
+    [Parameter]
+    public bool RequiresErpCard { get; set; }
+}

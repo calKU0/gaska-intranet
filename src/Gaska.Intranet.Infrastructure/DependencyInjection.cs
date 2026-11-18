@@ -1,4 +1,6 @@
 using Gaska.Intranet.Core.Access;
+using Gaska.Intranet.Core.Analytics;
+using Gaska.Intranet.Infrastructure.Analytics;
 using Gaska.Intranet.Core.Crm;
 using Gaska.Intranet.Infrastructure.BusinessCards;
 using Gaska.Intranet.Infrastructure.GoNet;
@@ -39,6 +41,7 @@ public static class DependencyInjection
         services.AddOptions<SmtpOptions>().Bind(configuration.GetSection(SmtpOptions.SectionName));
         services.AddOptions<AccessPolicyOptions>().Bind(configuration.GetSection(AccessPolicyOptions.SectionName));
         services.AddOptions<TwoFactorOptions>().Bind(configuration.GetSection(TwoFactorOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<ClientAddressOptions>().Bind(configuration.GetSection(ClientAddressOptions.SectionName));
 
         services.AddMemoryCache();
         services.AddHttpContextAccessor();
@@ -97,6 +100,7 @@ public static class DependencyInjection
         services.AddSingleton<IRcpService, PunktualnikRcpService>();
 
         AddHelpdesk(services, configuration);
+        AddAnalytics(services, configuration);
         AddDemo(services, configuration, environment);
 
         return services;
@@ -154,7 +158,8 @@ public static class DependencyInjection
         services.AddSingleton<GoNetDatabase>();
         services.AddSingleton<GoNetDictionary>();
         services.AddSingleton<ICrmDirectory>(sp => sp.GetRequiredService<GoNetDictionary>());
-        services.AddSingleton<IContractorService, GoNetContractorService>();
+        services.AddSingleton<GoNetContractorService>();
+        services.AddSingleton<IContractorService>(sp => sp.GetRequiredService<GoNetContractorService>());
         services.AddSingleton<ICrmTaskService, GoNetTaskService>();
 
         services.AddSingleton<TesseractBusinessCardReader>();
@@ -178,6 +183,25 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(8);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Gaska-Intranet/1.0 (+https://gaska.com.pl)");
         });
+    }
+
+    /// <summary>
+    /// Dashboards and contractor turnover: metrics read from the ERP, the CRM and the B2B platform, shown only to users
+    /// with access to the metric's data scope.
+    /// </summary>
+    private static void AddAnalytics(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<ErpOptions>().Bind(configuration.GetSection(ErpOptions.SectionName));
+
+        services.AddSingleton<IMetricSource, ErpMetricSource>();
+        services.AddSingleton<IMetricSource, GoNetMetricSource>();
+        services.AddSingleton<IMetricSource, B2BMetricSource>();
+        services.AddSingleton<IAnalyticsService, AnalyticsService>();
+        services.AddSingleton<IContractorLinks, ErpContractorLinks>();
+        services.AddSingleton<IContractorTurnoverService, ErpContractorTurnoverService>();
+        services.AddSingleton<IContractorCaretakerService, ErpContractorCaretakerService>();
+        services.AddHostedService<CaretakerIndexWarmUp>();
+        services.AddSingleton<IDashboardService, DashboardService>();
     }
 
     /// <summary>GLPI helpdesk – API v2 as the signed-in user (OAuth2 tokens obtained at intranet login).</summary>
@@ -209,7 +233,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Demo:Enabled (Development only) – sample time clock and CRM instead of Punktualnik and GoNet: screenshots for the
+    /// Demo:Enabled (Development only) – sample time clock, CRM and chart data instead of Punktualnik, GoNet, ERP and B2B: screenshots for the
     /// user manual without real customer data, UI work without the company systems. Registered last, so it wins.
     /// </summary>
     private static void AddDemo(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
@@ -230,6 +254,13 @@ public static class DependencyInjection
         services.AddSingleton<ICrmDirectory>(sp => sp.GetRequiredService<Demo.DemoCrm>());
         services.AddSingleton<IContractorService>(sp => sp.GetRequiredService<Demo.DemoCrm>());
         services.AddSingleton<ICrmTaskService>(sp => sp.GetRequiredService<Demo.DemoCrm>());
+
+        // Registered after the real sources – the same metrics, so the sample numbers win.
+        services.AddSingleton<Demo.DemoAnalytics>();
+        services.AddSingleton<IMetricSource>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
+        services.AddSingleton<IContractorLinks>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
+        services.AddSingleton<IContractorTurnoverService>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
+        services.AddSingleton<IContractorCaretakerService, Demo.DemoCaretakers>();
     }
 
     private static void TryAddTimeProvider(this IServiceCollection services)

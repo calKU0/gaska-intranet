@@ -81,8 +81,9 @@ try
     app.UseHttpsRedirection();
     app.UseSerilogRequestLogging();
 
-    app.UseRateLimiter();
+    // After authentication: the limit counts a signed-in user's requests per account (see RateLimitingSetup).
     app.UseAuthentication();
+    app.UseRateLimiter();
     app.UseMiddleware<NetworkClaimMiddleware>();
     app.UseAuthorization();
     app.UseAntiforgery();
@@ -98,6 +99,7 @@ try
                 : Results.NotFound())
         .RequireAuthorization();
     Gaska.Intranet.Web.Components.Pages.Helpdesk.HelpdeskEndpoints.MapHelpdeskEndpoints(app);
+    app.UseMiddleware<Gaska.Intranet.Web.Configuration.BlazorTransportMonitor>();
     app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
     await app.RunAsync();

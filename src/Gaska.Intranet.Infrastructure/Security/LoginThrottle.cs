@@ -6,20 +6,25 @@ namespace Gaska.Intranet.Infrastructure.Security;
 
 /// <summary>
 /// Lockout after several failed attempts – protects against password guessing, password spraying
-/// (many accounts from one IP) and against outsiders locking out AD accounts.
+/// (many accounts from one IP) and against outsiders locking out AD accounts. An address shared by many people (a NAT
+/// firewall, <see cref="ClientAddressOptions"/>) is not counted - a few typos of different employees would lock everyone
+/// out; their accounts are still protected one by one.
 /// </summary>
-internal sealed class LoginThrottle(IMemoryCache cache, IOptions<TwoFactorOptions> options) : ILoginThrottle
+internal sealed class LoginThrottle(IMemoryCache cache, IOptions<TwoFactorOptions> options, IOptions<ClientAddressOptions> addresses) : ILoginThrottle
 {
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
 
     public bool IsLockedOut(string userName, string ipAddress) =>
         Count(UserKey(userName)) >= options.Value.MaxPasswordFailuresPer15Minutes ||
-        Count(IpKey(ipAddress)) >= options.Value.MaxPasswordFailuresPerIpPer15Minutes;
+        (!addresses.Value.IsShared(ipAddress) && Count(IpKey(ipAddress)) >= options.Value.MaxPasswordFailuresPerIpPer15Minutes);
 
     public void RegisterFailure(string userName, string ipAddress)
     {
         Increment(UserKey(userName));
-        Increment(IpKey(ipAddress));
+        if (!addresses.Value.IsShared(ipAddress))
+        {
+            Increment(IpKey(ipAddress));
+        }
     }
 
     public void Reset(string userName) => cache.Remove(UserKey(userName));

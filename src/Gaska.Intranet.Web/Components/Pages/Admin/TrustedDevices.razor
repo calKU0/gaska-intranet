@@ -21,7 +21,7 @@
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
     </div>
 
-    <MudDataGrid T="TrustedDevice" Items="Filtered" Loading="_loading" Dense="true" Hover="true" Elevation="0"
+    <MudDataGrid T="TrustedDevice" SortMode="SortMode.Single" ShowColumnOptions="false" Items="Filtered" Loading="_loading" Dense="true" Hover="true" Elevation="0"
                  RowsPerPage="50" Breakpoint="Breakpoint.None" Class="gaska-grid" Culture="@GaskaTheme.Polish">
         <Columns>
             <PropertyColumn Property="d => d.AccountName" Title="Użytkownik">

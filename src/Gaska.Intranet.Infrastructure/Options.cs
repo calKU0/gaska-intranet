@@ -118,6 +118,21 @@ public sealed class SmtpOptions
     public string FromName { get; set; } = "Gąska Intranet";
 }
 
+/// <summary>
+/// Addresses many people share ("Security:SharedClientAddresses"): a firewall that translates the addresses of a whole
+/// network to its own (NAT), so every employee reaches the server from it. Limits counted per IP address would be
+/// shared by everyone behind it - for these addresses only the per-account limits apply.
+/// </summary>
+public sealed class ClientAddressOptions
+{
+    public const string SectionName = "Security";
+
+    public List<string> SharedClientAddresses { get; set; } = [];
+
+    public bool IsShared(string? ipAddress) =>
+        !string.IsNullOrWhiteSpace(ipAddress) && SharedClientAddresses.Any(a => string.Equals(a.Trim(), ipAddress.Trim(), StringComparison.OrdinalIgnoreCase));
+}
+
 public sealed class TwoFactorOptions
 {
     public const string SectionName = "TwoFactor";

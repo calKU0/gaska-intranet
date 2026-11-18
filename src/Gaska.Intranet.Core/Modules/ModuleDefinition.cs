@@ -13,8 +13,21 @@ public enum ModuleAccessMode
     AdministratorsOnly = 3,
 }
 
+/// <summary>What a permission entry protects.</summary>
+public enum ModuleKind
+{
+    /// <summary>A page with its own menu entry.</summary>
+    Page = 0,
+
+    /// <summary>
+    /// A data scope (e.g. sales figures) shown inside other pages – no page and no menu entry of its own; the same
+    /// access modes and AD rules apply.
+    /// </summary>
+    Data = 1,
+}
+
 /// <summary>
-/// Describes an application module (page / tab). Each module has a permanent key that
+/// Describes an application module (page / tab) or a data scope. Each module has a permanent key that
 /// permissions in the database are attached to.
 /// </summary>
 public sealed record ModuleDefinition
@@ -26,8 +39,10 @@ public sealed record ModuleDefinition
 
     public string Description { get; init; } = string.Empty;
 
-    /// <summary>URL of the module's start page, e.g. "/pracownicy".</summary>
-    public required string Route { get; init; }
+    public ModuleKind Kind { get; init; } = ModuleKind.Page;
+
+    /// <summary>URL of the module's start page, e.g. "/pracownicy" (empty for a data scope).</summary>
+    public string Route { get; init; } = string.Empty;
 
     /// <summary>Icon (SVG) – the icon set is defined by the UI layer.</summary>
     public string Icon { get; init; } = string.Empty;

@@ -67,6 +67,9 @@ public interface ICrmDirectory
 
     Task<IReadOnlyList<DictionaryItem>> GetContractorStatusesAsync(CancellationToken ct = default);
 
+    /// <summary>Values for the filters of the contractor list.</summary>
+    Task<ContractorFilterOptions> GetContractorFilterOptionsAsync(CancellationToken ct = default);
+
     /// <summary>Task topics, most used first.</summary>
     Task<IReadOnlyList<DictionaryItem>> GetTaskTopicsAsync(CancellationToken ct = default);
 

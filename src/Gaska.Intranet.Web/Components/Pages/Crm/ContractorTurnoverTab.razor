@@ -1,0 +1,457 @@
+@* Contractor turnover from the ERP: up to five periods side by side – bars and the raw numbers.
+   Rendered only for users with the "Sprzedaż i obroty" data permission (checked again by the service). *@
+@inject IContractorTurnoverService Turnover
+@inject TimeProvider Clock
+
+<div class="gaska-turnover">
+    <div class="gaska-turnover-controls">
+        <MudToggleGroup T="CompareMode" Value="_mode" ValueChanged="SetModeAsync" Color="Color.Primary" Size="Size.Small" Outlined="true"
+                        CheckMark="false" Class="gaska-turnover-mode">
+            <MudToggleItem Value="CompareMode.Years" Text="Lata" />
+            <MudToggleItem Value="CompareMode.Quarters" Text="Kwartały" />
+            <MudToggleItem Value="CompareMode.Months" Text="Miesiące" />
+            <MudToggleItem Value="CompareMode.Custom">
+                <span class="gaska-label-long">Własne zakresy</span><span class="gaska-label-short">Własne</span>
+            </MudToggleItem>
+        </MudToggleGroup>
+
+        @if (_mode == CompareMode.Years)
+        {
+            <MudSwitch T="bool" Value="_toDate" ValueChanged="SetToDateAsync" Color="Color.Primary" Class="ma-0"
+                       Label="@($"Tylko do {_today.ToString("d MMMM", GaskaTheme.Polish)} każdego roku")" />
+        }
+    </div>
+
+    <div class="gaska-turnover-periods">
+        @for (var i = 0; i < _periods.Count; i++)
+        {
+            var period = _periods[i];
+            <MudChip T="string" Variant="Variant.Outlined" OnClose="() => RemoveAsync(period)" Class="gaska-turnover-chip">
+                <span class="gaska-chart-swatch gaska-series-@period.Slot"></span>@period.Name
+            </MudChip>
+        }
+
+        @if (_periods.Count < IContractorTurnoverService.MaxPeriods)
+        {
+            <div class="gaska-turnover-add">
+                @switch (_mode)
+                {
+                    case CompareMode.Years:
+                        <MudSelect T="int" @bind-Value="_addYear" Label="Rok" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-turnover-field">
+                            @foreach (var year in Years)
+                            {
+                                <MudSelectItem Value="year">@year</MudSelectItem>
+                            }
+                        </MudSelect>
+                        break;
+                    case CompareMode.Quarters:
+                        <MudSelect T="int" @bind-Value="_addQuarter" Label="Kwartał" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-turnover-field">
+                            @for (var q = 1; q <= 4; q++)
+                            {
+                                var quarter = q;
+                                <MudSelectItem Value="quarter">Q@(quarter)</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudSelect T="int" @bind-Value="_addYear" Label="Rok" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-turnover-field">
+                            @foreach (var year in Years)
+                            {
+                                <MudSelectItem Value="year">@year</MudSelectItem>
+                            }
+                        </MudSelect>
+                        break;
+                    case CompareMode.Months:
+                        <MudSelect T="int" @bind-Value="_addMonth" Label="Miesiąc" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-turnover-field gaska-turnover-field--wide">
+                            @for (var m = 1; m <= 12; m++)
+                            {
+                                var month = m;
+                                <MudSelectItem Value="month">@GaskaTheme.Polish.DateTimeFormat.MonthNames[month - 1]</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudSelect T="int" @bind-Value="_addYear" Label="Rok" Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-turnover-field">
+                            @foreach (var year in Years)
+                            {
+                                <MudSelectItem Value="year">@year</MudSelectItem>
+                            }
+                        </MudSelect>
+                        break;
+                    default:
+                        <MudDatePicker @bind-Date="_addFrom" Label="Od" Variant="Variant.Outlined" Margin="Margin.Dense" Editable="true"
+                                       DateFormat="yyyy-MM-dd" Class="gaska-turnover-field gaska-turnover-field--wide" />
+                        <MudDatePicker @bind-Date="_addTo" Label="Do" Variant="Variant.Outlined" Margin="Margin.Dense" Editable="true"
+                                       DateFormat="yyyy-MM-dd" Class="gaska-turnover-field gaska-turnover-field--wide" />
+                        break;
+                }
+
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">Dodaj okres</MudButton>
+            </div>
+        }
+        else
+        {
+            <span class="gaska-person-title">Porównujesz maksymalną liczbę okresów (@IContractorTurnoverService.MaxPeriods).</span>
+        }
+    </div>
+
+    <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-2" />
+
+    @if (_loading && _data is null)
+    {
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="180px" Class="mt-4" />
+    }
+    else if (_noCard)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+            Nie znaleziono tego kontrahenta w ERP (szukano akronimu i numeru NIP) – brak danych o obrotach.
+        </MudAlert>
+    }
+    else if (_periods.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mt-4">Dodaj co najmniej jeden okres, aby zobaczyć obroty.</MudText>
+    }
+    else if (_data is not null)
+    {
+        <div class="@(_loading ? "gaska-turnover-results is-loading" : "gaska-turnover-results")">
+            <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-4">Obrót netto w okresach</MudText>
+            @* A new key per load: Blazor would otherwise reuse the bars of periods that stayed, and only new ones would animate. *@
+            <RankingChart @key="@($"totals-{_version}")" Rows="_totals" Slots="_slots" Unit="MetricUnit.Money" Title="Obrót netto w okresach" />
+
+            <div class="gaska-table-scroll mt-4">
+                <table class="gaska-data-table">
+                    <thead>
+                        <tr>
+                            <th>Okres</th>
+                            <th class="num">Obrót netto</th>
+                            <th class="num">Faktury</th>
+                            <th class="num">Śr. wartość faktury</th>
+                            @if (_rows.Count > 1)
+                            {
+                                <th class="num">Zmiana wobec poprzedniego okresu</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td><span class="gaska-chart-swatch gaska-series-@row.Period.Slot"></span> @row.Period.Name</td>
+                                <td class="num">@ChartFormat.Full(row.Data.Net, MetricUnit.Money)</td>
+                                <td class="num">@row.Data.Documents</td>
+                                <td class="num">@(row.Data.Documents == 0 ? "—" : ChartFormat.Full(row.Data.Net / row.Data.Documents, MetricUnit.Money))</td>
+                                @if (_rows.Count > 1)
+                                {
+                                    <td class="num">
+                                        @if (Previous(row) is not { } previous)
+                                        {
+                                            <span class="gaska-muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            var difference = row.Data.Net - previous.Data.Net;
+                                            <span class="@(difference >= 0 ? "gaska-delta-up" : "gaska-delta-down")" title="wobec: @previous.Period.Name">
+                                                @(ChartFormat.Change(row.Data.Net, previous.Data.Net) ?? "—")
+                                            </span>
+                                            <span class="gaska-muted-inline"> (@(difference >= 0 ? "+" : "−")@ChartFormat.Full(Math.Abs(difference), MetricUnit.Money))</span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_monthLabels.Count > 1)
+            {
+                <MudText Typo="Typo.subtitle2" Class="gaska-section-title mt-6">Miesiąc po miesiącu</MudText>
+                <SeriesChart @key="@($"months-{_version}")" Labels="_monthLabels" Series="_monthSeries" Unit="MetricUnit.Money" Title="Obrót netto miesiąc po miesiącu" />
+
+                <div class="gaska-table-scroll mt-4">
+                    <table class="gaska-data-table">
+                        <thead>
+                            <tr>
+                                <th>Miesiąc</th>
+                                @foreach (var series in _monthSeries)
+                                {
+                                    <th class="num"><span class="gaska-chart-swatch gaska-series-@series.Slot"></span> @series.Name</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < _monthLabels.Count; i++)
+                            {
+                                var index = i;
+                                <tr>
+                                    <td>@_monthLabels[index]</td>
+                                    @foreach (var series in _monthSeries)
+                                    {
+                                        <td class="num">@ChartFormat.Full(series.Values[index], MetricUnit.Money)</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <div class="gaska-person-title mt-4">
+                Dane z ERP XL@(_data.ErpAcronyms.Count == 0 ? "" : $" (karta: {string.Join(", ", _data.ErpAcronyms)})") –
+                wartość netto faktur i paragonów (towary, usługi i koszty) pomniejszona o korekty, wg daty sprzedaży.
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private enum CompareMode
+    {
+        Years,
+        Quarters,
+        Months,
+        Custom,
+    }
+
+    /// <summary>A compared period; the colour slot stays with it while other periods are added or removed.</summary>
+    private sealed record Period(string Name, DayRange Range, int Slot);
+
+    private sealed record Row(Period Period, TurnoverPeriod Data);
+
+    private CompareMode _mode = CompareMode.Years;
+    private bool _toDate;
+    private DateOnly _today;
+    private List<Period> _periods = [];
+    private ContractorTurnover? _data;
+    private bool _noCard;
+    private bool _loading = true;
+    private string? _error;
+    private string? _loadedFor;
+
+    private int _addYear;
+    private int _addQuarter = 1;
+    private int _addMonth = 1;
+    private DateTime? _addFrom;
+    private DateTime? _addTo;
+
+    private List<Row> _rows = [];
+    private int _version;
+    private List<RankedValue> _totals = [];
+    private List<int> _slots = [];
+    private List<string> _monthLabels = [];
+    private List<ChartSeries> _monthSeries = [];
+
+    /// <summary>The contractor with its ERP cards.</summary>
+    [Parameter, EditorRequired]
+    public ContractorLink Link { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IEnumerable<int> Years => Enumerable.Range(0, 12).Select(i => _today.Year - i);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive || _loadedFor == Link.Contractor.CacheKey)
+        {
+            return;
+        }
+
+        _loadedFor = Link.Contractor.CacheKey;
+        _today = DateOnly.FromDateTime(Clock.GetLocalNow().DateTime);
+        _data = null;
+        UseDefaults();
+        await LoadAsync();
+    }
+
+    private async Task SetModeAsync(CompareMode mode)
+    {
+        _mode = mode;
+        UseDefaults();
+        await LoadAsync();
+    }
+
+    private async Task SetToDateAsync(bool toDate)
+    {
+        _toDate = toDate;
+
+        // The same years, cut (or restored) to the day of the year.
+        _periods = _periods.Select(p => YearPeriod(p.Range.From.Year, p.Slot)).ToList();
+        await LoadAsync();
+    }
+
+    /// <summary>What most people want to see first in each mode.</summary>
+    private void UseDefaults()
+    {
+        _periods = [];
+        _addYear = _today.Year;
+        _addQuarter = ((_today.Month - 1) / 3) + 1;
+        _addMonth = _today.Month;
+        _addFrom = _addTo = null;
+
+        switch (_mode)
+        {
+            case CompareMode.Years:
+                Add(YearPeriod(_today.Year - 2, 0));
+                Add(YearPeriod(_today.Year - 1, 0));
+                Add(YearPeriod(_today.Year, 0));
+                _addYear = _today.Year - 3;
+                break;
+            case CompareMode.Quarters:
+                Add(QuarterPeriod(_today.Year - 1, _addQuarter));
+                Add(QuarterPeriod(_today.Year, _addQuarter));
+                _addYear = _today.Year - 2;
+                break;
+            case CompareMode.Months:
+                Add(MonthPeriod(_today.Year - 1, _today.Month));
+                Add(MonthPeriod(_today.AddMonths(-1).Year, _today.AddMonths(-1).Month));
+                Add(MonthPeriod(_today.Year, _today.Month));
+                _addYear = _today.Year - 2;
+                break;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        _error = null;
+        Period? period = _mode switch
+        {
+            CompareMode.Years => YearPeriod(_addYear, 0),
+            CompareMode.Quarters => QuarterPeriod(_addYear, _addQuarter),
+            CompareMode.Months => MonthPeriod(_addYear, _addMonth),
+            _ => _addFrom is { } from && _addTo is { } to
+                ? CustomPeriod(DateOnly.FromDateTime(from), DateOnly.FromDateTime(to))
+                : null,
+        };
+
+        if (period is null)
+        {
+            _error = "Podaj datę początkową i końcową okresu.";
+            return;
+        }
+
+        if (_periods.Any(p => p.Range == period.Range))
+        {
+            _error = $"Okres {period.Name} jest już na liście.";
+            return;
+        }
+
+        Add(period);
+        _addFrom = _addTo = null;
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(Period period)
+    {
+        _periods.Remove(period);
+        await LoadAsync();
+    }
+
+    /// <summary>Adds the period with the first free colour slot, keeping the list in time order.</summary>
+    private void Add(Period period)
+    {
+        if (_periods.Count >= IContractorTurnoverService.MaxPeriods || _periods.Any(p => p.Range == period.Range))
+        {
+            return;
+        }
+
+        var slot = Enumerable.Range(1, IContractorTurnoverService.MaxPeriods).First(s => _periods.All(p => p.Slot != s));
+        _periods.Add(period with { Slot = slot });
+        _periods = _periods.OrderBy(p => p.Range.From).ThenBy(p => p.Range.To).ToList();
+    }
+
+    private Period YearPeriod(int year, int slot)
+    {
+        var range = new DayRange(new DateOnly(year, 1, 1), new DateOnly(year, 12, 31));
+        if (!_toDate)
+        {
+            return new Period(year.ToString(), range, slot);
+        }
+
+        // 29 February of today maps to 28 February in other years.
+        var day = Math.Min(_today.Day, DateTime.DaysInMonth(year, _today.Month));
+        return new Period($"{year} (do {day}.{_today.Month:00})", range with { To = new DateOnly(year, _today.Month, day) }, slot);
+    }
+
+    private static Period QuarterPeriod(int year, int quarter)
+    {
+        var from = new DateOnly(year, ((quarter - 1) * 3) + 1, 1);
+        return new Period($"Q{quarter} {year}", new DayRange(from, from.AddMonths(3).AddDays(-1)), 0);
+    }
+
+    private static Period MonthPeriod(int year, int month)
+    {
+        var from = new DateOnly(year, month, 1);
+        return new Period($"{GaskaTheme.Polish.DateTimeFormat.MonthNames[month - 1]} {year}", new DayRange(from, from.AddMonths(1).AddDays(-1)), 0);
+    }
+
+    private static Period CustomPeriod(DateOnly from, DateOnly to)
+    {
+        var range = from <= to ? new DayRange(from, to) : new DayRange(to, from);
+        return new Period(Periods.Describe(range), range, 0);
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        if (_periods.Count == 0)
+        {
+            _rows = [];
+            _loading = false;
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var user = (await AuthState).User;
+            var data = await Turnover.GetAsync(user, Link, _periods.Select(p => p.Range).ToList());
+            _noCard = data is null;
+            _data = data;
+            if (data is not null)
+            {
+                Build(data);
+            }
+        }
+        catch (AnalyticsException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>The period just before the row (periods are kept in time order); none for the first.</summary>
+    private Row? Previous(Row row)
+    {
+        var index = _rows.IndexOf(row);
+        return index > 0 ? _rows[index - 1] : null;
+    }
+
+    private void Build(ContractorTurnover data)
+    {
+        _version++;
+        _rows = _periods.Zip(data.Periods, (period, turnover) => new Row(period, turnover)).ToList();
+        _totals = _rows.Select(r => new RankedValue(r.Period.Name, r.Data.Net)).ToList();
+        _slots = _rows.Select(r => r.Period.Slot).ToList();
+
+        // Month by month: years line up January–December, quarters their three months; other modes have no common axis.
+        var months = _mode switch
+        {
+            CompareMode.Years => Enumerable.Range(1, 12).ToList(),
+            CompareMode.Quarters => [1, 2, 3],
+            _ => [],
+        };
+
+        _monthLabels = _mode == CompareMode.Years
+            ? months.Select(Periods.MonthShort).ToList()
+            : months.Select(m => $"{m}. miesiąc kwartału").ToList();
+
+        _monthSeries = _rows.Select(r => new ChartSeries(
+            r.Period.Name,
+            months.Select(m =>
+            {
+                var month = _mode == CompareMode.Years ? m : r.Period.Range.From.Month + m - 1;
+                return r.Data.Months.Where(x => x.Month == month).Sum(x => x.Net);
+            }).ToList(),
+            r.Period.Slot)).ToList();
+    }
+}

@@ -1179,7 +1179,13 @@ h1:focus-visible {
 .gaska-page-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+}
+
+/* Next to an outlined field (its label sticks out above), buttons keep their own height instead of stretching to it. */
+.gaska-page-actions > .mud-button-root {
+    align-self: center;
 }
 
 /* External links: the title is truncated, the "opens in new tab" icon always stays visible on the right. */
@@ -1573,8 +1579,16 @@ html {
         width: 100%;
     }
 
-    .gaska-page-actions > .mud-button-root {
-        flex: 1 1 0;
+    /* Each button is as wide as its label needs and they share what is left – a button is never squeezed below its
+       text. The "Wizytówka" button is a label around a button: both must stretch like the plain buttons next to it. */
+    .gaska-page-actions > .mud-button-root,
+    .gaska-page-actions > .gaska-file-button {
+        flex: 1 1 auto;
+        min-height: 42px;
+    }
+
+    .gaska-page-actions > .gaska-file-button > .mud-button-root {
+        flex: 1 1 auto;
         min-height: 42px;
     }
 
@@ -2081,9 +2095,12 @@ html.gaska-dark {
         display: none;
     }
 
-    /* Bigger toggles – easier to hit with a finger. */
+    /* Toggles on a phone: still comfortable to tap, but the label no bigger than body text. */
     .mud-toggle-item {
-        min-height: 40px;
+        min-height: 36px;
+        padding: 4px 8px !important;
+        font-size: .8125rem !important;
+        line-height: 1.2;
     }
 
     /* Labels that have a short variant for phones. */
@@ -2247,12 +2264,12 @@ html.gaska-dark {
         margin-inline-end: 0 !important;
     }
 
-    /* Tabs (contractor card): two tabs share the width instead of 160 px each and scrolling. */
+    /* Tabs: narrower than MudBlazor's 160 px; a bar that does not fit scrolls (see .gaska-tabs-scroll). */
     .mud-tabs-tabbar .mud-tab {
         min-width: 0 !important;
-        flex: 1 1 0;
-        padding-left: 8px;
-        padding-right: 8px;
+        flex: 1 0 auto;
+        padding-left: 12px;
+        padding-right: 12px;
     }
 }
 
@@ -3105,4 +3122,1595 @@ html.gaska-camera-open body {
     flex: 1 1 100%;
     min-height: 52px;
     font-size: 1.05rem;
+}
+
+/* =========================================================================
+   Charts (contractor turnover, dashboards) – HTML/CSS marks, no JavaScript.
+   Series colours: a fixed categorical order checked for colour-blind separation; the dark theme has its own steps.
+   Text stays in the text colours – only the marks carry the series colour.
+   ========================================================================= */
+:root {
+    --gaska-series-0: #B9B8B2;
+    --gaska-series-1: #2A78D6;
+    --gaska-series-2: #EB6834;
+    --gaska-series-3: #1BAF7A;
+    --gaska-series-4: #EDA100;
+    --gaska-series-5: #E87BA4;
+    --gaska-series-6: #008300;
+    --gaska-series-7: #6250D6;
+    --gaska-series-8: #E34948;
+}
+
+html.gaska-dark {
+    --gaska-series-0: #5E5E5A;
+    --gaska-series-1: #3987E5;
+    --gaska-series-2: #D95926;
+    --gaska-series-3: #199E70;
+    --gaska-series-4: #C98500;
+    --gaska-series-5: #D55181;
+    --gaska-series-6: #008300;
+    --gaska-series-7: #9085E9;
+    --gaska-series-8: #E66767;
+}
+
+.gaska-series-0 { --series: var(--gaska-series-0); }
+.gaska-series-1 { --series: var(--gaska-series-1); }
+.gaska-series-2 { --series: var(--gaska-series-2); }
+.gaska-series-3 { --series: var(--gaska-series-3); }
+.gaska-series-4 { --series: var(--gaska-series-4); }
+.gaska-series-5 { --series: var(--gaska-series-5); }
+.gaska-series-6 { --series: var(--gaska-series-6); }
+.gaska-series-7 { --series: var(--gaska-series-7); }
+.gaska-series-8 { --series: var(--gaska-series-8); }
+
+.gaska-chart {
+    width: 100%;
+    font-size: .75rem;
+    color: var(--gaska-muted);
+    container-type: inline-size;
+}
+
+/* Narrow charts (a half or a third of the page): fewer axis labels, so they do not run into each other. */
+@container (max-width: 560px) {
+    .gaska-chart-xaxis span:nth-child(even) {
+        visibility: hidden;
+    }
+}
+
+@container (max-width: 340px) {
+    .gaska-chart-xaxis span:not(:nth-child(4n + 1)) {
+        visibility: hidden;
+    }
+}
+
+.gaska-chart-empty {
+    padding: 32px 8px;
+    text-align: center;
+    color: var(--gaska-muted);
+    font-size: .875rem;
+}
+
+.gaska-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-bottom: 12px;
+    color: var(--gaska-text);
+    font-size: .8125rem;
+}
+
+.gaska-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gaska-chart-swatch {
+    display: inline-block;
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--series);
+}
+
+.gaska-chart-body {
+    display: flex;
+    gap: 8px;
+}
+
+.gaska-chart-yaxis {
+    position: relative;
+    flex: none;
+    width: 62px;
+}
+
+.gaska-chart-yaxis span {
+    position: absolute;
+    right: 0;
+    transform: translateY(50%);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-chart-plot {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-chart-grid {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--gaska-border);
+}
+
+.gaska-chart-grid--zero {
+    border-top-color: var(--gaska-border-strong);
+}
+
+.gaska-chart-cols {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+.gaska-chart-col {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    outline: none;
+}
+
+.gaska-chart-col:hover,
+.gaska-chart-col:focus-visible {
+    background: var(--gaska-overlay-soft);
+}
+
+.gaska-chart-bars {
+    position: absolute;
+    inset: 0 12%;
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+}
+
+.gaska-chart-bar-slot {
+    position: relative;
+    flex: 1 1 0;
+    max-width: 28px;
+    min-width: 2px;
+}
+
+.gaska-chart-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    min-height: 1px;
+    border-radius: 4px 4px 0 0;
+    background: var(--series);
+}
+
+.gaska-chart-bar--negative {
+    border-radius: 0 0 4px 4px;
+}
+
+.gaska-chart-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.gaska-chart-lines polyline {
+    fill: none;
+    stroke: var(--series);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.gaska-chart-dot {
+    position: absolute;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    margin: 0 0 -4px -4px;
+    border-radius: 50%;
+    background: var(--series);
+    box-shadow: 0 0 0 2px var(--gaska-surface);
+    opacity: 0;
+}
+
+/* Few points: the markers are always visible; on dense lines only for the hovered column. */
+.gaska-chart-cols:not(:has(> :nth-child(32))) .gaska-chart-dot,
+.gaska-chart-col:hover .gaska-chart-dot,
+.gaska-chart-col:focus-visible .gaska-chart-dot {
+    opacity: 1;
+}
+
+.gaska-chart-tip {
+    display: none;
+    position: absolute;
+    z-index: 5;
+    bottom: calc(100% - 20px);
+    left: 50%;
+    min-width: 132px;
+    padding: 8px 10px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 8px;
+    background: var(--gaska-surface);
+    box-shadow: 0 8px 24px var(--gaska-overlay);
+    color: var(--gaska-text);
+    font-size: .8125rem;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.gaska-chart-col--right .gaska-chart-tip {
+    left: auto;
+    right: 50%;
+}
+
+.gaska-chart-col:hover .gaska-chart-tip,
+.gaska-chart-col:focus-visible .gaska-chart-tip {
+    display: block;
+}
+
+.gaska-chart-tip-title {
+    margin-bottom: 4px;
+    color: var(--gaska-muted);
+    font-size: .75rem;
+}
+
+.gaska-chart-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-chart-tip-name {
+    flex: 1;
+    margin-right: 8px;
+}
+
+.gaska-chart-xaxis {
+    display: flex;
+    margin: 6px 0 0 70px;
+}
+
+.gaska-chart-xaxis span {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: visible;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Rankings and period totals – horizontal bars */
+.gaska-ranking {
+    display: grid;
+    grid-template-columns: minmax(72px, max-content) minmax(40px, 1fr) max-content;
+    gap: 8px 12px;
+    align-items: center;
+    font-size: .8125rem;
+}
+
+.gaska-ranking-row {
+    display: contents;
+}
+
+.gaska-ranking-label {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gaska-text);
+}
+
+.gaska-ranking-track {
+    height: 14px;
+}
+
+.gaska-ranking-fill {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+    background: var(--series);
+}
+
+.gaska-ranking-value {
+    text-align: right;
+    color: var(--gaska-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .gaska-ranking-label {
+        max-width: 120px;
+    }
+
+    .gaska-chart-yaxis {
+        width: 48px;
+    }
+
+    .gaska-chart-xaxis {
+        margin-left: 56px;
+    }
+}
+
+/* Contractor turnover tab */
+.gaska-turnover-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+}
+
+.gaska-turnover-periods {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.gaska-turnover-chip .mud-chip-content {
+    gap: 8px;
+}
+
+.gaska-turnover-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-left: 4px;
+}
+
+.gaska-turnover-field {
+    flex: none;
+    width: 110px;
+}
+
+.gaska-turnover-field--wide {
+    width: 160px;
+}
+
+@media (max-width: 599.98px) {
+    /* Years / quarters / months / own ranges: one row across the card, equal parts. */
+    .gaska-turnover-mode.mud-toggle-group {
+        display: flex !important;
+        width: 100%;
+    }
+
+    .gaska-turnover-mode .mud-toggle-item {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .gaska-turnover-controls .mud-switch .mud-typography {
+        font-size: .8125rem;
+    }
+}
+
+.gaska-turnover-results.is-loading {
+    opacity: .55;
+    transition: opacity .15s;
+}
+
+/* Plain numeric tables next to the charts */
+.gaska-table-scroll {
+    overflow-x: auto;
+}
+
+.gaska-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .875rem;
+}
+
+.gaska-data-table th,
+.gaska-data-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--gaska-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.gaska-data-table th {
+    color: var(--gaska-muted);
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.gaska-data-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-data-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.gaska-data-table .gaska-chart-swatch {
+    margin-right: 6px;
+}
+
+.gaska-delta-up {
+    color: var(--gaska-success-text);
+    font-weight: 600;
+}
+
+.gaska-delta-down {
+    color: var(--gaska-error-text);
+    font-weight: 600;
+}
+
+/* Contractor list filters: a row of multi-selects under the search; on phones behind the "Filtry" button. */
+.gaska-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px 12px;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gaska-border);
+}
+
+.gaska-filters .mud-input-control {
+    margin: 0;
+}
+
+.gaska-filters > .mud-button-root {
+    justify-self: start;
+}
+
+.gaska-filters-toggle {
+    display: none;
+}
+
+@media (max-width: 959.98px) {
+    .gaska-filters-toggle {
+        display: inline-flex;
+        margin-left: auto;
+    }
+
+    .gaska-filters:not(.is-open) {
+        display: none;
+    }
+
+    .gaska-filters {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 599.98px) {
+    .gaska-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Dashboards ---------- */
+.gaska-dash-period {
+    flex: none;
+    width: 240px;
+    margin: 0;
+}
+
+/* Phones: the period selector takes a row of its own, the two buttons share the next one. */
+@media (max-width: 599.98px) {
+    .gaska-page-actions > .mud-select:has(.gaska-dash-period) {
+        flex: 1 1 100%;
+    }
+
+    .gaska-dash-period {
+        width: 100%;
+    }
+}
+
+.gaska-dash-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--gaska-border);
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.gaska-dash-tab {
+    flex: none;
+    padding: 10px 16px;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    color: var(--gaska-muted);
+    font-weight: 600;
+    font-size: .9375rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color .15s var(--gaska-ease), border-color .15s var(--gaska-ease);
+}
+
+.gaska-dash-tab:hover {
+    color: var(--gaska-text);
+}
+
+.gaska-dash-tab.is-active {
+    border-bottom-color: var(--gaska-yellow);
+    color: var(--gaska-text);
+}
+
+/* The grid sizes its cells from its own width (container query), not the window's – the same charts sit on a full
+   page and inside a contractor card's tab. */
+.gaska-dash-wrap {
+    container: dash / inline-size;
+}
+
+.gaska-dash-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+}
+
+.gaska-dash-cell {
+    grid-column: span 12;
+    min-width: 0;
+    display: flex;
+}
+
+.gaska-dash-cell > * {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Phones: headline numbers pair up, everything else takes the full width. */
+.gaska-dash-cell--quarter {
+    grid-column: span 6;
+}
+
+@container dash (min-width: 620px) {
+    .gaska-dash-cell--small {
+        grid-column: span 6;
+    }
+}
+
+@container dash (min-width: 760px) {
+    .gaska-dash-cell--quarter {
+        grid-column: span 3;
+    }
+
+    .gaska-dash-cell--medium {
+        grid-column: span 6;
+    }
+}
+
+@container dash (min-width: 980px) {
+    .gaska-dash-cell--small {
+        grid-column: span 4;
+    }
+}
+
+/* Group heading */
+.gaska-dash-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px 2px 0;
+}
+
+.gaska-dash-cell:first-child .gaska-dash-heading {
+    padding-top: 0;
+}
+
+.gaska-dash-heading-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-dash-heading h2,
+.gaska-dash-heading h3 {
+    margin: 0;
+    color: var(--gaska-text);
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.3;
+}
+
+.gaska-dash-heading h3 {
+    font-size: 1rem;
+}
+
+.gaska-dash-heading p {
+    margin: 2px 0 0;
+    color: var(--gaska-muted);
+    font-size: .8125rem;
+}
+
+/* Chart card */
+.gaska-widget {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    padding: 14px 16px 0;
+    container: widget / inline-size;
+    transition: box-shadow .2s var(--gaska-ease), border-color .2s var(--gaska-ease), transform .2s var(--gaska-ease);
+}
+
+.gaska-dash-grid .gaska-widget:hover {
+    border-color: var(--gaska-border-strong);
+    box-shadow: var(--gaska-shadow-hover);
+}
+
+.gaska-widget-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.gaska-widget-icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--series) 14%, transparent);
+    color: var(--series);
+}
+
+.gaska-widget-titles {
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-widget-title {
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--gaska-text);
+}
+
+.gaska-widget-period {
+    color: var(--gaska-muted);
+    font-size: .75rem;
+}
+
+.gaska-widget-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    margin: -4px -8px 0 0;
+}
+
+.gaska-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--gaska-faint);
+    cursor: grab;
+    touch-action: none;
+}
+
+.gaska-drag-handle:hover,
+.gaska-drag-handle:focus-visible {
+    background: var(--gaska-overlay-soft);
+    color: var(--gaska-text);
+    outline: none;
+}
+
+.gaska-dash-grid.is-sorting,
+.gaska-dash-grid.is-sorting .gaska-drag-handle {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.gaska-dash-cell.is-dragging > * {
+    border-color: var(--gaska-yellow);
+    box-shadow: 0 0 0 2px var(--gaska-yellow), var(--gaska-shadow-hover);
+    transform: scale(.985);
+}
+
+.gaska-dash-cell.is-dragging .gaska-dash-heading {
+    border-radius: 8px;
+    background: var(--gaska-yellow-soft);
+}
+
+.gaska-widget-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A narrow card (two headline numbers side by side on a phone): icon and buttons on the first row, the title gets
+   the whole second row instead of a sliver between them. */
+@container widget (max-width: 250px) {
+    .gaska-widget-head {
+        flex-wrap: wrap;
+        gap: 6px 8px;
+    }
+
+    .gaska-widget-titles {
+        order: 3;
+        flex: 1 1 100%;
+    }
+
+    .gaska-widget-actions {
+        margin: -4px -8px 0 auto;
+    }
+
+    .gaska-widget-source {
+        display: none;
+    }
+}
+
+/* What the chart shows – under the chart, separated by a line. */
+.gaska-widget-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 14px -16px 0;
+    padding: 9px 16px 10px;
+    border-top: 1px solid var(--gaska-border);
+    color: var(--gaska-graphite);
+    font-size: .75rem;
+    line-height: 1.4;
+}
+
+.gaska-widget-source {
+    color: var(--gaska-muted);
+}
+
+.gaska-widget-total {
+    margin-bottom: 10px;
+    color: var(--gaska-muted);
+    font-size: .8125rem;
+}
+
+.gaska-widget-total strong {
+    color: var(--gaska-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-widget-total .gaska-delta-chip {
+    margin-left: 6px;
+}
+
+.gaska-widget-table {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.gaska-widget-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 4px;
+    color: var(--gaska-muted);
+    font-size: .875rem;
+}
+
+.gaska-data-table td.wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.gaska-table-detail {
+    color: var(--gaska-muted);
+    font-size: .75rem;
+}
+
+.gaska-data-table tfoot td {
+    border-top: 1px solid var(--gaska-border-strong);
+    border-bottom: 0;
+    font-weight: 600;
+}
+
+/* Headline number */
+.gaska-kpi {
+    container-type: inline-size;
+}
+
+/* A headline number next to a taller chart is stretched to the row's height – the number sits in the middle of the
+   card instead of leaving an empty block under it. */
+.gaska-widget--kpi .gaska-widget-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-bottom: 4px;
+}
+
+.gaska-kpi-value {
+    font-size: clamp(1.5rem, 13cqi, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--gaska-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gaska-kpi-delta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin-top: 8px;
+    font-size: .8125rem;
+}
+
+.gaska-delta-chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: .8125rem;
+    white-space: nowrap;
+}
+
+.gaska-delta-chip.gaska-delta-up {
+    background: var(--gaska-success-chip);
+}
+
+.gaska-delta-chip.gaska-delta-down {
+    background: var(--gaska-error-soft);
+}
+
+/* Donut */
+.gaska-donut {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px 24px;
+}
+
+.gaska-donut-ring {
+    position: relative;
+    flex: none;
+    width: 168px;
+    height: 168px;
+}
+
+.gaska-donut-ring svg {
+    width: 100%;
+    height: 100%;
+}
+
+.gaska-donut-track,
+.gaska-donut-segment {
+    fill: none;
+    stroke-width: 6.5;
+}
+
+.gaska-donut-track {
+    stroke: var(--gaska-overlay-soft);
+}
+
+.gaska-donut-segment {
+    stroke: var(--series);
+    transition: stroke-width .15s var(--gaska-ease);
+}
+
+.gaska-donut-segment:hover {
+    stroke-width: 8;
+}
+
+.gaska-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+}
+
+.gaska-donut-total {
+    max-width: 96px;
+    color: var(--gaska-text);
+    font-size: .9375rem;
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-donut-caption {
+    color: var(--gaska-muted);
+    font-size: .6875rem;
+}
+
+.gaska-donut-legend {
+    display: grid;
+    flex: 1 1 200px;
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    gap: 7px 10px;
+    align-items: center;
+    min-width: 0;
+    font-size: .8125rem;
+}
+
+.gaska-donut-row {
+    display: contents;
+}
+
+.gaska-donut-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gaska-text);
+}
+
+.gaska-donut-value {
+    text-align: right;
+    color: var(--gaska-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gaska-donut-share {
+    min-width: 38px;
+    text-align: right;
+    color: var(--gaska-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Pickers in dialogs: data for a chart, ready-made sets */
+.gaska-field-label {
+    margin-bottom: 6px;
+    color: var(--gaska-muted);
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.gaska-metric-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gaska-metric-list--start {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+}
+
+@media (min-width: 960px) {
+    .gaska-metric-list--pick {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 8px;
+    }
+
+    .gaska-metric-list--pick .gaska-metric-group {
+        grid-column: 1 / -1;
+    }
+}
+
+.gaska-metric-group {
+    margin: 12px 0 2px;
+    color: var(--gaska-muted);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.gaska-metric {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 8px;
+    background: var(--gaska-surface);
+    color: var(--gaska-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s var(--gaska-ease), background-color .15s var(--gaska-ease);
+}
+
+button.gaska-metric:hover {
+    border-color: var(--gaska-focus-border);
+    background: var(--gaska-row-hover);
+}
+
+/* Keyboard focus is a ring, so it is not mistaken for the selected (filled) option. */
+button.gaska-metric:focus-visible {
+    outline: 2px solid var(--gaska-yellow);
+    outline-offset: 1px;
+}
+
+.gaska-metric.is-selected {
+    border-color: var(--gaska-yellow);
+    background: var(--gaska-yellow-soft);
+}
+
+.gaska-metric--picked {
+    cursor: default;
+    background: var(--gaska-surface-2);
+}
+
+.gaska-metric-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.gaska-metric-title {
+    font-weight: 600;
+}
+
+.gaska-metric-desc {
+    color: var(--gaska-muted);
+    font-size: .8125rem;
+}
+
+/* Chart editor: settings and the live preview side by side; on narrow screens the preview follows the settings. */
+.gaska-widget-editor {
+    display: grid;
+    gap: 20px;
+}
+
+.gaska-widget-editor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.gaska-widget-editor-preview {
+    min-width: 0;
+}
+
+@media (min-width: 960px) {
+    .gaska-widget-editor {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .gaska-widget-editor-preview {
+        position: sticky;
+        top: 0;
+    }
+}
+
+/* Phones: the preview sits right under "Jak pokazać", so switching bars / line / donut shows at once. */
+@media (max-width: 959.98px) {
+    .gaska-widget-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .gaska-widget-editor-form {
+        display: contents;
+    }
+
+    .gaska-widget-editor-form > * {
+        order: 3;
+    }
+
+    .gaska-widget-editor-form > :nth-child(-n + 2) {
+        order: 1;
+    }
+
+    .gaska-widget-editor-preview {
+        order: 2;
+    }
+}
+
+.gaska-preview {
+    margin: 0 auto;
+    padding: 12px;
+    border: 1px dashed var(--gaska-border-strong);
+    border-radius: 12px;
+    background: var(--gaska-bg);
+    container: dash / inline-size;
+}
+
+/* The preview is as wide as the chosen width allows, to show how much fits. */
+.gaska-preview--quarter {
+    max-width: 260px;
+}
+
+.gaska-preview--small {
+    max-width: 340px;
+}
+
+.gaska-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.gaska-palette-swatch {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 2px solid var(--gaska-surface);
+    border-radius: 50%;
+    background: var(--series);
+    box-shadow: 0 0 0 1px var(--gaska-border-strong);
+    cursor: pointer;
+    transition: transform .15s var(--gaska-ease), box-shadow .15s var(--gaska-ease);
+}
+
+.gaska-palette-swatch:hover {
+    transform: scale(1.1);
+}
+
+.gaska-palette-swatch.is-selected {
+    box-shadow: 0 0 0 2px var(--gaska-text);
+}
+
+.gaska-palette-swatch:focus-visible {
+    outline: 2px solid var(--gaska-yellow);
+    outline-offset: 3px;
+}
+
+/* Data tabs of the contractor card */
+.gaska-insights-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+}
+
+.gaska-insights-period {
+    flex: none;
+    width: 230px;
+}
+
+/* =========================================================================
+   Chart motion: cards rise in one after another, bars grow from the baseline, lines draw themselves, rings fill.
+   Switched off by "prefers-reduced-motion".
+   ========================================================================= */
+@keyframes gaska-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes gaska-grow-y {
+    from { transform: scaleY(0); }
+    to { transform: none; }
+}
+
+@keyframes gaska-grow-x {
+    from { transform: scaleX(0); }
+    to { transform: none; }
+}
+
+@keyframes gaska-reveal {
+    from { clip-path: inset(-8px 100% -8px -8px); }
+    to { clip-path: inset(-8px -8px -8px -8px); }
+}
+
+@keyframes gaska-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes gaska-ring {
+    from { stroke-dasharray: 0 100; }
+    to { stroke-dasharray: var(--len) calc(100 - var(--len)); }
+}
+
+@keyframes gaska-pop {
+    from { opacity: 0; transform: translateY(6px) scale(.96); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .gaska-dash-cell {
+        animation: gaska-rise .4s var(--gaska-ease) both;
+    }
+
+    .gaska-dash-cell:nth-child(2) { animation-delay: .04s; }
+    .gaska-dash-cell:nth-child(3) { animation-delay: .08s; }
+    .gaska-dash-cell:nth-child(4) { animation-delay: .12s; }
+    .gaska-dash-cell:nth-child(5) { animation-delay: .16s; }
+    .gaska-dash-cell:nth-child(6) { animation-delay: .2s; }
+    .gaska-dash-cell:nth-child(7) { animation-delay: .24s; }
+    .gaska-dash-cell:nth-child(n+8) { animation-delay: .28s; }
+
+    /* While sorting nothing may animate – cells are being moved by hand. */
+    .gaska-dash-grid.is-sorting .gaska-dash-cell {
+        animation: none;
+    }
+
+    .gaska-chart-bar {
+        transform-origin: bottom;
+        animation: gaska-grow-y .55s var(--gaska-ease) both;
+        animation-delay: calc(var(--i, 0) * 22ms);
+    }
+
+    .gaska-chart-bar--negative {
+        transform-origin: top;
+    }
+
+    /* The line is revealed from left to right (a clip, as dashes do not mix with the non-scaling stroke). */
+    .gaska-chart-lines {
+        animation: gaska-reveal .9s var(--gaska-ease) both;
+    }
+
+    .gaska-ranking-fill {
+        transform-origin: left;
+        animation: gaska-grow-x .55s var(--gaska-ease) both;
+        animation-delay: calc(var(--i, 0) * 40ms);
+    }
+
+    .gaska-ranking-value {
+        animation: gaska-fade .4s ease both;
+        animation-delay: calc(.2s + var(--i, 0) * 40ms);
+    }
+
+    .gaska-donut-segment {
+        animation: gaska-ring .8s var(--gaska-ease) both;
+        animation-delay: calc(var(--i, 0) * 60ms);
+    }
+
+    .gaska-donut-center,
+    .gaska-kpi-value {
+        animation: gaska-pop .45s var(--gaska-ease) both;
+    }
+
+    .gaska-kpi-delta {
+        animation: gaska-fade .4s ease .15s both;
+    }
+
+    .gaska-chart-bar,
+    .gaska-ranking-fill {
+        transition: filter .15s ease;
+    }
+
+    .gaska-chart-col:hover .gaska-chart-bar,
+    .gaska-ranking-row:hover .gaska-ranking-fill {
+        filter: brightness(1.12);
+    }
+}
+
+/* =========================================================================
+   Freely scrolling tab bars (js/tabs.js): swipe on touch, drag or wheel with a mouse – no arrow buttons.
+   ========================================================================= */
+.gaska-tabs-scroll .mud-tabs-scroll-button {
+    display: none !important;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-content {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-content::-webkit-scrollbar {
+    display: none;
+}
+
+/* MudBlazor moves the tabs with a transform when its arrows are used – here the bar itself scrolls. */
+.gaska-tabs-scroll .mud-tabs-tabbar-wrapper {
+    transform: none !important;
+    min-width: 100%;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-content.is-dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-content.is-dragging .mud-tab {
+    pointer-events: none;
+}
+
+/* Tab bars (.gaska-tabs-scroll): MudBlazor's slider assumes tabs of equal width (width = 100% / number of tabs) and
+   misses tabs of different widths. One line of our own slides under the tab instead - js/tabs.js measures the tab and
+   moves the line at the click, without waiting for the server. */
+.gaska-tabs-scroll .mud-tab-slider {
+    display: none !important;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-wrapper {
+    position: relative;
+}
+
+.gaska-tabs-scroll .mud-tabs-tabbar-wrapper::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: var(--gaska-tab-width, 0px);
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--mud-palette-primary);
+    transform: translateX(var(--gaska-tab-left, 0px));
+    transition: var(--gaska-tab-transition, none);
+    pointer-events: none;
+}
+
+.gaska-tabs-scroll .mud-tab.is-pending {
+    color: var(--mud-palette-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gaska-tabs-scroll .mud-tabs-tabbar-wrapper::after {
+        transition: none;
+    }
+}
+
+/* Multiple choice with search (MultiSearchSelect) */
+.gaska-multiselect {
+    position: relative;
+    min-width: 0;
+}
+
+.gaska-multiselect-field,
+.gaska-multiselect-field .mud-input,
+.gaska-multiselect-field input {
+    cursor: pointer !important;
+}
+
+.gaska-multiselect-field input {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gaska-multiselect.is-open .mud-input-outlined-border {
+    border-color: var(--mud-palette-primary) !important;
+    border-width: 2px;
+}
+
+.gaska-multiselect.is-open .mud-input-label {
+    color: var(--mud-palette-primary) !important;
+}
+
+.gaska-multiselect-popover {
+    display: flex;
+    flex-direction: column;
+    max-width: min(420px, calc(100vw - 24px));
+    max-height: 420px;
+}
+
+.gaska-multiselect-search {
+    flex: none;
+    padding: 8px 8px 4px;
+}
+
+.gaska-multiselect-search .mud-input-control {
+    margin: 0;
+}
+
+.gaska-multiselect-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.gaska-multiselect-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: 38px;
+    padding: 6px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--gaska-text);
+    font: inherit;
+    font-size: .875rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.gaska-multiselect-item:hover,
+.gaska-multiselect-item:focus-visible {
+    background: var(--mud-palette-action-default-hover);
+    outline: none;
+}
+
+.gaska-multiselect-item .mud-icon-root {
+    flex: none;
+    color: var(--gaska-muted);
+}
+
+.gaska-multiselect-item.is-selected .mud-icon-root {
+    color: var(--mud-palette-primary);
+}
+
+/* One line per option - names never break between first name and surname. */
+.gaska-multiselect-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gaska-multiselect-empty {
+    padding: 12px 14px;
+    color: var(--gaska-muted);
+    font-size: .8125rem;
+}
+
+.gaska-multiselect-foot {
+    display: flex;
+    flex: none;
+    justify-content: space-between;
+    padding: 4px 6px;
+    border-top: 1px solid var(--gaska-border);
+}
+
+@media (pointer: coarse) {
+    .gaska-multiselect-item {
+        min-height: 44px;
+    }
+}
+
+/* Sortable table headers: no column menu or sort number - a small arrow that shows on hover and stays (in the accent
+   colour, with the header) on the sorted column; it turns for descending order. */
+.mud-table-head .column-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.mud-table-head .sortable-column-header {
+    transition: color .15s var(--gaska-ease);
+}
+
+.mud-table-head .sortable-column-header:hover {
+    color: var(--gaska-text);
+}
+
+.mud-table-head .column-options {
+    display: inline-flex;
+    align-items: center;
+}
+
+.mud-table-head .mud-sort-index {
+    display: none !important;
+}
+
+.mud-table-head .sort-direction-icon {
+    padding: 2px !important;
+    opacity: 0;
+    color: var(--gaska-muted);
+    transition: opacity .15s var(--gaska-ease), transform .2s var(--gaska-ease), color .15s var(--gaska-ease);
+}
+
+.mud-table-head .sort-direction-icon .mud-icon-root {
+    font-size: 1rem;
+}
+
+.mud-table-head th:hover .sort-direction-icon,
+.mud-table-head .sort-direction-icon:focus-visible {
+    opacity: .7;
+}
+
+.mud-table-head .sort-direction-icon.mud-direction-asc,
+.mud-table-head .sort-direction-icon.mud-direction-desc {
+    opacity: 1;
+    color: var(--mud-palette-primary);
+}
+
+.mud-table-head th:has(.mud-direction-asc, .mud-direction-desc) .sortable-column-header {
+    color: var(--mud-palette-primary);
+}
+
+/* Lost connection to the server (Blazor's reconnect dialog, see App.razor and js/reconnect.js). The dialog waits a
+   moment before showing up, so a short blip goes unnoticed. */
+.gaska-reconnect {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, .45);
+    backdrop-filter: blur(2px);
+}
+
+.gaska-reconnect.components-reconnect-show,
+.gaska-reconnect.components-reconnect-retrying,
+.gaska-reconnect.components-reconnect-failed,
+.gaska-reconnect.components-reconnect-rejected,
+.gaska-reconnect.components-reconnect-paused,
+.gaska-reconnect.components-reconnect-resume-failed {
+    display: flex;
+    animation: gaska-fade .25s ease 1s both;
+}
+
+.gaska-reconnect.components-reconnect-failed,
+.gaska-reconnect.components-reconnect-rejected {
+    animation-delay: 0s;
+}
+
+.gaska-reconnect-card {
+    width: min(360px, 100%);
+    padding: 24px;
+    border: 1px solid var(--gaska-border);
+    border-top: 3px solid var(--gaska-yellow);
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    color: var(--gaska-text);
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, .35);
+}
+
+.gaska-reconnect-spinner {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto 14px;
+    border: 3px solid color-mix(in srgb, var(--gaska-yellow) 25%, transparent);
+    border-top-color: var(--gaska-yellow);
+    border-radius: 50%;
+    animation: gaska-spin .8s linear infinite;
+}
+
+.gaska-reconnect.components-reconnect-failed .gaska-reconnect-spinner {
+    display: none;
+}
+
+.gaska-reconnect-title {
+    margin: 0 0 6px;
+    font-size: 1.0625rem;
+    font-weight: 700;
+}
+
+.gaska-reconnect-text {
+    margin: 0;
+    color: var(--gaska-muted);
+    font-size: .875rem;
+}
+
+.gaska-reconnect-button {
+    margin-top: 16px;
+    padding: 8px 18px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--gaska-yellow);
+    color: #161616;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* One text per state; "show" = the first attempt. */
+.gaska-reconnect [class*="gaska-reconnect-when-"] {
+    display: none;
+}
+
+.gaska-reconnect.components-reconnect-show .gaska-reconnect-when-show,
+.gaska-reconnect.components-reconnect-paused .gaska-reconnect-when-show,
+.gaska-reconnect.components-reconnect-retrying .gaska-reconnect-when-retrying,
+.gaska-reconnect.components-reconnect-failed .gaska-reconnect-when-failed,
+.gaska-reconnect.components-reconnect-rejected .gaska-reconnect-when-rejected,
+.gaska-reconnect.components-reconnect-resume-failed .gaska-reconnect-when-rejected {
+    display: inline;
+}
+
+.gaska-reconnect.components-reconnect-failed button.gaska-reconnect-when-failed {
+    display: inline-block;
+}
+
+/* Blazor keeps "show" next to the later states - only the latest state's text is shown. */
+.gaska-reconnect:is(.components-reconnect-retrying, .components-reconnect-failed, .components-reconnect-rejected,
+    .components-reconnect-resume-failed) .gaska-reconnect-when-show {
+    display: none;
 }

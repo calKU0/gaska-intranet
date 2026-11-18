@@ -1,4 +1,5 @@
 using Gaska.Intranet.Core.Access;
+using Gaska.Intranet.Core.Analytics;
 using Gaska.Intranet.Core.Auditing;
 using Gaska.Intranet.Core.Security;
 using Microsoft.EntityFrameworkCore;
@@ -92,5 +93,33 @@ internal sealed class UserAuthenticatorConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.AccountName).HasMaxLength(128).IsRequired();
         b.Property(x => x.ProtectedSecret).HasMaxLength(1024).IsRequired();
         b.HasIndex(x => x.AccountName);
+    }
+}
+
+internal sealed class DashboardConfiguration : IEntityTypeConfiguration<Dashboard>
+{
+    public void Configure(EntityTypeBuilder<Dashboard> b)
+    {
+        b.HasKey(x => x.Id);
+        b.Property(x => x.OwnerSid).HasMaxLength(184).IsRequired();
+        b.Property(x => x.OwnerAccount).HasMaxLength(128).IsRequired();
+        b.Property(x => x.Name).HasMaxLength(60).IsRequired();
+        b.HasIndex(x => x.OwnerSid);
+        b.HasMany(x => x.Widgets).WithOne().HasForeignKey(w => w.DashboardId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class DashboardWidgetConfiguration : IEntityTypeConfiguration<DashboardWidget>
+{
+    public void Configure(EntityTypeBuilder<DashboardWidget> b)
+    {
+        b.HasKey(x => x.Id);
+        b.Property(x => x.MetricKey).HasMaxLength(64).IsRequired();
+        b.Property(x => x.Title).HasMaxLength(80);
+        b.Property(x => x.Description).HasMaxLength(200);
+        b.Property(x => x.Chart).HasConversion<string>().HasMaxLength(16);
+        b.Property(x => x.Period).HasConversion<string>().HasMaxLength(16);
+        b.Property(x => x.Granularity).HasConversion<string>().HasMaxLength(16);
+        b.Property(x => x.Width).HasConversion<string>().HasMaxLength(16);
     }
 }

@@ -1,0 +1,103 @@
+@* New page of charts (empty or from a ready-made set) / renaming a page. *@
+<MudDialog Class="gaska-dialog">
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Nazwa strony" Placeholder="np. Sprzedaż" MaxLength="60" Immediate="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" AutoFocus="true" OnKeyDown="OnKeyDown" />
+
+        @if (!Rename)
+        {
+            <div class="gaska-field-label mt-4">Zacznij od</div>
+            <div class="gaska-metric-list">
+                <button type="button" class="gaska-metric @(_template is null ? "is-selected" : null)" @onclick="() => Choose(null)">
+                    <MudIcon Icon="@Icons.Material.Outlined.Add" Size="Size.Small" />
+                    <span class="gaska-metric-text">
+                        <span class="gaska-metric-title">Pusta strona</span>
+                        <span class="gaska-metric-desc">Sam wybierzesz wykresy.</span>
+                    </span>
+                </button>
+                @foreach (var template in Templates)
+                {
+                    <button type="button" class="gaska-metric @(ReferenceEquals(_template, template) ? "is-selected" : null)" @onclick="() => Choose(template)">
+                        <MudIcon Icon="@Icons.Material.Outlined.Dashboard" Size="Size.Small" />
+                        <span class="gaska-metric-text">
+                            <span class="gaska-metric-title">@template.Name</span>
+                            <span class="gaska-metric-desc">@template.Description (@template.Widgets.Count wykresów – każdy możesz potem zmienić)</span>
+                        </span>
+                    </button>
+                }
+            </div>
+        }
+
+        <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Anuluj</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">@(Rename ? "Zapisz" : "Utwórz stronę")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string? _name;
+    private DashboardTemplate? _template;
+    private string? _error;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Current name when renaming.</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public bool Rename { get; set; }
+
+    /// <summary>Ready-made sets, already limited to the charts the user has access to.</summary>
+    [Parameter]
+    public IReadOnlyList<DashboardTemplate> Templates { get; set; } = [];
+
+    /// <summary>Set chosen before the dialog opened (start screen).</summary>
+    [Parameter]
+    public DashboardTemplate? Template { get; set; }
+
+    public sealed record Result(string Name, DashboardTemplate? Template);
+
+    protected override void OnInitialized()
+    {
+        _name = Name;
+        _template = Template;
+        if (_template is not null && string.IsNullOrWhiteSpace(_name))
+        {
+            _name = _template.Name;
+        }
+    }
+
+    private void Choose(DashboardTemplate? template)
+    {
+        // The name follows the chosen set until the user types their own.
+        if (string.IsNullOrWhiteSpace(_name) || _name == _template?.Name)
+        {
+            _name = template?.Name;
+        }
+
+        _template = template;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Save();
+        }
+    }
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "Podaj nazwę strony.";
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new Result(_name.Trim(), _template)));
+    }
+}

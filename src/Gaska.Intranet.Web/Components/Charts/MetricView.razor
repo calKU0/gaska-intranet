@@ -1,0 +1,300 @@
+@* Loads one metric (permission checked by the analytics service) and draws it the chosen way: bars, a line, a donut,
+   a headline number or a table. Used by dashboards, the chart preview and the contractor card. *@
+@inject IAnalyticsService Analytics
+@inject TimeProvider Clock
+
+@if (_error is not null)
+{
+    <div class="gaska-widget-message">
+        <MudIcon Icon="@(_denied ? Icons.Material.Outlined.Lock : Icons.Material.Outlined.ErrorOutline)" Size="Size.Small" />
+        <span>@_error</span>
+    </div>
+}
+else if (_loading || _metric is null)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="@(_chart == ChartKind.Number ? "64px" : "200px")" />
+}
+else if (_chart == ChartKind.Number)
+{
+    <div class="gaska-kpi">
+        <div class="gaska-kpi-value" title="@ChartFormat.Full(_total, _metric.Unit)">@ChartFormat.Compact(_total, _metric.Unit)</div>
+        @if (_metric.Shape == MetricShape.Snapshot)
+        {
+            <div class="gaska-kpi-delta gaska-muted-inline">stan na dziś</div>
+        }
+        else if (ChartFormat.Change(_total, _previousTotal) is { } change)
+        {
+            <div class="gaska-kpi-delta">
+                <span class="gaska-delta-chip @(_total >= _previousTotal ? "gaska-delta-up" : "gaska-delta-down")">
+                    @(_total >= _previousTotal ? "▲" : "▼") @change
+                </span>
+                <span class="gaska-muted-inline">wobec poprzedniego okresu (@ChartFormat.Compact(_previousTotal, _metric.Unit))</span>
+            </div>
+        }
+        else
+        {
+            <div class="gaska-kpi-delta gaska-muted-inline">brak danych z poprzedniego okresu</div>
+        }
+    </div>
+}
+else if (_metric.Shape == MetricShape.Ranking)
+{
+    @switch (_chart)
+    {
+        case ChartKind.Donut:
+            <DonutChart Rows="_ranking.Rows" Total="_ranking.Total" Unit="_metric.Unit" Title="@Title" />
+            break;
+        case ChartKind.Table:
+            @if (_ranking.Rows.Count == 0)
+            {
+                <div class="gaska-chart-empty">@Empty</div>
+            }
+            else
+            {
+                <div class="gaska-table-scroll gaska-widget-table">
+                    <table class="gaska-data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Nazwa</th>
+                                <th class="num">@UnitHeader</th>
+                                @if (ShowShare)
+                                {
+                                    <th class="num">Udział</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < _ranking.Rows.Count; i++)
+                            {
+                                var row = _ranking.Rows[i];
+                                <tr>
+                                    <td>@(i + 1)</td>
+                                    <td class="wrap">
+                                        @row.Label
+                                        @if (row.Detail is not null)
+                                        {
+                                            <div class="gaska-table-detail">@row.Detail</div>
+                                        }
+                                    </td>
+                                    <td class="num">@ChartFormat.Full(row.Value, _metric.Unit)</td>
+                                    @if (ShowShare)
+                                    {
+                                        <td class="num">@ChartFormat.Share(row.Value, _ranking.Total!.Value)</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            break;
+        default:
+            <RankingChart Rows="_ranking.Rows" Unit="_metric.Unit" Title="@Title" Slot="Slot" Compact="Compact" />
+            break;
+    }
+}
+else if (_chart == ChartKind.Table)
+{
+    <div class="gaska-table-scroll gaska-widget-table">
+        <table class="gaska-data-table">
+            <thead>
+                <tr>
+                    <th>Okres</th>
+                    <th class="num">@UnitHeader</th>
+                    @if (_previous.Count > 0)
+                    {
+                        <th class="num">Poprzedni okres</th>
+                        <th class="num">Zmiana</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < _points.Count; i++)
+                {
+                    var point = _points[i];
+                    <tr>
+                        <td>@point.Label</td>
+                        <td class="num">@ChartFormat.Full(point.Value, _metric.Unit)</td>
+                        @if (_previous.Count > 0)
+                        {
+                            var before = i < _previous.Count ? _previous[i].Value : 0m;
+                            <td class="num">@ChartFormat.Full(before, _metric.Unit)</td>
+                            <td class="num">
+                                <span class="@(point.Value >= before ? "gaska-delta-up" : "gaska-delta-down")">@(ChartFormat.Change(point.Value, before) ?? "—")</span>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td>Razem</td>
+                    <td class="num">@ChartFormat.Full(_total, _metric.Unit)</td>
+                    @if (_previous.Count > 0)
+                    {
+                        <td class="num">@ChartFormat.Full(_previousTotal, _metric.Unit)</td>
+                        <td class="num">@(ChartFormat.Change(_total, _previousTotal) ?? "—")</td>
+                    }
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+}
+else
+{
+    <div class="gaska-widget-total">
+        Razem: <strong>@ChartFormat.Full(_total, _metric.Unit)</strong>
+        @if (_previous.Count > 0 && ChartFormat.Change(_total, _previousTotal) is { } totalChange)
+        {
+            <span class="gaska-delta-chip @(_total >= _previousTotal ? "gaska-delta-up" : "gaska-delta-down")">@totalChange</span>
+        }
+    </div>
+    <SeriesChart Labels="_labels" Series="_series" Line="@(_chart == ChartKind.Line)" Unit="_metric.Unit" Title="@Title" Height="Height" />
+}
+
+@code {
+    private MetricDefinition? _metric;
+    private ChartKind _chart = ChartKind.Bars;
+    private IReadOnlyList<SeriesPoint> _points = [];
+    private IReadOnlyList<SeriesPoint> _previous = [];
+    private Ranking _ranking = Ranking.Empty;
+    private List<string> _labels = [];
+    private List<ChartSeries> _series = [];
+    private decimal _total;
+    private decimal _previousTotal;
+    private string? _error;
+    private bool _denied;
+    private bool _loading = true;
+    private (WidgetInput Settings, PeriodPreset? Period, string? Contractor)? _loadedFor;
+
+    /// <summary>What to show and how. A record – compared by value, so the data reloads only when a setting changed.</summary>
+    [Parameter, EditorRequired]
+    public WidgetInput Settings { get; set; } = default!;
+
+    /// <summary>Period chosen for the whole page – replaces the chart's own period while set.</summary>
+    [Parameter]
+    public PeriodPreset? PeriodOverride { get; set; }
+
+    /// <summary>Narrows the metric to one contractor (contractor card).</summary>
+    [Parameter]
+    public ContractorRef? Contractor { get; set; }
+
+    /// <summary>Short values in rankings – for narrow cards.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public int Height { get; set; } = 220;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private string Title => Settings.Title ?? _metric?.Title ?? "Wykres";
+
+    private int Slot => Settings.Color is >= 1 and <= 8 ? Settings.Color : 1;
+
+    private string UnitHeader => _metric?.Unit switch
+    {
+        MetricUnit.Money => "Wartość",
+        MetricUnit.Days => "Dni",
+        _ => "Liczba",
+    };
+
+    private bool ShowShare => _metric is { PartsOfWhole: true } && _ranking.Total is > 0;
+
+    private string Empty => _metric is { AsOfNow: true } ? "Brak pozycji – stan na dziś." : "Brak danych w tym okresie.";
+
+    /// <summary>The way a metric of this shape can be drawn – a saved setting that no longer fits falls back to bars.</summary>
+    public static ChartKind Effective(MetricDefinition metric, ChartKind chart) => metric.Shape switch
+    {
+        MetricShape.Snapshot => ChartKind.Number,
+        MetricShape.Ranking => chart switch
+        {
+            ChartKind.Table => ChartKind.Table,
+            ChartKind.Donut when metric.PartsOfWhole => ChartKind.Donut,
+            _ => ChartKind.Bars,
+        },
+        _ => chart == ChartKind.Donut ? ChartKind.Bars : chart,
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var signature = (Settings, PeriodOverride, Contractor?.CacheKey);
+        if (_loadedFor is { } loaded && loaded == signature)
+        {
+            return;
+        }
+
+        _loadedFor = signature;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _denied = false;
+        _metric = Analytics.Find(Settings.MetricKey);
+
+        try
+        {
+            if (_metric is null)
+            {
+                throw new AnalyticsException("Te dane nie są już dostępne w intranecie.");
+            }
+
+            _chart = Effective(_metric, Settings.Chart);
+            var user = (await AuthState).User;
+            var today = DateOnly.FromDateTime(Clock.GetLocalNow().DateTime);
+            var preset = PeriodOverride ?? Settings.Period;
+            var range = Periods.Resolve(preset, today, Settings.CustomFrom, Settings.CustomTo);
+            var query = new MetricQuery(range, Contractor);
+
+            switch (_metric.Shape)
+            {
+                case MetricShape.Snapshot:
+                    _total = await Analytics.GetSnapshotAsync(user, _metric.Key, query);
+                    return;
+                case MetricShape.Ranking:
+                    var top = _chart == ChartKind.Donut ? Math.Min(Settings.Top, DonutChart.MaxParts) : Settings.Top;
+                    _ranking = await Analytics.GetRankingAsync(user, _metric.Key, query, top);
+                    return;
+            }
+
+            var number = _chart == ChartKind.Number;
+            var previousRange = Periods.Previous(range, preset);
+            var granularity = number ? Granularity.Year : Settings.Granularity ?? Periods.DefaultGranularity(range);
+            _points = await Analytics.GetSeriesAsync(user, _metric.Key, query, granularity);
+            _previous = number || Settings.ComparePrevious
+                ? await Analytics.GetSeriesAsync(user, _metric.Key, query with { Range = previousRange }, granularity)
+                : [];
+
+            _total = _points.Sum(p => p.Value);
+            _previousTotal = _previous.Sum(p => p.Value);
+            _labels = _points.Select(p => p.Label).ToList();
+            _series = [new ChartSeries(Periods.Describe(range), _points.Select(p => p.Value).ToList(), Slot)];
+            if (_previous.Count > 0)
+            {
+                // The earlier period first, in the muted colour – the current one stays in front.
+                _series.Insert(0, new ChartSeries($"Poprzedni okres ({Periods.Describe(previousRange)})",
+                    _points.Select((_, i) => i < _previous.Count ? _previous[i].Value : 0m).ToList(), 0));
+            }
+        }
+        catch (AnalyticsException ex)
+        {
+            _error = ex.Message;
+            _denied = ex.AccessDenied;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

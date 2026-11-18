@@ -29,6 +29,12 @@ internal sealed class GoNetContractorService(
         WHERE k.USUNIETY = 0 AND COALESCE(k.ARC, 0) = 0
         """;
 
+    /// <summary>Rows per network round trip when reading all contractors (Firebird's default of 200 makes it 200 trips).</summary>
+    private const int BulkFetchSize = 10_000;
+
+    /// <summary>Contractor ids written into the query (about 7 characters each – well under Firebird's 64 KB statement limit).</summary>
+    private const int MaxIdsInQuery = 6000;
+
     private readonly GoNetOptions _options = options.Value;
 
     public async Task<PagedResult<ContractorListItem>> SearchAsync(ContractorQuery query, CancellationToken ct = default)
@@ -36,10 +42,12 @@ internal sealed class GoNetContractorService(
         var where = new StringBuilder();
         var parameters = new List<(string, object?)>();
 
-        if (query.ManagerOperatorId is { } managerId)
+        if (query.Filter is { } filter)
         {
-            where.Append(" AND k.IDMANAGERA = @manager");
-            parameters.Add(("@manager", managerId));
+            AppendIn(where, "k.IDTYPKONTRAHENTA", filter.TypeIds);
+            AppendIn(where, "k.STATUS", filter.StatusIds);
+            AppendSameName(where, "k.IDKRAJ", filter.CountryIds);
+            AppendSameName(where, "k.IDWOJEWODZTWO", filter.VoivodeshipIds);
         }
 
         // Every word must appear in one of the searched columns (CONTAINING is case-insensitive).
@@ -82,12 +90,112 @@ internal sealed class GoNetContractorService(
 
         await using var connection = await db.OpenAsync(ct);
 
+        if (query.OnlyIds is { Count: 0 })
+        {
+            return new PagedResult<ContractorListItem>([], 0);
+        }
+
+        if (query.OnlyIds is { } only)
+        {
+            if (only.Count > MaxIdsInQuery)
+            {
+                return await SearchWithinAsync(connection, only, where.ToString(), parameters, orderBy, query, ct);
+            }
+
+            // Firebird takes at most 1500 values in one IN list – longer lists are split into alternatives.
+            var chunks = only.Order().Chunk(1500).Select(c => $"k.ID IN ({string.Join(", ", c)})");
+            where.Append($" AND ({string.Join(" OR ", chunks)})");
+        }
+
         await using var count = GoNetDatabase.Command(connection, null, $"SELECT COUNT(*) {ListFrom}{where}", [.. parameters]);
         var total = Convert.ToInt32(await count.ExecuteScalarAsync(ct));
 
         var sql = $"SELECT FIRST {Math.Clamp(query.Take, 1, 500)} SKIP {Math.Max(query.Skip, 0)} {ListColumns} {ListFrom}{where} ORDER BY {orderBy}";
         await using var command = GoNetDatabase.Command(connection, null, sql, [.. parameters]);
         return new PagedResult<ContractorListItem>(await ReadListAsync(command, ct), total);
+    }
+
+    /// <summary>
+    /// The list limited to given contractors (thousands of ids – too many for a Firebird IN list): the ids matching the
+    /// other conditions are read in list order, narrowed here, and only the requested page is read in full.
+    /// </summary>
+    private static async Task<PagedResult<ContractorListItem>> SearchWithinAsync(
+        FbConnection connection, IReadOnlyCollection<int> only, string where, List<(string, object?)> parameters, string orderBy,
+        ContractorQuery query, CancellationToken ct)
+    {
+        var allowed = only as IReadOnlySet<int> ?? only.ToHashSet();
+        var ids = new List<int>();
+        {
+            // In its own block: the reader is closed before the page is read on the same connection.
+            await using var all = GoNetDatabase.Command(connection, null, $"SELECT k.ID {ListFrom}{where} ORDER BY {orderBy}", [.. parameters]);
+            all.FetchSize = BulkFetchSize;
+            await using var reader = await all.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var id = GoNetDatabase.Int(reader, "ID");
+                if (allowed.Contains(id))
+                {
+                    ids.Add(id);
+                }
+            }
+        }
+
+        var page = ids.Skip(Math.Max(query.Skip, 0)).Take(Math.Clamp(query.Take, 1, 500)).ToList();
+        if (page.Count == 0)
+        {
+            return new PagedResult<ContractorListItem>([], ids.Count);
+        }
+
+        // Page ids are integers read from GoNet – safe to write into the query.
+        var sql = $"SELECT {ListColumns} {ListFrom} AND k.ID IN ({string.Join(", ", page)}) ORDER BY {orderBy}";
+        await using var command = GoNetDatabase.Command(connection, null, sql);
+        return new PagedResult<ContractorListItem>(await ReadListAsync(command, ct), ids.Count);
+    }
+
+    /// <summary>All active contractors with GoNet's account manager (also a former operator, as on the list).</summary>
+    internal async Task<IReadOnlyList<(int Id, string ShortName, string? Nip, string? Manager)>> ListAllAsync(CancellationToken ct)
+    {
+        await using var connection = await db.OpenAsync(ct);
+        await using var command = GoNetDatabase.Command(connection, null,
+            "SELECT k.ID, k.SKROTNAZWY, k.NIP, o.IMIE AS MIMIE, o.NAZWISKO AS MNAZWISKO FROM KONTRAHENT k " +
+            "LEFT JOIN OPERATOR o ON o.ID = k.IDMANAGERA WHERE k.USUNIETY = 0 AND COALESCE(k.ARC, 0) = 0");
+        command.FetchSize = BulkFetchSize;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        var rows = new List<(int, string, string?, string?)>();
+        while (await reader.ReadAsync(ct))
+        {
+            var manager = $"{GoNetDatabase.Text(reader, "MIMIE")} {GoNetDatabase.Text(reader, "MNAZWISKO")}".Trim();
+            rows.Add((GoNetDatabase.Int(reader, "ID"), GoNetDatabase.Text(reader, "SKROTNAZWY") ?? string.Empty,
+                GoNetDatabase.Text(reader, "NIP"), manager.Length == 0 ? null : manager));
+        }
+
+        return rows;
+    }
+
+    /// <summary>" AND column IN (ids)" – ids are integers, so they are safe to write into the query.</summary>
+    private static void AppendIn(StringBuilder where, string column, IReadOnlyList<int> ids)
+    {
+        if (ids.Count > 0)
+        {
+            where.Append(System.Globalization.CultureInfo.InvariantCulture, $" AND {column} IN ({string.Join(", ", ids.Distinct().Take(200))})");
+        }
+    }
+
+    /// <summary>
+    /// Like <see cref="AppendIn"/>, for dictionaries that hold one name under several ids (countries, voivodeships):
+    /// matches every entry of the same dictionary with the same name as a chosen one.
+    /// </summary>
+    private static void AppendSameName(StringBuilder where, string column, IReadOnlyList<int> ids)
+    {
+        if (ids.Count > 0)
+        {
+            where.Append(System.Globalization.CultureInfo.InvariantCulture, $"""
+                 AND {column} IN (
+                    SELECT same.ID FROM SLOWNIK chosen
+                    JOIN SLOWNIK same ON same.IDTYPU = chosen.IDTYPU AND UPPER(same.NAZWA) = UPPER(chosen.NAZWA)
+                    WHERE chosen.ID IN ({string.Join(", ", ids.Distinct().Take(200))}))
+                """);
+        }
     }
 
     public async Task<ContractorDetails?> GetAsync(int id, CancellationToken ct = default)

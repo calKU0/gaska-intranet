@@ -80,6 +80,33 @@ internal sealed class GoNetDictionary(GoNetDatabase db, IMemoryCache cache, IOpt
                 .ToList();
         }, ct);
 
+    /// <summary>
+    /// Filter values in use. The dictionaries hold the same name under several ids ("POLSKA" entered twice) – each name
+    /// is listed once and the list query matches every id with that name.
+    /// </summary>
+    public Task<ContractorFilterOptions> GetContractorFilterOptionsAsync(CancellationToken ct = default) =>
+        CachedAsync("gonet:contractor-filters", TimeSpan.FromHours(1), async () =>
+        {
+            const string Active = "FROM KONTRAHENT WHERE USUNIETY = 0 AND COALESCE(ARC, 0) = 0";
+
+            var countries = await InUseAsync(_options.CountryDictionaryType, $"SELECT IDKRAJ AS ID, COUNT(*) AS C {Active} GROUP BY IDKRAJ", ct);
+            var types = await InUseAsync(_options.ContractorTypeDictionaryType, $"SELECT IDTYPKONTRAHENTA AS ID, COUNT(*) AS C {Active} GROUP BY IDTYPKONTRAHENTA", ct);
+            var statuses = await InUseAsync(_options.ContractorStatusDictionaryType, $"SELECT STATUS AS ID, COUNT(*) AS C {Active} GROUP BY STATUS", ct);
+
+            // Caretakers come from the ERP (IContractorCaretakerService), not from GoNet.
+            return new ContractorFilterOptions(countries, await GetVoivodeshipsAsync(ct), types, statuses);
+        }, ct);
+
+    /// <summary>Entries of a dictionary that contractors use – one per name, most used first.</summary>
+    private async Task<IReadOnlyList<DictionaryItem>> InUseAsync(int type, string usageSql, CancellationToken ct) =>
+        (await QueryDictionaryAsync(type, usageSql, ct))
+        .Where(i => i.Usage > 0 && !string.IsNullOrWhiteSpace(i.Item.Name))
+        .GroupBy(i => TextSearch.Normalize(i.Item.Name))
+        .Select(g => (Item: g.OrderByDescending(i => i.Usage).First().Item, Usage: g.Sum(i => i.Usage)))
+        .OrderByDescending(i => i.Usage).ThenBy(i => i.Item.Name, StringComparer.CurrentCultureIgnoreCase)
+        .Select(i => i.Item)
+        .ToList();
+
     public Task<IReadOnlyList<DictionaryItem>> GetContractorTypesAsync(CancellationToken ct = default) =>
         SimpleDictionaryAsync("gonet:contractor-types", _options.ContractorTypeDictionaryType, ct);
 

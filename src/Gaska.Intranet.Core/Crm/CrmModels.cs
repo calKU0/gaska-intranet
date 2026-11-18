@@ -11,13 +11,45 @@ public enum ContractorSort
     CreatedAt,
 }
 
+/// <param name="OnlyIds">Only these contractors (e.g. of the chosen caretakers); null = no such limit.</param>
 public sealed record ContractorQuery(
     string? Search,
-    int? ManagerOperatorId,
+    IReadOnlyCollection<int>? OnlyIds,
     int Skip,
     int Take,
     ContractorSort SortBy = ContractorSort.ShortName,
-    bool SortDescending = false);
+    bool SortDescending = false,
+    ContractorFilter? Filter = null);
+
+/// <summary>
+/// Filters of the contractor list. Several values of one filter mean "any of them"; different filters narrow the list
+/// together (country AND status …). Values are dictionary ids from <see cref="ContractorFilterOptions"/>.
+/// </summary>
+public sealed record ContractorFilter
+{
+    public IReadOnlyList<int> CountryIds { get; init; } = [];
+    public IReadOnlyList<int> VoivodeshipIds { get; init; } = [];
+    public IReadOnlyList<int> TypeIds { get; init; } = [];
+    public IReadOnlyList<int> StatusIds { get; init; } = [];
+
+    /// <summary>
+    /// Caretakers (account managers and sales representatives, by name) – resolved to contractor ids by
+    /// <see cref="IContractorCaretakerService.FindContractorsAsync"/> before the list is read.
+    /// </summary>
+    public IReadOnlyList<string> Caretakers { get; init; } = [];
+
+    /// <summary>Number of filters in use.</summary>
+    public int ActiveCount =>
+        new[] { CountryIds, VoivodeshipIds, TypeIds, StatusIds }.Count(l => l.Count > 0) + (Caretakers.Count > 0 ? 1 : 0);
+}
+
+/// <summary>What the list can be filtered by – only values that contractors actually have.</summary>
+/// <param name="Countries">Countries of contractors, most common first.</param>
+public sealed record ContractorFilterOptions(
+    IReadOnlyList<DictionaryItem> Countries,
+    IReadOnlyList<DictionaryItem> Voivodeships,
+    IReadOnlyList<DictionaryItem> Types,
+    IReadOnlyList<DictionaryItem> Statuses);
 
 public sealed record ContractorListItem(
     int Id,

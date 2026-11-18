@@ -1,0 +1,51 @@
+@* Horizontal bars with the name and the exact value on every row – for rankings and period totals. *@
+@if (Rows.Count == 0)
+{
+    <div class="gaska-chart-empty">Brak danych w tym okresie.</div>
+}
+else
+{
+    <div class="gaska-ranking" role="list" aria-label="@Title">
+        @for (var i = 0; i < Rows.Count; i++)
+        {
+            var row = Rows[i];
+            var slot = Slots is not null && i < Slots.Count ? Slots[i] : Slot;
+            <div class="gaska-ranking-row" role="listitem" style="--i: @i">
+                <span class="gaska-ranking-label" title="@(row.Detail is null ? row.Label : $"{row.Label} – {row.Detail}")">@row.Label</span>
+                <span class="gaska-ranking-track">
+                    <span class="gaska-ranking-fill gaska-series-@slot" style="width: @ChartFormat.Css(Width(row.Value))%"></span>
+                </span>
+                <span class="gaska-ranking-value">@(Compact ? ChartFormat.Compact(row.Value, Unit) : ChartFormat.Full(row.Value, Unit))</span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<RankedValue> Rows { get; set; } = [];
+
+    [Parameter]
+    public MetricUnit Unit { get; set; } = MetricUnit.Count;
+
+    /// <summary>Colour slot of every row (e.g. compared periods); null = one colour (<see cref="Slot"/>), as the rows are one series.</summary>
+    [Parameter]
+    public IReadOnlyList<int>? Slots { get; set; }
+
+    /// <summary>Colour slot of all rows.</summary>
+    [Parameter]
+    public int Slot { get; set; } = 1;
+
+    /// <summary>Short values ("1,2 mln zł") – for narrow cards.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    private double Width(decimal value)
+    {
+        var max = Rows.Max(r => r.Value);
+        return max <= 0 || value <= 0 ? 0 : Math.Max(1, (double)(value / max) * 100);
+    }
+}

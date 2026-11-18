@@ -22,6 +22,14 @@ public sealed class GoNetOptions
     /// <summary>KORESPONDENCJA.IDTYPAKCJI of meeting notes ("Spotkanie") – used by existing visit notes.</summary>
     public int VisitCorrespondenceActionType { get; set; }
 
+    /// <summary>
+    /// KORESPONDENCJA.IDTYPAKCJI of e-mails and of phone calls – for the dashboard charts ("E-maile z klientami",
+    /// "Telefony z klientami"). Optional: without them only those two charts are unavailable.
+    /// </summary>
+    public int? EmailCorrespondenceActionType { get; set; }
+
+    public int? PhoneCorrespondenceActionType { get; set; }
+
     /// <summary>IDODDZIALU (branch).</summary>
     public int BranchId { get; set; }
 

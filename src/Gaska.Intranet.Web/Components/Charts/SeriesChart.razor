@@ -1,0 +1,149 @@
+@* Bars or lines over a category axis – plain HTML/CSS (plus one SVG for the lines), no JavaScript. Hovering or
+   focusing a column shows the exact values of every series. *@
+@if (Labels.Count == 0 || Series.Count == 0 || Series.All(s => s.Values.All(v => v == 0)))
+{
+    <div class="gaska-chart-empty">Brak danych w tym okresie.</div>
+}
+else
+{
+    <div class="gaska-chart" role="img" aria-label="@AriaLabel">
+        @if (Series.Count > 1)
+        {
+            <div class="gaska-chart-legend">
+                @foreach (var series in Series)
+                {
+                    <span class="gaska-chart-legend-item"><span class="gaska-chart-swatch gaska-series-@series.Slot"></span>@series.Name</span>
+                }
+            </div>
+        }
+
+        <div class="gaska-chart-body" style="height: @(Height)px">
+            <div class="gaska-chart-yaxis">
+                @foreach (var tick in _scale.Ticks)
+                {
+                    <span style="bottom: @ChartFormat.Css(_scale.Percent(tick))%">@ChartFormat.Compact(tick, Unit)</span>
+                }
+            </div>
+
+            <div class="gaska-chart-plot">
+                @foreach (var tick in _scale.Ticks)
+                {
+                    <div class="gaska-chart-grid @(tick == 0 ? "gaska-chart-grid--zero" : null)" style="bottom: @ChartFormat.Css(_scale.Percent(tick))%"></div>
+                }
+
+                @if (Line)
+                {
+                    <svg class="gaska-chart-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        @foreach (var series in Series)
+                        {
+                            <polyline class="gaska-series-@series.Slot" points="@Points(series)" />
+                        }
+                    </svg>
+                }
+
+                <div class="gaska-chart-cols">
+                    @for (var i = 0; i < Labels.Count; i++)
+                    {
+                        var index = i;
+                        <div class="gaska-chart-col @(index >= Labels.Count / 2 ? "gaska-chart-col--right" : null)" tabindex="0" style="--i: @index">
+                            @if (Line)
+                            {
+                                @foreach (var series in Series)
+                                {
+                                    <span class="gaska-chart-dot gaska-series-@series.Slot"
+                                          style="bottom: @ChartFormat.Css(_scale.Percent(Value(series, index)))%"></span>
+                                }
+                            }
+                            else
+                            {
+                                <div class="gaska-chart-bars">
+                                    @foreach (var series in Series)
+                                    {
+                                        var value = Value(series, index);
+                                        var zero = _scale.Percent(0);
+                                        var size = Math.Abs(_scale.Percent(value) - zero);
+                                        <div class="gaska-chart-bar-slot">
+                                            @if (value >= 0)
+                                            {
+                                                <div class="gaska-chart-bar gaska-series-@series.Slot"
+                                                     style="bottom: @ChartFormat.Css(zero)%; height: @ChartFormat.Css(size)%"></div>
+                                            }
+                                            else
+                                            {
+                                                <div class="gaska-chart-bar gaska-chart-bar--negative gaska-series-@series.Slot"
+                                                     style="top: @ChartFormat.Css(100 - zero)%; height: @ChartFormat.Css(size)%"></div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="gaska-chart-tip">
+                                <div class="gaska-chart-tip-title">@Labels[index]</div>
+                                @foreach (var series in Series)
+                                {
+                                    <div class="gaska-chart-tip-row">
+                                        <span class="gaska-chart-swatch gaska-series-@series.Slot"></span>
+                                        @if (Series.Count > 1)
+                                        {
+                                            <span class="gaska-chart-tip-name">@series.Name</span>
+                                        }
+                                        <strong>@ChartFormat.Full(Value(series, index), Unit)</strong>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="gaska-chart-xaxis">
+            @for (var i = 0; i < Labels.Count; i++)
+            {
+                <span>@(i % _labelStep == 0 ? Labels[i] : null)</span>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private ChartScale _scale = new([]);
+    private int _labelStep = 1;
+
+    /// <summary>Category labels (months, days…), one per column.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Labels { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChartSeries> Series { get; set; } = [];
+
+    /// <summary>Lines with points instead of bars.</summary>
+    [Parameter]
+    public bool Line { get; set; }
+
+    [Parameter]
+    public MetricUnit Unit { get; set; } = MetricUnit.Count;
+
+    [Parameter]
+    public int Height { get; set; } = 220;
+
+    /// <summary>What the chart shows – read by screen readers.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    private string AriaLabel => $"{Title ?? "Wykres"}: {string.Join("; ", Series.Select(s => $"{s.Name} – razem {ChartFormat.Full(s.Values.Sum(), Unit)}"))}";
+
+    protected override void OnParametersSet()
+    {
+        _scale = new ChartScale(Series.SelectMany(s => s.Values), wholeNumbers: Unit != MetricUnit.Money);
+
+        // About a dozen labels fit under a chart; with more, every n-th is shown (the tooltip has them all).
+        _labelStep = Math.Max(1, (int)Math.Ceiling(Labels.Count / 13.0));
+    }
+
+    private static decimal Value(ChartSeries series, int index) => index < series.Values.Count ? series.Values[index] : 0m;
+
+    private string Points(ChartSeries series) => string.Join(' ', Enumerable.Range(0, Math.Min(Labels.Count, series.Values.Count))
+        .Select(i => $"{ChartFormat.Css((i + 0.5) / Labels.Count * 100)},{ChartFormat.Css(100 - _scale.Percent(series.Values[i]))}"));
+}

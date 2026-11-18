@@ -11,7 +11,9 @@
     <li><strong>Pracownicy</strong> – telefony, numery wewnętrzne i e-maile współpracowników,</li>
     <li><strong>RCP</strong> – rozpoczęcie i zakończenie pracy oraz przerwy (zamiast odbijania karty),</li>
     <li><strong>Helpdesk IT</strong> – zgłoszenia do działu IT,</li>
-    <li><strong>Kontrahenci</strong> – karty klientów i dostawców, osoby kontaktowe i wizyty,</li>
+    <li><strong>Kontrahenci</strong> – karty klientów i dostawców, osoby kontaktowe i wizyty, a także obroty, aktywność na B2B
+        oraz zwroty i reklamacje,</li>
+    <li><strong>Dashboardy</strong> – Twoje własne strony z wykresami: sprzedaż, reklamacje, należności, aktywność klientów,</li>
     <li>przydatne linki – portal pracownika HRM, strona firmowa, sklepy.</li>
 </ul>
 <p>Intranet działa w przeglądarce na komputerze i na telefonie, a można go też zainstalować jako aplikację.
@@ -19,7 +21,8 @@ Logujesz się <strong>tym samym loginem i hasłem co do komputera</strong>.</p>
 <p class="manual-tip"><strong>Długie listy wyboru</strong> (np. „Przypisz do”, „Kraj”, „Dział”) możesz zawęzić, wpisując część nazwy –
 nie trzeba przewijać całej listy.</p>
 <p class="manual-tip"><strong>Nie widzisz którejś zakładki?</strong> Każdy widzi tylko te zakładki, do których ma dostęp.
-Jeśli czegoś Ci brakuje, zapytaj przełożonego lub dział IT.</p>
+To samo dotyczy danych: obroty, reklamacje, należności czy aktywność na B2B widzą tylko osoby z uprawnieniem do tych danych –
+dlatego Twoje ekrany mogą mieć mniej zakładek i wykresów niż te w instrukcji. Jeśli czegoś Ci brakuje, zapytaj przełożonego lub dział IT.</p>
 </section>
 
 <section id="logowanie">
@@ -251,8 +254,18 @@ od razu jest w GoNet.</p>
     <figcaption>Lista kontrahentów</figcaption>
 </figure>
 <ul>
-    <li><strong>Szukaj</strong> po nazwie, NIP, mieście, telefonie lub e-mailu. „&amp;”, „+” i „and” są traktowane tak samo –
-        „Kowalski and Nowak” znajdzie też „KOWALSKI &amp; NOWAK”. <strong>Tylko moi</strong> – kontrahenci, których prowadzisz.</li>
+    <li><strong>Szukaj</strong> po nazwie, akronimie, NIP, mieście, telefonie lub e-mailu. „&amp;”, „+” i „and” są traktowane tak samo –
+        „Kowalski and Nowak” znajdzie też „KOWALSKI &amp; NOWAK”.</li>
+    <li><strong>Opiekun handlowy</strong> i <strong>Przedstawiciel handlowy</strong> pochodzą z Comarch ERP XL – z rejonu,
+        do którego należy kontrahent (rejon może mieć kilka osób). Opiekunem <strong>dostawcy</strong> jest zawsze osoba przypisana
+        do jego karty w ERP; u innych kontrahentów – opiekun rejonu, a gdy rejon go nie ma – osoba przypisana do karty.
+        Gdy ERP nie zna opiekuna, widzisz osobę prowadzącą z GoNet z dopiskiem <em>(GoNet)</em>.</li>
+    <li><strong>Tylko moi</strong> – kontrahenci, przy których jesteś opiekunem handlowym lub przedstawicielem
+        (a u kontrahentów bez opiekuna w ERP – osobą prowadzącą w GoNet).</li>
+    <li><strong>Filtry</strong> – kraj, województwo, status, typ i <strong>opiekun</strong> (opiekun handlowy lub przedstawiciel).
+        Możesz wybrać kilka wartości jednego filtra – lista pokaże kontrahentów pasujących do dowolnej z nich; różne filtry
+        działają razem. W długich listach (np. kraje, opiekunowie) wpisz część nazwy, aby je zawęzić. Na telefonie filtry są pod przyciskiem <em>Filtry</em>, a liczba w nawiasie mówi, ile z nich jest włączonych.
+        <em>Wyczyść filtry</em> wyłącza wszystkie naraz.</li>
     <li><strong>Dodaj kontrahenta</strong> – nowy kontrahent. <strong>Wizytówka</strong> – dodanie ze zdjęcia wizytówki.</li>
 </ul>
 
@@ -263,18 +276,59 @@ od razu jest w GoNet.</p>
     <figcaption>Karta kontrahenta</figcaption>
 </figure>
 <ul>
-    <li><strong>Dane firmy</strong> – adres, telefony (kliknięcie dzwoni), e-mail, strona WWW, osoba prowadząca.</li>
+    <li><strong>Dane firmy</strong> – adres, telefony (kliknięcie dzwoni), e-mail, strona WWW, opiekun handlowy i przedstawiciel handlowy.</li>
+    <li><strong>Zakładki</strong> (Osoby, Zadania, Obroty, Aktywność B2B, Zwroty i reklamacje, Korespondencja) – gdy nie mieszczą się
+        w jednym rzędzie, przesuń pasek palcem w bok, przeciągnij go myszą albo przewiń kółkiem myszy. Zakładki z danymi
+        (obroty, B2B, reklamacje, korespondencja) widzą tylko osoby z dostępem do tych danych.</li>
     <li><strong>Zadania</strong> – wizyty i zaplanowane zadania. Kliknij zadanie, aby rozwinąć notatkę i korespondencję;
         ołówek przy zadaniu otwiera jego edycję.</li>
     <li><strong>Osoby</strong> – osoby kontaktowe; <em>Dodaj osobę</em> albo ołówek przy osobie, aby ją poprawić.</li>
     <li><strong>Edytuj</strong> – zmiana danych firmy, a także osób kontaktowych i zadań (możesz tam też dodać nowe).
         <strong>Zadanie</strong> (lub <em>Dodaj zadanie</em> w zakładce „Zadania”) – nowa wizyta, telefon, spotkanie.</li>
 </ul>
+<figure class="only-m">
+    <img src="img/instrukcja/m-contractor-tabs.jpg" alt="Pasek zakładek przesunięty w bok" />
+    <figcaption>Pasek zakładek przesuwasz palcem w bok</figcaption>
+</figure>
 <figure>
     <img class="shot-d" src="img/instrukcja/d-contractor-tasks.jpg" alt="Zadania" />
     <img class="shot-m" src="img/instrukcja/m-contractor-tasks.jpg" alt="Zadania" />
     <figcaption>Zakładka „Zadania”</figcaption>
 </figure>
+
+<h3>Obroty</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractor-turnover.jpg" alt="Obroty kontrahenta" />
+    <img class="shot-m" src="img/instrukcja/m-contractor-turnover.jpg" alt="Obroty kontrahenta" />
+    <figcaption>Zakładka „Obroty” – porównanie lat</figcaption>
+</figure>
+<p>Obroty kontrahenta z Comarch ERP XL: wartość netto faktur i paragonów (towary, usługi i koszty, np. transport)
+pomniejszona o korekty, według daty sprzedaży.</p>
+<ul>
+    <li><strong>Lata / Kwartały / Miesiące / Własne zakresy</strong> – co porównujesz. Na start widzisz np. trzy ostatnie lata;
+        okres usuwasz krzyżykiem przy jego nazwie, a nowy dodajesz polami pod spodem i przyciskiem <em>Dodaj okres</em> (najwyżej 5 okresów).</li>
+    <li><strong>Tylko do … każdego roku</strong> – porównuje lata tylko do dzisiejszego dnia, np. 1 stycznia – 18 listopada każdego roku.
+        Dzięki temu bieżący, niepełny rok porównasz uczciwie z poprzednimi.</li>
+    <li><strong>Obrót netto w okresach</strong> – słupki i tabela: obrót, liczba faktur, średnia wartość faktury oraz
+        <strong>zmiana wobec poprzedniego okresu</strong> (każdy okres jest porównany z tym tuż przed nim – 2026 z 2025, 2025 z 2024).</li>
+    <li><strong>Miesiąc po miesiącu</strong> – przy latach i kwartałach te same miesiące obok siebie. Najedź na słupek (na telefonie stuknij),
+        aby zobaczyć dokładne kwoty.</li>
+</ul>
+
+<h3>Aktywność B2B, zwroty i reklamacje, korespondencja</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-contractor-insights.jpg" alt="Zwroty i reklamacje kontrahenta" />
+    <img class="shot-m" src="img/instrukcja/m-contractor-insights.jpg" alt="Zwroty i reklamacje kontrahenta" />
+    <figcaption>Zakładka „Zwroty i reklamacje”</figcaption>
+</figure>
+<p>Te zakładki to gotowe zestawy wykresów – takie same jak na <a href="#dashboardy">dashboardach</a>, tylko zawężone do jednego kontrahenta:</p>
+<ul>
+    <li><strong>Aktywność B2B</strong> – logowania, wyszukiwania i zamówienia na platformie B2B, czego klient szuka i co ogląda.</li>
+    <li><strong>Zwroty i reklamacje</strong> – otwarte sprawy, liczba zgłoszeń, najczęściej reklamowane i zwracane towary, przyczyny.</li>
+    <li><strong>Korespondencja</strong> – e-maile, telefony i spotkania zapisane w GoNet.</li>
+</ul>
+<p>Pole <strong>Okres</strong> u góry zmienia okres wszystkich wykresów zakładki (wykresy „Stan na dziś” od okresu nie zależą).
+Pod nim widać, z którą kartą w ERP intranet połączył kontrahenta – szuka jej po akronimie, a gdy go nie znajdzie, po NIP-ie.</p>
 
 <h3>Nowe zadanie (np. wizyta) i zmiana zadania</h3>
 <figure>
@@ -322,6 +376,77 @@ ale pokaże taką firmę tylko wtedy, gdy jej nazwa choć trochę zgadza się z 
 <strong>Edytuj</strong> zrobi zdjęcie i otworzy formularz nowej osoby z odczytanymi danymi. Jeśli ta osoba już jest na karcie,
 intranet to pokaże zamiast dodawać ją drugi raz.</p>
 <p class="manual-tip">Nie możesz nic zapisać, a na górze widzisz „Nie znaleziono Twojego konta w GoNet”? Zgłoś to do działu IT.</p>
+</section>
+
+<section id="dashboardy">
+<h2>Dashboardy</h2>
+<p>Dashboardy to Twoje własne strony z wykresami – np. „Sprzedaż” albo „Reklamacje i zwroty”. Sam wybierasz, co na nich jest,
+w jakim okresie i w jakiej kolejności. <strong>Widzisz je tylko Ty</strong>, a każdy wykres pokazuje wyłącznie dane, do których
+masz dostęp (sprzedaż i obroty, reklamacje, należności, korespondencja, platforma B2B).</p>
+<p class="manual-tip">Na zrzutach są zmyślone dane przykładowe. Jeśli nie masz dostępu do jakichś danych, nie zobaczysz ich na liście
+wykresów ani w gotowych zestawach – poproś przełożonego lub dział IT o uprawnienie.</p>
+
+<h3>Pierwsza strona</h3>
+<figure class="only-d">
+    <img src="img/instrukcja/d-dashboards-start.jpg" alt="Utwórz swoją pierwszą stronę" />
+    <figcaption>Pierwsze wejście – wybierz gotowy zestaw albo pustą stronę</figcaption>
+</figure>
+<p>Przy pierwszym wejściu wybierz <strong>gotowy zestaw</strong> (np. „Sprzedaż”, „Klienci i aktywność”, „Reklamacje i zwroty”,
+„Należności”) albo <strong>Pustą stronę</strong>. Zestaw to tylko punkt wyjścia – każdy wykres możesz potem zmienić, przesunąć lub usunąć.
+Kolejne strony dodajesz przyciskiem <strong>+</strong> obok nazw stron, a menu ⋮ po prawej pozwala zmienić nazwę strony albo ją usunąć.</p>
+
+<h3>Strona z wykresami</h3>
+<figure>
+    <img class="shot-d" src="img/instrukcja/d-dashboards.jpg" alt="Dashboard Sprzedaż" />
+    <img class="shot-m" src="img/instrukcja/m-dashboards.jpg" alt="Dashboard Sprzedaż" />
+    <figcaption>Strona „Sprzedaż”</figcaption>
+</figure>
+<ul>
+    <li><strong>Nazwy stron</strong> pod nagłówkiem przełączają między Twoimi dashboardami.</li>
+    <li>Każdy wykres ma nagłówek z nazwą i okresem, a pod spodem opis: co dokładnie pokazuje i skąd są dane.</li>
+    <li><strong>Liczba</strong> (np. „Sprzedaż netto – ten miesiąc”) pokazuje też zmianę wobec poprzedniego okresu:
+        ▲ na zielono wzrost, ▼ na czerwono spadek. „Stan na dziś” (otwarte reklamacje, należności) nie zależy od okresu.</li>
+    <li>Najedź na słupek lub punkt wykresu (na telefonie stuknij), aby zobaczyć dokładne wartości.</li>
+    <li><strong>Okres dla całej strony</strong> – na chwilę pokazuje wszystkie wykresy strony w jednym okresie (np. „Ten rok”).
+        Ustawienia wykresów się nie zmieniają; wyczyść pole, aby wrócić do nich.</li>
+</ul>
+<figure class="only-d">
+    <img src="img/instrukcja/d-dashboards-more.jpg" alt="Rankingi i wykres kołowy" />
+    <figcaption>Rankingi i wykres kołowy</figcaption>
+</figure>
+
+<h3>Dodawanie i zmiana wykresu</h3>
+<div class="manual-figs">
+    <figure>
+        <img class="shot-d" src="img/instrukcja/d-dashboard-widget.jpg" alt="Wybór danych" />
+        <img class="shot-m" src="img/instrukcja/m-dashboard-widget.jpg" alt="Wybór danych" />
+        <figcaption>1. Wybierz dane</figcaption>
+    </figure>
+    <figure>
+        <img class="shot-d" src="img/instrukcja/d-dashboard-widget-edit.jpg" alt="Ustawienia wykresu z podglądem" />
+        <img class="shot-m" src="img/instrukcja/m-dashboard-widget-edit.jpg" alt="Ustawienia wykresu z podglądem" />
+        <figcaption>2. Ustaw wykres – podgląd od razu na Twoich danych</figcaption>
+    </figure>
+</div>
+<ol>
+    <li>Kliknij <strong>Dodaj wykres</strong>.</li>
+    <li>Wybierz <strong>dane</strong> z listy (pole <em>Szukaj danych…</em> zawęża listę). Pod nazwą każdej pozycji jest krótki opis.</li>
+    <li>Wybierz, <strong>jak pokazać</strong> dane: słupki, linia, liczba, wykres kołowy lub tabela (dostępne zależą od rodzaju danych).</li>
+    <li>Ustaw <strong>okres</strong> (np. „Ostatnie 12 miesięcy”, „Ten rok” albo własne daty) i <strong>grupowanie</strong>
+        (dni, tygodnie, miesiące – „Automatycznie” dobiera je do długości okresu). Przy rankingach wybierasz też, ile pozycji pokazać.</li>
+    <li>Możesz włączyć <strong>Porównaj z poprzednim okresem</strong>, wybrać <strong>kolor</strong>, <strong>szerokość na stronie</strong>
+        (1/4, 1/3, 1/2 lub pełna) i wpisać własny tytuł.</li>
+    <li>Podgląd po prawej (na telefonie pod ustawieniami) pokazuje wykres na prawdziwych danych. Kliknij <strong>Dodaj wykres</strong>.</li>
+</ol>
+<p>Ten sam formularz otwiera <strong>Zmień</strong> w menu ⋮ wykresu – tam też wykres <strong>usuniesz</strong>.</p>
+
+<h3>Grupy i kolejność</h3>
+<ul>
+    <li><strong>Grupa</strong> (przycisk obok „Dodaj wykres”) dodaje nagłówek z opisem, np. „Stan na dziś” – porządkuje stronę w sekcje.</li>
+    <li><strong>Kolejność</strong> zmienisz, przeciągając wykres lub nagłówek za uchwyt ⠿ w jego prawym górnym rogu.
+        Możesz też użyć menu ⋮ → <em>Przesuń wcześniej</em> / <em>Przesuń dalej</em> (wygodniejsze na telefonie).</li>
+    <li>Na telefonie wykresy układają się jeden pod drugim, a małe liczby – po dwie obok siebie.</li>
+</ul>
 </section>
 
 <section id="pytania">

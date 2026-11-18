@@ -1,0 +1,98 @@
+@* Shares of a whole: a ring with the total in the middle and a legend with the exact values. The rows keep the fixed
+   categorical colour order; "the rest" (everything below the top rows) is grey. *@
+@if (_segments.Count == 0)
+{
+    <div class="gaska-chart-empty">Brak danych w tym okresie.</div>
+}
+else
+{
+    <div class="gaska-donut" role="img" aria-label="@AriaLabel">
+        <div class="gaska-donut-ring">
+            <svg viewBox="0 0 42 42" aria-hidden="true">
+                <circle class="gaska-donut-track" cx="21" cy="21" r="15.915" />
+                @foreach (var segment in _segments)
+                {
+                    @* r = 15.915 gives a circumference of 100, so lengths are percentages; the ring starts at 12 o'clock. *@
+                    <circle class="gaska-donut-segment gaska-series-@segment.Slot" cx="21" cy="21" r="15.915"
+                            style="--len: @ChartFormat.Css(segment.Length); --i: @segment.Index"
+                            stroke-dasharray="@ChartFormat.Css(segment.Length) @ChartFormat.Css(100 - segment.Length)"
+                            stroke-dashoffset="@ChartFormat.Css(25 - segment.Start)">
+                        <title>@segment.Label: @ChartFormat.Full(segment.Value, Unit) (@ChartFormat.Share(segment.Value, _whole))</title>
+                    </circle>
+                }
+            </svg>
+            <div class="gaska-donut-center">
+                <span class="gaska-donut-total" title="@ChartFormat.Full(_whole, Unit)">@ChartFormat.Compact(_whole, Unit)</span>
+                <span class="gaska-donut-caption">razem</span>
+            </div>
+        </div>
+
+        <div class="gaska-donut-legend">
+            @foreach (var segment in _segments)
+            {
+                <div class="gaska-donut-row" title="@(segment.Detail is null ? segment.Label : $"{segment.Label} – {segment.Detail}")">
+                    <span class="gaska-chart-swatch gaska-series-@segment.Slot"></span>
+                    <span class="gaska-donut-label">@segment.Label</span>
+                    <span class="gaska-donut-value">@ChartFormat.Compact(segment.Value, Unit)</span>
+                    <span class="gaska-donut-share">@ChartFormat.Share(segment.Value, _whole)</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>A ring reads well with a handful of parts – further rows are folded into "the rest".</summary>
+    public const int MaxParts = 7;
+
+    private sealed record Segment(int Index, string Label, string? Detail, decimal Value, int Slot, double Start, double Length);
+
+    private List<Segment> _segments = [];
+    private decimal _whole;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<RankedValue> Rows { get; set; } = [];
+
+    /// <summary>Sum over all rows, also those not in <see cref="Rows"/>; null = the rows are the whole.</summary>
+    [Parameter]
+    public decimal? Total { get; set; }
+
+    [Parameter]
+    public MetricUnit Unit { get; set; } = MetricUnit.Count;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    private string AriaLabel =>
+        $"{Title ?? "Udziały"}: {string.Join("; ", _segments.Select(s => $"{s.Label} {ChartFormat.Share(s.Value, _whole)}"))}";
+
+    protected override void OnParametersSet()
+    {
+        var parts = Rows.Where(r => r.Value > 0).Take(MaxParts).ToList();
+        var shown = parts.Sum(r => r.Value);
+        _whole = Math.Max(Total ?? Rows.Where(r => r.Value > 0).Sum(r => r.Value), shown);
+
+        var rest = _whole - shown;
+        if (rest > 0)
+        {
+            parts.Add(new RankedValue("Pozostałe", rest));
+        }
+
+        _segments = [];
+        if (_whole <= 0)
+        {
+            return;
+        }
+
+        // A 0.6 gap of surface between neighbours (none when there is a single part).
+        var gap = parts.Count > 1 ? 0.6 : 0;
+        var start = 0.0;
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var share = (double)(parts[i].Value / _whole) * 100;
+            var isRest = rest > 0 && i == parts.Count - 1;
+            _segments.Add(new Segment(i, parts[i].Label, parts[i].Detail, parts[i].Value, isRest ? 0 : i + 1, start, Math.Max(share - gap, 0.2)));
+            start += share;
+        }
+    }
+}

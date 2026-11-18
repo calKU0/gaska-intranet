@@ -5,7 +5,7 @@
 
 <PageTitle>Uprawnienia · Gąska Intranet</PageTitle>
 
-<PageHeader Title="Uprawnienia" Subtitle="Decyduj, kto widzi poszczególne moduły intranetu." />
+<PageHeader Title="Uprawnienia" Subtitle="Decyduj, kto widzi poszczególne moduły intranetu i kto ma dostęp do danych." />
 
 @* <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="mb-4 gaska-card" Dense="true">
     Administratorzy (grupy z konfiguracji <code>ActiveDirectory:AdministratorGroups</code>) mają dostęp do wszystkiego.
@@ -21,8 +21,20 @@
 else
 {
     <MudStack Spacing="4">
-        @foreach (var item in _overview.Where(o => o.EffectiveMode != ModuleAccessMode.AdministratorsOnly))
+        @foreach (var item in _overview.Where(o => o.EffectiveMode != ModuleAccessMode.AdministratorsOnly)
+                      .OrderBy(o => o.Module.Kind).ThenBy(o => o.Module.Order))
         {
+            @if (item.Module.Key == _firstDataKey)
+            {
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2" Class="gaska-section-heading">Dostęp do danych</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Kto widzi dane danego rodzaju – na karcie kontrahenta i w dashboardach. Wykres z danymi, do których
+                        ktoś nie ma dostępu, nie pojawi się na liście do dodania ani na jego stronach.
+                    </MudText>
+                </div>
+            }
+
             <MudPaper Elevation="0" Class="gaska-card pa-5">
                 <div class="gaska-module-head">
                     <div class="gaska-tile-icon"><MudIcon Icon="@item.Module.Icon" /></div>
@@ -114,7 +126,13 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadAsync() => _overview = await Access.GetOverviewAsync();
+    private string? _firstDataKey;
+
+    private async Task LoadAsync()
+    {
+        _overview = await Access.GetOverviewAsync();
+        _firstDataKey = _overview.Where(o => o.Module.Kind == ModuleKind.Data).MinBy(o => o.Module.Order)?.Module.Key;
+    }
 
     private async Task<IEnumerable<DirectoryPrincipal>> SearchAsync(string term, CancellationToken ct) =>
         string.IsNullOrWhiteSpace(term) ? [] : await PrincipalSearch.SearchAsync(term, 20, ct);

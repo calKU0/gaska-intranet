@@ -24,11 +24,33 @@
 
 <body>
     <Routes @rendermode="PageRenderMode" />
+
+    @* Shown by Blazor while the connection to the server is lost (instead of its default white box) – see js/reconnect.js. *@
+    <div id="components-reconnect-modal" class="gaska-reconnect" data-nosnippet>
+        <div class="gaska-reconnect-card" role="alertdialog" aria-live="assertive" aria-labelledby="gaska-reconnect-title">
+            <div class="gaska-reconnect-spinner" aria-hidden="true"></div>
+            <h2 id="gaska-reconnect-title" class="gaska-reconnect-title">
+                <span class="gaska-reconnect-when-show">Łączenie z serwerem…</span>
+                <span class="gaska-reconnect-when-retrying">Brak połączenia z serwerem</span>
+                <span class="gaska-reconnect-when-failed">Nie udało się połączyć</span>
+                <span class="gaska-reconnect-when-rejected">Odświeżam stronę…</span>
+            </h2>
+            <p class="gaska-reconnect-text">
+                <span class="gaska-reconnect-when-show">Chwila – przywracamy połączenie.</span>
+                <span class="gaska-reconnect-when-retrying">Kolejna próba za <span id="components-seconds-to-next-attempt">0</span> s.</span>
+                <span class="gaska-reconnect-when-failed">Sprawdź internet lub VPN i spróbuj ponownie.</span>
+                <span class="gaska-reconnect-when-rejected">Serwer został uruchomiony ponownie.</span>
+            </p>
+            <button type="button" class="gaska-reconnect-button gaska-reconnect-when-failed" data-reconnect>Spróbuj ponownie</button>
+        </div>
+    </div>
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
     <script src="@Assets["js/boot.js"]"></script>
     <script src="@Assets["js/forms.js"]"></script>
     <script src="@Assets["js/camera.js"]"></script>
+    <script src="@Assets["js/tabs.js"]"></script>
+    <script src="@Assets["js/reconnect.js"]"></script>
     @if (HttpContext.User.Identity?.IsAuthenticated == true)
     {
         <script src="@Assets["js/session.js"]" data-idle-minutes="@Session.Value.IdleTimeoutMinutes"

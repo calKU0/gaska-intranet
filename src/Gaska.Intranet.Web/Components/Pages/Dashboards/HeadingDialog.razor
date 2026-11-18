@@ -1,0 +1,54 @@
+@* A group of charts starts with a heading: a title and an optional line of description. The heading is an item of
+   the page like a chart – dragged to where the group should begin. *@
+<MudDialog Class="gaska-dialog">
+    <DialogContent>
+        <MudTextField @bind-Value="_title" Label="Nazwa grupy" Placeholder="np. Najwięksi klienci" MaxLength="80" Immediate="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" AutoFocus="true" />
+        <MudTextField @bind-Value="_description" Label="Opis (opcjonalnie)" Placeholder="np. Top 5 wg sprzedaży netto w okresie" MaxLength="200"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" Class="mt-3" />
+        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-3">
+            Nagłówek pojawi się na końcu strony. Przeciągnij go nad wykresy, które mają do niego należeć.
+        </MudText>
+        <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Anuluj</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">@(Existing is null ? "Dodaj grupę" : "Zapisz")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string? _title;
+    private string? _description;
+    private string? _error;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Heading to change; null = a new one.</summary>
+    [Parameter]
+    public DashboardWidget? Existing { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _title = Existing?.Title;
+        _description = Existing?.Description;
+    }
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "Podaj nazwę grupy.";
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new WidgetInput
+        {
+            Kind = WidgetKind.Heading,
+            Title = _title,
+            Description = _description,
+            Width = WidgetWidth.Full,
+        }));
+    }
+}

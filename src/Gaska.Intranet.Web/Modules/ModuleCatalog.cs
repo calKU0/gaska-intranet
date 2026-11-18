@@ -1,3 +1,4 @@
+using Gaska.Intranet.Core.Analytics;
 using Gaska.Intranet.Core.Modules;
 using MudBlazor;
 
@@ -10,6 +11,7 @@ public static class ModuleKeys
     public const string Contractors = "crm.contractors";
     public const string Rcp = "rcp";
     public const string Helpdesk = "helpdesk";
+    public const string Dashboards = "dashboards";
     public const string AdminAccess = "admin.access";
     public const string AdminAudit = "admin.audit";
     public const string AdminDevices = "admin.devices";
@@ -23,6 +25,9 @@ public static class ModuleKeys
 public sealed class ModuleCatalog : IModuleCatalog
 {
     public const string AdminSection = "Administracja";
+
+    /// <summary>Heading of the data scopes in the permissions panel (they have no menu entries).</summary>
+    public const string DataSection = "Dane";
 
     private readonly Dictionary<string, ModuleDefinition> _byKey;
 
@@ -68,6 +73,73 @@ public sealed class ModuleCatalog : IModuleCatalog
                 Route = "/kontrahenci",
                 Icon = Icons.Material.Outlined.Storefront,
                 Order = 20,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = ModuleKeys.Dashboards,
+                Title = "Dashboardy",
+                Description = "Własne strony z wykresami – sprzedaż, należności, klienci i ich aktywność, reklamacje.",
+                Route = "/dashboardy",
+                Icon = Icons.Material.Outlined.Dashboard,
+                Order = 30,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+
+            // Data scopes – who may see a kind of data, wherever it is shown (contractor card, dashboards).
+            new ModuleDefinition
+            {
+                Key = DataScopes.Sales,
+                Kind = ModuleKind.Data,
+                Title = "Sprzedaż i obroty",
+                Description = "Obroty kontrahentów na karcie kontrahenta oraz wykresy sprzedaży w dashboardach (dane z ERP XL).",
+                Icon = Icons.Material.Outlined.Payments,
+                Section = DataSection,
+                Order = 500,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = DataScopes.Crm,
+                Kind = ModuleKind.Data,
+                Title = "Komunikacja z klientami",
+                Description = "Korespondencja, telefony, spotkania, zadania i nowi klienci z GoNet – w dashboardach i na karcie kontrahenta.",
+                Icon = Icons.Material.Outlined.Forum,
+                Section = DataSection,
+                Order = 510,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = DataScopes.Complaints,
+                Kind = ModuleKind.Data,
+                Title = "Reklamacje i zwroty",
+                Description = "Reklamacje jakościowe, reklamacje dostaw i zwroty z ERP XL – w dashboardach i na karcie kontrahenta.",
+                Icon = Icons.Material.Outlined.AssignmentReturn,
+                Section = DataSection,
+                Order = 520,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = DataScopes.Receivables,
+                Kind = ModuleKind.Data,
+                Title = "Należności",
+                Description = "Niezapłacone i przeterminowane faktury sprzedaży, najwięksi dłużnicy (dane z ERP XL).",
+                Icon = Icons.Material.Outlined.AccountBalanceWallet,
+                Section = DataSection,
+                Order = 525,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = DataScopes.B2B,
+                Kind = ModuleKind.Data,
+                Title = "Aktywność B2B",
+                Description = "Logowania, wyszukiwania, klikane towary i zamówienia z platformy B2B – w dashboardach i na karcie kontrahenta.",
+                Icon = Icons.Material.Outlined.ShoppingCart,
+                Section = DataSection,
+                Order = 530,
                 DefaultAccess = ModuleAccessMode.Restricted,
             },
             new ModuleDefinition

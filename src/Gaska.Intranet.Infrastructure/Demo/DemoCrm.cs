@@ -82,7 +82,10 @@ internal sealed class DemoCrm : ICrmDirectory, IContractorService, ICrmTaskServi
         lock (_gate)
         {
             var items = _contractors
-                .Where(c => query.ManagerOperatorId is null || c.ManagerId == query.ManagerOperatorId)
+                .Where(c => query.OnlyIds is null || query.OnlyIds.Contains(c.Id))
+                .Where(c => query.Filter is not { } f ||
+                    (Matches(f.CountryIds, c.CountryId) && Matches(f.VoivodeshipIds, c.VoivodeshipId) && Matches(f.TypeIds, c.TypeId) &&
+                     Matches(f.StatusIds, c.StatusId)))
                 .Where(c => string.IsNullOrWhiteSpace(query.Search) || new[] { c.ShortName, c.FullName, c.Nip, c.City, c.Phone1, c.Email }
                     .Any(v => v?.Contains(query.Search.Trim(), StringComparison.CurrentCultureIgnoreCase) == true))
                 .OrderBy(c => c.ShortName)
@@ -91,6 +94,11 @@ internal sealed class DemoCrm : ICrmDirectory, IContractorService, ICrmTaskServi
             return Task.FromResult(new PagedResult<ContractorListItem>(items.Skip(query.Skip).Take(query.Take).ToList(), items.Count));
         }
     }
+
+    private static bool Matches(IReadOnlyList<int> chosen, int? value) => chosen.Count == 0 || (value is { } v && chosen.Contains(v));
+
+    public Task<ContractorFilterOptions> GetContractorFilterOptionsAsync(CancellationToken ct = default) =>
+        Task.FromResult(new ContractorFilterOptions(Countries, Voivodeships, Types, Statuses));
 
     public Task<ContractorDetails?> GetAsync(int id, CancellationToken ct = default)
     {

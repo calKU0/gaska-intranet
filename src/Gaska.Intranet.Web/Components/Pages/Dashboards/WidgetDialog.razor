@@ -1,0 +1,289 @@
+@* Adding / changing a chart: first pick the data (only what the user has access to), then how to show it – with a live
+   preview of the chart on the user's own data. *@
+@inject IModuleCatalog Catalog
+
+<MudDialog Class="gaska-dialog">
+    <DialogContent>
+        @if (_metric is null)
+        {
+            <MudTextField @bind-Value="_search" Immediate="true" Placeholder="Szukaj danych…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" Class="mb-2" />
+
+            <div class="gaska-metric-list gaska-metric-list--pick">
+                @foreach (var group in Filtered.GroupBy(m => m.Scope))
+                {
+                    <div class="gaska-metric-group">@(Catalog.Find(group.Key)?.Title ?? group.Key)</div>
+                    @foreach (var metric in group)
+                    {
+                        <button type="button" class="gaska-metric" @onclick="() => Pick(metric)">
+                            <MudIcon Icon="@MetricIcons.For(metric)" Size="Size.Small" />
+                            <span class="gaska-metric-text">
+                                <span class="gaska-metric-title">@metric.Title</span>
+                                <span class="gaska-metric-desc">@metric.Description</span>
+                            </span>
+                        </button>
+                    }
+                }
+
+                @if (!Filtered.Any())
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-2">
+                        @(Metrics.Count == 0
+                            ? "Nie masz jeszcze dostępu do żadnych danych. Poproś administratora o nadanie uprawnień."
+                            : "Nic nie pasuje do wyszukiwania.")
+                    </MudText>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="gaska-widget-editor">
+                <div class="gaska-widget-editor-form">
+                    <div class="gaska-metric gaska-metric--picked">
+                        <MudIcon Icon="@MetricIcons.For(_metric)" Size="Size.Small" />
+                        <span class="gaska-metric-text">
+                            <span class="gaska-metric-title">@_metric.Title</span>
+                            <span class="gaska-metric-desc">@_metric.Description</span>
+                        </span>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _metric = null">Zmień dane</MudButton>
+                    </div>
+
+                    @if (_metric.Shape != MetricShape.Snapshot)
+                    {
+                        <div>
+                            <div class="gaska-field-label">Jak pokazać</div>
+                            <MudToggleGroup T="ChartKind" @bind-Value="_chart" Color="Color.Primary" Size="Size.Small" Outlined="true">
+                                <MudToggleItem Value="ChartKind.Bars" Text="Słupki" />
+                                @if (_metric.Shape == MetricShape.Series)
+                                {
+                                    <MudToggleItem Value="ChartKind.Line" Text="Linia" />
+                                    <MudToggleItem Value="ChartKind.Number" Text="Liczba" />
+                                }
+                                else if (_metric.PartsOfWhole)
+                                {
+                                    <MudToggleItem Value="ChartKind.Donut" Text="Kołowy" />
+                                }
+                                <MudToggleItem Value="ChartKind.Table" Text="Tabela" />
+                            </MudToggleGroup>
+                        </div>
+                    }
+
+                    <MudGrid Spacing="3">
+                        @if (_metric.AsOfNow)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudTextField T="string" Value="@("Stan na dziś")" Label="Okres" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              HelperText="Te dane nie zależą od okresu." />
+                            </MudItem>
+                        }
+                        else
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="PeriodPreset" @bind-Value="_period" Label="Okres" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var (preset, name) in Periods.Presets)
+                                    {
+                                        <MudSelectItem Value="preset">@name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+
+                        @if (ShowsSeries)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="Granularity?" @bind-Value="_granularity" Label="Grupowanie" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem T="Granularity?" Value="null">Automatycznie</MudSelectItem>
+                                    @foreach (var granularity in Enum.GetValues<Granularity>())
+                                    {
+                                        <MudSelectItem T="Granularity?" Value="granularity">@Periods.Name(granularity)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        else if (_metric.Shape == MetricShape.Ranking && !_metric.KeepOrder)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="int" @bind-Value="_top" Label="Liczba pozycji" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                           HelperText="@(_chart == ChartKind.Donut ? $"Na wykresie kołowym najwyżej {DonutChart.MaxParts} – reszta jako „Pozostałe”." : null)">
+                                    @foreach (var top in new[] { 5, 10, 15, 20, 30 })
+                                    {
+                                        <MudSelectItem Value="top">@top</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+
+                        @if (_period == PeriodPreset.Custom && !_metric.AsOfNow)
+                        {
+                            <MudItem xs="6">
+                                <MudDatePicker @bind-Date="_from" Label="Od" Variant="Variant.Outlined" Margin="Margin.Dense" Editable="true"
+                                               DateFormat="yyyy-MM-dd" Culture="@GaskaTheme.Polish" FirstDayOfWeek="DayOfWeek.Monday" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudDatePicker @bind-Date="_to" Label="Do" Variant="Variant.Outlined" Margin="Margin.Dense" Editable="true"
+                                               DateFormat="yyyy-MM-dd" Culture="@GaskaTheme.Polish" FirstDayOfWeek="DayOfWeek.Monday" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+
+                    @if (ShowsSeries)
+                    {
+                        <MudSwitch T="bool" @bind-Value="_compare" Color="Color.Primary" Class="ma-0" Label="Porównaj z poprzednim okresem" />
+                    }
+
+                    @if (_chart != ChartKind.Donut)
+                    {
+                        <div>
+                            <div class="gaska-field-label">Kolor</div>
+                            <div class="gaska-palette" role="radiogroup" aria-label="Kolor wykresu">
+                                @for (var slot = 1; slot <= 8; slot++)
+                                {
+                                    var color = slot;
+                                    <button type="button" role="radio" aria-checked="@(Slot == color ? "true" : "false")" aria-label="@ColorNames[color - 1]"
+                                            title="@ColorNames[color - 1]" class="gaska-palette-swatch gaska-series-@color @(Slot == color ? "is-selected" : null)"
+                                            @onclick="() => _color = color"></button>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div>
+                        <div class="gaska-field-label">Szerokość na stronie</div>
+                        <MudToggleGroup T="WidgetWidth" @bind-Value="_width" Color="Color.Primary" Size="Size.Small" Outlined="true">
+                            <MudToggleItem Value="WidgetWidth.Quarter" Text="1/4" />
+                            <MudToggleItem Value="WidgetWidth.Small" Text="1/3" />
+                            <MudToggleItem Value="WidgetWidth.Medium" Text="1/2" />
+                            <MudToggleItem Value="WidgetWidth.Full" Text="Pełna" />
+                        </MudToggleGroup>
+                    </div>
+
+                    <MudTextField @bind-Value="_title" Label="Własny tytuł (opcjonalnie)" Placeholder="@_metric.Title" MaxLength="80" Immediate="true"
+                                  DebounceInterval="300" Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+                    <FormError Message="@_error" Dense="true" Variant="Variant.Text" />
+                </div>
+
+                <div class="gaska-widget-editor-preview">
+                    <div class="gaska-field-label">Podgląd – tak wykres będzie wyglądał na Twoich danych</div>
+                    <div class="gaska-preview gaska-preview--@_width.ToString().ToLowerInvariant()">
+                        <MetricCard Settings="Input" Compact="@(_width is WidgetWidth.Small or WidgetWidth.Quarter)" Height="180" />
+                    </div>
+                </div>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Anuluj</MudButton>
+        @if (_metric is not null)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">@(Existing is null ? "Dodaj wykres" : "Zapisz")</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly string[] ColorNames = ["Niebieski", "Pomarańczowy", "Morski", "Żółty", "Różowy", "Zielony", "Fioletowy", "Czerwony"];
+
+    private MetricDefinition? _metric;
+    private string? _search;
+    private string? _title;
+    private ChartKind _chart = ChartKind.Bars;
+    private PeriodPreset _period = PeriodPreset.Last12Months;
+    private Granularity? _granularity;
+    private WidgetWidth _width = WidgetWidth.Medium;
+    private bool _compare;
+    private int _top = 10;
+    private int _color;
+    private DateTime? _from;
+    private DateTime? _to;
+    private string? _error;
+
+    /// <summary>Wide enough for the settings and the preview side by side; full screen on phones (CSS .gaska-dialog).</summary>
+    public static DialogOptions Options => new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, CloseButton = true };
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Metrics the user has access to.</summary>
+    [Parameter]
+    public IReadOnlyList<MetricDefinition> Metrics { get; set; } = [];
+
+    /// <summary>Chart to change; null = a new chart.</summary>
+    [Parameter]
+    public DashboardWidget? Existing { get; set; }
+
+    private IEnumerable<MetricDefinition> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? Metrics
+        : Metrics.Where(m => TextSearch.Normalize($"{m.Title} {m.Description}").Contains(TextSearch.Normalize(_search)));
+
+    private int Slot => _color is >= 1 and <= 8 ? _color : 1;
+
+    /// <summary>Bars or a line over time – the options of a time axis apply.</summary>
+    private bool ShowsSeries => _metric is { Shape: MetricShape.Series } && _chart is ChartKind.Bars or ChartKind.Line or ChartKind.Table;
+
+    /// <summary>The settings as they would be saved – also what the preview draws.</summary>
+    private WidgetInput Input => new()
+    {
+        MetricKey = _metric?.Key ?? string.Empty,
+        Title = string.IsNullOrWhiteSpace(_title) ? null : _title.Trim(),
+        Chart = _metric is null ? _chart : MetricView.Effective(_metric, _chart),
+        Period = _period,
+        CustomFrom = _period == PeriodPreset.Custom && _from is { } from ? DateOnly.FromDateTime(from) : null,
+        CustomTo = _period == PeriodPreset.Custom && _to is { } to ? DateOnly.FromDateTime(to) : null,
+        Granularity = ShowsSeries ? _granularity : null,
+        Width = _width,
+        ComparePrevious = _compare && ShowsSeries,
+        Top = _top,
+        Color = _color,
+    };
+
+    protected override void OnInitialized()
+    {
+        if (Existing is not { } widget)
+        {
+            return;
+        }
+
+        _metric = Metrics.FirstOrDefault(m => m.Key == widget.MetricKey);
+        _title = widget.Title;
+        _chart = widget.Chart;
+        _period = widget.Period;
+        _granularity = widget.Granularity;
+        _width = widget.Width;
+        _compare = widget.ComparePrevious;
+        _top = widget.Top;
+        _color = widget.Color;
+        _from = widget.CustomFrom?.ToDateTime(TimeOnly.MinValue);
+        _to = widget.CustomTo?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Pick(MetricDefinition metric)
+    {
+        _metric = metric;
+        _search = null;
+        _error = null;
+
+        // The way of showing must fit the new data (a ranking has no line, a number over time no donut).
+        _chart = MetricView.Effective(metric, _chart);
+        if (metric.Shape == MetricShape.Snapshot && Existing is null)
+        {
+            _width = WidgetWidth.Small;
+        }
+    }
+
+    private void Save()
+    {
+        if (_metric is null)
+        {
+            return;
+        }
+
+        if (_period == PeriodPreset.Custom && !_metric.AsOfNow && (_from is null || _to is null))
+        {
+            _error = "Podaj datę początkową i końcową okresu.";
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(Input));
+    }
+}

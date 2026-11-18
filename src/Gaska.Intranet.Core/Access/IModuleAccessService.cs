@@ -17,6 +17,7 @@ public interface IModuleAccessService
 {
     Task<bool> CanAccessAsync(ClaimsPrincipal user, string moduleKey, CancellationToken ct = default);
 
+    /// <summary>Pages the user may open (menu, start page) – data scopes are checked with <see cref="CanAccessAsync"/>.</summary>
     Task<IReadOnlyList<ModuleDefinition>> GetAccessibleModulesAsync(ClaimsPrincipal user, CancellationToken ct = default);
 
     Task<IReadOnlyList<ModuleAccessOverview>> GetOverviewAsync(CancellationToken ct = default);

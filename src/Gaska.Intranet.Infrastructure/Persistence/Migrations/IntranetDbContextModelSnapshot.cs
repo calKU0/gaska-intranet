@@ -94,6 +94,113 @@ namespace Gaska.Intranet.Infrastructure.Persistence.Migrations
                     b.ToTable("ModuleSettings", "intranet");
                 });
 
+            modelBuilder.Entity("Gaska.Intranet.Core.Analytics.Dashboard", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("OwnerAccount")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("OwnerSid")
+                        .IsRequired()
+                        .HasMaxLength(184)
+                        .HasColumnType("nvarchar(184)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerSid");
+
+                    b.ToTable("Dashboards", "intranet");
+                });
+
+            modelBuilder.Entity("Gaska.Intranet.Core.Analytics.DashboardWidget", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Chart")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("Color")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("ComparePrevious")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly?>("CustomFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("CustomTo")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DashboardId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Granularity")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MetricKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Top")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Width")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DashboardId");
+
+                    b.ToTable("DashboardWidgets", "intranet");
+                });
+
             modelBuilder.Entity("Gaska.Intranet.Core.Auditing.AuditEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -306,6 +413,20 @@ namespace Gaska.Intranet.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DataProtectionKeys", "intranet");
+                });
+
+            modelBuilder.Entity("Gaska.Intranet.Core.Analytics.DashboardWidget", b =>
+                {
+                    b.HasOne("Gaska.Intranet.Core.Analytics.Dashboard", null)
+                        .WithMany("Widgets")
+                        .HasForeignKey("DashboardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Gaska.Intranet.Core.Analytics.Dashboard", b =>
+                {
+                    b.Navigation("Widgets");
                 });
 #pragma warning restore 612, 618
         }

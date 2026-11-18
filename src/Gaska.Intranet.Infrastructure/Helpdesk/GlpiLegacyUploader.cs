@@ -11,6 +11,9 @@ namespace Gaska.Intranet.Infrastructure.Helpdesk;
 /// Uploads files to tickets through GLPI's legacy REST API (apirest.php) – API v2 has no file upload. Runs as the service
 /// account from <see cref="GlpiAttachmentOptions"/>, so the caller must first check the user may see the ticket.
 /// </summary>
+/// <summary>A ticket category as the service account sees it, with the settings that decide where it is offered.</summary>
+internal sealed record ServiceCategory(int Id, string Name, bool HelpdeskVisible, bool Incident, bool Request);
+
 internal sealed class GlpiLegacyUploader(
     IHttpClientFactory httpClients,
     IOptions<GlpiOptions> options,
@@ -183,6 +186,105 @@ internal sealed class GlpiLegacyUploader(
 
             return (IReadOnlySet<int>)fields;
         }, ct);
+
+    /// <summary>
+    /// All ticket categories, read as the service account. GLPI's own form shows categories to everyone, but its API
+    /// lists them only for profiles with the right to read the dictionary – which Self-Service usually lacks.
+    /// </summary>
+    public async Task<IReadOnlyList<ServiceCategory>> GetCategoriesAsync(CancellationToken ct) =>
+        (await ReadDictionaryAsync("ITILCategory", ct))
+        .Select(c => new ServiceCategory(
+            IntOf(c["id"]),
+            NameOf(c),
+            HelpdeskVisible: Flag(c, "is_helpdeskvisible"),
+            Incident: Flag(c, "is_incident"),
+            Request: Flag(c, "is_request")))
+        .Where(c => c.Id > 0 && c.Name.Length > 0)
+        .OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+
+    /// <summary>All locations, read as the service account (see <see cref="GetCategoriesAsync"/>).</summary>
+    public async Task<IReadOnlyList<HelpdeskLocation>> GetLocationsAsync(CancellationToken ct) =>
+        (await ReadDictionaryAsync("Location", ct))
+        .Select(l => new HelpdeskLocation(IntOf(l["id"]), NameOf(l)))
+        .Where(l => l.Id > 0 && l.Name.Length > 0)
+        .OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+
+    /// <summary>Profile of the service account that could read dictionaries last time – tried first.</summary>
+    private int _dictionaryProfile;
+
+    /// <summary>
+    /// Reads a whole dictionary. Which profile may read dictionaries depends on the GLPI setup – by default neither
+    /// Self-Service nor Technician can, an administrator profile can – so the account's profiles are tried one by one
+    /// (the one that worked before first). Reading only; nothing is changed with the stronger profile.
+    /// </summary>
+    private async Task<List<JsonObject>> ReadDictionaryAsync(string itemType, CancellationToken ct)
+    {
+        if (!IsConfigured)
+        {
+            throw new HelpdeskException("Konto serwisowe Helpdesku nie jest skonfigurowane (Glpi:Attachments).");
+        }
+
+        var http = httpClients.CreateClient(GlpiConnector.HttpClientName);
+        var session = await InitSessionAsync(http, ct);
+        try
+        {
+            var active = IntOf((await ActiveProfileAsync(http, session, ct))?["id"]);
+            using var mine = Request(HttpMethod.Get, "getMyProfiles", session);
+            var profiles = ((await SendAsync(http, mine, "getMyProfiles", ct) as JsonObject)?["myprofiles"] as JsonArray)?
+                .OfType<JsonObject>()
+                .Select(p => IntOf(p["id"]))
+                .Where(id => id > 0)
+                .OrderByDescending(id => id == _dictionaryProfile)
+                .ThenByDescending(id => id == active)
+                .ToList() ?? [active];
+
+            HelpdeskException? refused = null;
+            foreach (var profile in profiles)
+            {
+                try
+                {
+                    if (profile != active)
+                    {
+                        using var change = Request(HttpMethod.Post, "changeActiveProfile", session);
+                        change.Content = Json(new JsonObject { ["profiles_id"] = profile });
+                        await SendAsync(http, change, "changeActiveProfile", ct);
+                        active = profile;
+                    }
+
+                    using var entities = Request(HttpMethod.Post, "changeActiveEntities", session);
+                    entities.Content = Json(new JsonObject { ["entities_id"] = "all", ["is_recursive"] = true });
+                    await SendAsync(http, entities, "changeActiveEntities", ct);
+
+                    using var request = Request(HttpMethod.Get, $"{itemType}/?range=0-999", session);
+                    var items = (await SendAsync(http, request, itemType, ct) as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+                    _dictionaryProfile = profile;
+                    return items;
+                }
+                catch (HelpdeskException ex)
+                {
+                    // This profile may not read the dictionary – the next one may.
+                    refused = ex;
+                }
+            }
+
+            logger.LogWarning(refused, "No GLPI profile of the service account can read {ItemType}", itemType);
+            throw new HelpdeskException($"Konto serwisowe Helpdesku nie ma uprawnień do odczytu słownika ({itemType}).", refused);
+        }
+        finally
+        {
+            await KillSessionAsync(http, session);
+        }
+    }
+
+    /// <summary>The full path of a tree dictionary entry ("Sprzęt > Drukarki"), else its own name.</summary>
+    private static string NameOf(JsonObject item) =>
+        (item["completename"]?.ToString() is { Length: > 0 } full ? full : item["name"]?.ToString() ?? string.Empty).Trim();
+
+    /// <summary>A 0/1 column of the legacy API; a missing column counts as set (older GLPI versions lack some).</summary>
+    private static bool Flag(JsonObject item, string name) =>
+        item[name] is not JsonValue value || (value.TryGetValue<bool>(out var flag) ? flag : IntOf(value) != 0);
 
     /// <summary>Downloads a document as the service account – the caller must have checked the user may see it.</summary>
     public async Task<HelpdeskFile> DownloadAsync(int documentId, CancellationToken ct) =>
