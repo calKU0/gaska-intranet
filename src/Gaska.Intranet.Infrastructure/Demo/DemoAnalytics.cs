@@ -66,8 +66,6 @@ internal sealed class DemoAnalytics(IModuleAccessService access) : IMetricSource
                 return Task.FromResult(new Ranking(Customers.Take(Math.Min(top, query.Contractor is null ? 8 : 2))
                     .Select((c, i) => new RankedValue($"{120 - (i * 7)}/26/S · {(query.Contractor is null ? c : "AGROMAX")}", 41 - (i * 5), "wystawiona 2026-10-0" + ((i % 9) + 1)))
                     .ToList()));
-            case MetricCatalog.CrmNoContact:
-                return Task.FromResult(new Ranking(Customers.Take(top).Select((c, i) => new RankedValue(c, 190 - (i * 14))).ToList()));
             case MetricCatalog.ReceivablesOverdueInvoices:
                 return Task.FromResult(new Ranking(Customers.Take(Math.Min(top, query.Contractor is null ? 12 : 3))
                     .Select((c, i) => new RankedValue(

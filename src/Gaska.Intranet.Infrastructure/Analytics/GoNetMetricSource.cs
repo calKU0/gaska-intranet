@@ -26,10 +26,14 @@ internal sealed class GoNetMetricSource(GoNetDatabase db, IOptions<GoNetOptions>
     private const string Incoming = "d.IDTYPU = 1";
     private const string Outgoing = "d.IDTYPU = 0";
 
-    /// <summary>Open tasks past their deadline (GoNet keeps "no date" as 1899, hence the lower bound).</summary>
+    /// <summary>
+    /// Open tasks past their deadline (GoNet keeps "no date" as 1899, hence the lower bound), assigned to operators still
+    /// in use – tasks left with archived (ARC) or deleted operators, e.g. people who left, are nobody's backlog.
+    /// </summary>
     private const string OverdueTask = """
         z.USUNIETY = 0 AND z.STATUS <> 2 AND z.UKONCZONO < 100
         AND z.TERMINZAKONCZENIA < CURRENT_TIMESTAMP AND z.TERMINZAKONCZENIA > '2000-01-01'
+        AND EXISTS (SELECT 1 FROM OPERATOR a WHERE a.ID = z.IDZLECENIOBIORCY AND a.USUNIETY = 0 AND COALESCE(a.ARC, 0) = 0)
         """;
 
     private readonly GoNetOptions _options = options.Value;
@@ -72,15 +76,6 @@ internal sealed class GoNetMetricSource(GoNetDatabase db, IOptions<GoNetOptions>
                 top, query, ct),
             MetricCatalog.CrmOverdueTasksByEmployee => RankingAsync("o.IMIE || ' ' || o.NAZWISKO",
                 $"FROM ZADANIA z JOIN OPERATOR o ON o.ID = z.IDZLECENIOBIORCY WHERE {OverdueTask}", top, query, ct),
-            // Days since the last entry – a list, so no total: the rows are not parts of a whole.
-            MetricCatalog.CrmNoContact => RowsAsync($"""
-                SELECT FIRST {Top(top)} c.SKROTNAZWY AS NAZWA, DATEDIFF(DAY FROM MAX(d.DATAAKCJI) TO CURRENT_TIMESTAMP) AS N
-                FROM KONTRAHENT c
-                JOIN KORESPONDENCJADZIENNIK d ON d.IDKONTRAHENTA = c.ID
-                WHERE c.USUNIETY = 0 AND COALESCE(c.ARC, 0) = 0 AND c.STATUS = @status AND d.USUNIETY = 0
-                GROUP BY 1
-                ORDER BY 2 DESC
-                """, query, ct, ("@status", _options.DefaultContractorStatusId)),
             _ => throw new ArgumentException($"Unknown CRM ranking '{metricKey}'.", nameof(metricKey)),
         };
     }

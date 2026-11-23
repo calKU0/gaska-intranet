@@ -29,7 +29,6 @@ public static class MetricCatalog
     public const string CrmTopContractors = "crm.top-contractors";
     public const string CrmOverdueTasks = "crm.overdue-tasks";
     public const string CrmOverdueTasksByEmployee = "crm.overdue-tasks-by-employee";
-    public const string CrmNoContact = "crm.no-contact";
 
     public const string ComplaintsQuality = "complaints.quality";
     public const string ComplaintsDelivery = "complaints.delivery";
@@ -179,18 +178,12 @@ public static class MetricCatalog
         new()
         {
             Key = CrmOverdueTasks, Title = "Zadania po terminie", Scope = DataScopes.Crm, Shape = MetricShape.Snapshot, Icon = "clock", AsOfNow = true, PerContractor = true,
-            Description = "Otwarte zadania, których termin zakończenia już minął.", Source = "GoNet · zadania otwarte · stan na dziś",
+            Description = "Otwarte zadania, których termin zakończenia już minął – przypisane osobom, które nadal pracują w GoNet (bez kont archiwalnych).", Source = "GoNet · zadania otwarte · stan na dziś",
         },
         new()
         {
             Key = CrmOverdueTasksByEmployee, Title = "Zadania po terminie wg pracowników", Scope = DataScopes.Crm, Shape = MetricShape.Ranking, Icon = "clock", AsOfNow = true,
-            Description = "Otwarte zadania po terminie w podziale na osobę, która ma je wykonać.", Source = "GoNet · zadania otwarte · stan na dziś",
-        },
-        new()
-        {
-            Key = CrmNoContact, Title = "Klienci najdłużej bez kontaktu", Scope = DataScopes.Crm, Shape = MetricShape.Ranking, Unit = MetricUnit.Days, Icon = "clock",
-            AsOfNow = true, PartsOfWhole = false,
-            Description = "Kontrahenci o statusie „klient” i liczba dni od ostatniego wpisu korespondencji.", Source = "GoNet · kontrahenci o statusie klient · dni od ostatniego kontaktu",
+            Description = "Otwarte zadania po terminie w podziale na osobę, która ma je wykonać (bez kont archiwalnych w GoNet).", Source = "GoNet · zadania otwarte · stan na dziś",
         },
     ];
 
@@ -387,9 +380,8 @@ public static class MetricCatalog
             Chart(B2BLogins, ChartKind.Line, PeriodPreset.Last30Days, WidgetWidth.Full, color: 3),
             Chart(B2BTopSearches, ChartKind.Bars, PeriodPreset.Last30Days, WidgetWidth.Medium, color: 3),
             Chart(B2BTopProducts, ChartKind.Bars, PeriodPreset.Last30Days, WidgetWidth.Medium, color: 7),
-            Heading("Na co dzień", "Stan na dziś – zaległe zadania i klienci, z którymi dawno nie było kontaktu."),
-            Chart(CrmOverdueTasksByEmployee, ChartKind.Bars, PeriodPreset.ThisYear, WidgetWidth.Medium, color: 8),
-            Chart(CrmNoContact, ChartKind.Table, PeriodPreset.ThisYear, WidgetWidth.Medium),
+            Heading("Na co dzień", "Stan na dziś – zaległe zadania osób, które pracują w GoNet."),
+            Chart(CrmOverdueTasksByEmployee, ChartKind.Bars, PeriodPreset.ThisYear, WidgetWidth.Full, color: 8),
         ]),
         new("Reklamacje i zwroty", "Otwarte sprawy, liczba zgłoszeń, najczęściej reklamowane i zwracane towary, przyczyny.",
         [
