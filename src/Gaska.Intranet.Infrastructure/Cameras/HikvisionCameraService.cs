@@ -202,10 +202,13 @@ internal sealed class HikvisionCameraService(
         }
 
         var start = TimeZoneInfo.ConvertTime(files[0].Recording.Start, clock.LocalTimeZone);
-        var name = $"{FileNamePart(DisplayName(camera))}_{start:yyyy-MM-dd_HH-mm-ss}.mp4";
         var ffmpeg = Options.FfmpegPath is { Length: > 0 } path && File.Exists(path) ? path : null;
 
-        return new CameraDownload(name, "video/mp4", async (output, token) =>
+        // Without ffmpeg the file is the cameras' own MPEG program stream – named and typed as such, not as MP4.
+        var (extension, contentType) = ffmpeg is null ? (".mpg", "video/mpeg") : (".mp4", "video/mp4");
+        var name = $"{FileNamePart(DisplayName(camera))}_{start:yyyy-MM-dd_HH-mm-ss}{extension}";
+
+        return new CameraDownload(name, contentType, async (output, token) =>
         {
             if (ffmpeg is null)
             {

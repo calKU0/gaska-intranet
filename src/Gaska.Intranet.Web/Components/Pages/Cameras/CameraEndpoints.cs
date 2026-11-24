@@ -508,7 +508,8 @@ public sealed record CameraPlaybackRequest(string Sid, string CameraId, DateTime
 /// <summary>
 /// Tickets for playback sockets: the page (Blazor circuit) checks the permission and picks the time, the socket only
 /// presents the ticket – so the start time is not a free URL parameter. A ticket belongs to one account and lives while
-/// the player uses it (reconnects after a hidden tab or a network drop), at most a few hours.
+/// the player uses it (reconnects after a hidden tab or a network drop, however long the playback ran) – at most a
+/// few hours.
 /// </summary>
 public sealed class CameraPlaybackTickets(IMemoryCache cache)
 {
@@ -517,7 +518,7 @@ public sealed class CameraPlaybackTickets(IMemoryCache cache)
         var ticket = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
         cache.Set(Key(ticket), new CameraPlaybackRequest(sid, cameraId, start) { Speed = CameraPlaybackSpeeds.Normalize(speed) }, new MemoryCacheEntryOptions
         {
-            SlidingExpiration = TimeSpan.FromMinutes(10),
+            // No sliding expiration: a long playback does not touch the ticket, and must still reconnect.
             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(3),
         });
         return ticket;

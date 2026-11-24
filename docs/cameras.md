@@ -75,8 +75,8 @@ locations; it applies to everyone, administrators included. Every playback is wr
 4. Check on the server: <http://127.0.0.1:1984/> opens the go2rtc page. Port 1984 must **not** be reachable from other
    machines (it listens on 127.0.0.1; keep the Windows firewall rule closed anyway).
 5. Optional: put `ffmpeg.exe` next to `go2rtc.exe` and set `Cameras:FfmpegPath` to it. Downloads are then ordinary MP4
-   files (remuxed, no re-encoding); without it they are the cameras' own files (MPEG program stream with a Hikvision
-   header – VLC plays them). go2rtc uses it for the MJPEG fallback too.
+   files (remuxed, no re-encoding); without it they are the cameras' own files saved as `.mpg` (MPEG program stream
+   with a Hikvision header – VLC plays them). go2rtc uses it for the MJPEG fallback too.
 
 ## 3. Intranet
 

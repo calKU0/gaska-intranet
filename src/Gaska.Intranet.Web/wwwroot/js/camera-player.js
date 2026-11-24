@@ -115,8 +115,13 @@ class Player {
         this.el.replaceChildren();
     }
 
+    /** Pictures (demo, MJPEG) have no media clock – the played time is counted from the first picture. */
+    usesWallClock() {
+        return this.mode === "snapshot" || this.wallClock === true;
+    }
+
     setRate(rate) {
-        if (this.mode === "snapshot") {
+        if (this.usesWallClock()) {
             // Demo / pictures: the "recording clock" goes on from where it is at the new rate.
             this.mediaBase = this.mediaSeconds() ?? 0;
             this.startedAt = Date.now();
@@ -231,7 +236,7 @@ class Player {
     }
 
     mediaSeconds() {
-        if (this.mode === "snapshot") {
+        if (this.usesWallClock()) {
             return this.startedAt ? (this.mediaBase ?? 0) + (Date.now() - this.startedAt) / 1000 * this.opts.rate : null;
         }
 
@@ -244,7 +249,7 @@ class Player {
 
     hold() {
         // The position stays where it is (a stopped clock for the demo pictures).
-        if (this.mode === "snapshot") {
+        if (this.usesWallClock()) {
             this.mediaBase = this.mediaSeconds() ?? 0;
             this.startedAt = null;
         }
@@ -584,11 +589,16 @@ class Player {
         img.alt = "";
         this.el.replaceChildren(img);
         this.onMseType = null;
+        this.wallClock = false;
         this.ondata = data => {
             if (!this.received) {
                 this.received = true;
                 this.failures = 0;
                 this.el.dataset.state = "live";
+                // Playback position: counted from the first picture at the playback rate.
+                this.wallClock = true;
+                this.mediaBase = 0;
+                this.startedAt = Date.now();
             }
 
             const url = URL.createObjectURL(new Blob([data], { type: "image/jpeg" }));
