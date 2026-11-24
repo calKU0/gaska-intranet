@@ -1,4 +1,5 @@
 using Gaska.Intranet.Core.Analytics;
+using Gaska.Intranet.Core.Cameras;
 using Gaska.Intranet.Core.Modules;
 using MudBlazor;
 
@@ -12,6 +13,7 @@ public static class ModuleKeys
     public const string Rcp = "rcp";
     public const string Helpdesk = "helpdesk";
     public const string Dashboards = "dashboards";
+    public const string Cameras = CameraLocations.ModuleKey;
     public const string AdminAccess = "admin.access";
     public const string AdminAudit = "admin.audit";
     public const string AdminDevices = "admin.devices";
@@ -28,6 +30,9 @@ public sealed class ModuleCatalog : IModuleCatalog
 
     /// <summary>Heading of the data scopes in the permissions panel (they have no menu entries).</summary>
     public const string DataSection = "Dane";
+
+    /// <summary>Heading of the camera locations in the permissions panel.</summary>
+    public const string CamerasSection = "Kamery";
 
     private readonly Dictionary<string, ModuleDefinition> _byKey;
 
@@ -83,6 +88,16 @@ public sealed class ModuleCatalog : IModuleCatalog
                 Route = "/dashboardy",
                 Icon = Icons.Material.Outlined.Dashboard,
                 Order = 30,
+                DefaultAccess = ModuleAccessMode.Restricted,
+            },
+            new ModuleDefinition
+            {
+                Key = ModuleKeys.Cameras,
+                Title = "Kamery",
+                Description = "Podgląd kamer na żywo i nagrania – biuro, magazyny, sklep, produkcja, pakowanie, teren.",
+                Route = "/kamery",
+                Icon = Icons.Material.Outlined.Videocam,
+                Order = 25,
                 DefaultAccess = ModuleAccessMode.Restricted,
             },
 
@@ -188,7 +203,18 @@ public sealed class ModuleCatalog : IModuleCatalog
             },
         ];
 
-        All = All.OrderBy(m => m.Order).ToList();
+        // Camera locations – a tab of the "Kamery" page each; visible only together with the page permission.
+        All = All.Concat(CameraLocations.All.Select((location, index) => new ModuleDefinition
+        {
+            Key = location.ModuleKey,
+            Kind = ModuleKind.Data,
+            Title = location.Title,
+            Description = location.Description,
+            Icon = Icons.Material.Outlined.Videocam,
+            Section = CamerasSection,
+            Order = 600 + index * 10,
+            DefaultAccess = ModuleAccessMode.Restricted,
+        })).OrderBy(m => m.Order).ToList();
         _byKey = All.ToDictionary(m => m.Key, StringComparer.OrdinalIgnoreCase);
     }
 

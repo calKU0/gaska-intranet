@@ -1,0 +1,192 @@
+@* The picture of one camera. js/camera-player.js owns the inside of the element (video / picture); Blazor only
+   restarts the player when the source changes and pauses it when asked. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="gaska-camera-view @Class" @ref="_element" id="@ElementId" data-state="loading"></div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CameraInfo Camera { get; set; } = default!;
+
+    /// <summary>Real video (go2rtc) – <c>false</c> in demo mode: refreshed pictures.</summary>
+    [Parameter]
+    public bool IsLiveVideo { get; set; }
+
+    [Parameter]
+    public CameraStreamQuality Quality { get; set; } = CameraStreamQuality.Sub;
+
+    /// <summary>Recording playback: the playback ticket (video) …</summary>
+    [Parameter]
+    public string? PlaybackTicket { get; set; }
+
+    /// <summary>… the time it starts from (demo pictures, and the change detector for a new playback) …</summary>
+    [Parameter]
+    public DateTimeOffset? PlaybackStart { get; set; }
+
+    /// <summary>… and its speed (the camera sends that much faster, the video plays that much faster).</summary>
+    [Parameter]
+    public int Speed { get; set; } = 1;
+
+    /// <summary>Play only while on screen (tiles in a grid).</summary>
+    [Parameter]
+    public bool Lazy { get; set; }
+
+    /// <summary>Stops the video without forgetting it – e.g. tiles behind an enlarged camera.</summary>
+    [Parameter]
+    public bool Paused { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>Element id – lets the enlarged view take over the tile's running video (<see cref="HandoffFrom"/>).</summary>
+    [Parameter]
+    public string? ElementId { get; set; }
+
+    /// <summary>Id of a tile whose running video shows here until this view's own stream plays.</summary>
+    [Parameter]
+    public string? HandoffFrom { get; set; }
+
+    public static string TileId(string cameraId) => "camera-tile-" + cameraId;
+
+    private ElementReference _element;
+    private IJSObjectReference? _module;
+    private string? _attachedKey;
+    private bool? _sentPaused;
+
+    // Speed is not part of it: a speed change goes on in the same stream (SetRateAsync).
+    private string SourceKey =>
+        $"{Camera.Id}|{IsLiveVideo}|{Quality}|{PlaybackTicket}|{PlaybackStart?.ToUnixTimeSeconds()}";
+
+    /// <summary>
+    /// The browser may not answer (busy tab, slow connection, page being left) – a camera picture must never end the
+    /// user's session, so every call to the player gives up quietly after a few seconds.
+    /// </summary>
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(5);
+
+    private static bool IsPlayerFailure(Exception ex) =>
+        ex is JSDisconnectedException or JSException or OperationCanceledException or ObjectDisposedException
+            or InvalidOperationException;
+
+    /// <summary>Plays the video at another rate without restarting it (the camera already sends at that speed).</summary>
+    public async Task SetRateAsync(int rate)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(CallTimeout);
+            await _module.InvokeVoidAsync("setRate", cts.Token, _element, rate);
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+        }
+    }
+
+    /// <summary>Stops a playback on the picture shown (the stream ends; a new playback goes on from there).</summary>
+    public async Task HoldAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(CallTimeout);
+            await _module.InvokeVoidAsync("hold", cts.Token, _element);
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+        }
+    }
+
+    /// <summary>Seconds of recording played so far (gaps the camera skips not counted); null before the first frame.</summary>
+    public async Task<double?> GetPositionAsync()
+    {
+        if (_module is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(CallTimeout);
+            return await _module.InvokeAsync<double?>("position", cts.Token, _element);
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+            return null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (_attachedKey != SourceKey)
+            {
+                _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/camera-player.js");
+                _attachedKey = SourceKey;
+                _sentPaused = null;
+                var playback = PlaybackStart is not null;
+                using var cts = new CancellationTokenSource(CallTimeout);
+                await _module.InvokeVoidAsync("attach", cts.Token, _element, new
+                {
+                    live = IsLiveVideo,
+                    socketUrl = !IsLiveVideo ? null : playback ? (PlaybackTicket is null ? null : CameraEndpoints.PlaybackSocketUrl(PlaybackTicket))
+                        : CameraEndpoints.LiveSocketUrl(Camera.Id, Quality),
+                    // The same video over plain HTTP when WebSockets do not get through.
+                    videoUrl = !IsLiveVideo ? null : playback ? (PlaybackTicket is null ? null : CameraEndpoints.PlaybackVideoUrl(PlaybackTicket))
+                        : CameraEndpoints.LiveVideoUrl(Camera.Id, Quality),
+                    // Playback has no picture fallback on real cameras (a live frame would mislead) – only in demo mode.
+                    snapshotUrl = playback && IsLiveVideo ? null : CameraEndpoints.SnapshotUrl(Camera.Id, Quality),
+                    clockStart = playback && !IsLiveVideo ? PlaybackStart!.Value.ToUnixTimeSeconds() : 0,
+                    catchUp = !playback,
+                    rate = playback ? Speed : 1,
+                    lazy = Lazy,
+                    handoffFrom = HandoffFrom,
+                    refreshMs = Quality == CameraStreamQuality.Main ? 1000 : 1500,
+                });
+            }
+
+            if (_module is not null && _sentPaused != Paused)
+            {
+                _sentPaused = Paused;
+                using var cts = new CancellationTokenSource(CallTimeout);
+                await _module.InvokeVoidAsync("setPaused", cts.Token, _element, Paused);
+            }
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(CallTimeout);
+            await _module.InvokeVoidAsync("detach", cts.Token, _element);
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+        }
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (Exception ex) when (IsPlayerFailure(ex))
+        {
+        }
+    }
+}

@@ -319,7 +319,9 @@ public sealed class GoNetRollbackIntegrationTests(ITestOutputHelper output)
             return null;
         }
 
-        using var json = JsonDocument.Parse(File.ReadAllText(local));
+        // Same leniency as the app's configuration: comments and trailing commas are allowed.
+        using var json = JsonDocument.Parse(File.ReadAllText(local),
+            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
         return json.RootElement.TryGetProperty("ConnectionStrings", out var cs) && cs.TryGetProperty("GoNet", out var gonet)
             ? gonet.GetString()
             : null;

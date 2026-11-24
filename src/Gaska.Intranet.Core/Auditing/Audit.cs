@@ -40,6 +40,8 @@ public static class AuditEvents
     public const string AccessNetworkChanged = "admin.access_network_changed";
     public const string AccessGranted = "admin.access_granted";
     public const string AccessRevoked = "admin.access_revoked";
+    public const string CameraPlayback = "cameras.playback";
+    public const string CameraDownload = "cameras.download";
 }
 
 /// <summary>Audit log entry (logins, permission changes).</summary>

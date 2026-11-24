@@ -15,6 +15,8 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         "img-src 'self' data: blob:; " +
         "font-src 'self' data:; " +
         "connect-src 'self'; " +
+        // Camera video: Media Source Extensions play from blob: URLs.
+        "media-src 'self' blob:; " +
         "frame-ancestors 'none'; " +
         "form-action 'self'; " +
         "base-uri 'self'; " +

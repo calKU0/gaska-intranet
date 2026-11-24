@@ -9,6 +9,8 @@ using Gaska.Intranet.Infrastructure.Helpdesk;
 using Gaska.Intranet.Core.Rcp;
 using Gaska.Intranet.Infrastructure.Rcp;
 using Gaska.Intranet.Core.Auditing;
+using Gaska.Intranet.Core.Cameras;
+using Gaska.Intranet.Infrastructure.Cameras;
 using Gaska.Intranet.Core.Messaging;
 using Gaska.Intranet.Core.Organization;
 using Gaska.Intranet.Core.Security;
@@ -101,6 +103,7 @@ public static class DependencyInjection
 
         AddHelpdesk(services, configuration);
         AddAnalytics(services, configuration);
+        AddCameras(services, configuration);
         AddDemo(services, configuration, environment);
 
         return services;
@@ -204,6 +207,44 @@ public static class DependencyInjection
         services.AddSingleton<IDashboardService, DashboardService>();
     }
 
+    /// <summary>Hikvision cameras – snapshots and recording search over ISAPI, video through go2rtc on localhost.</summary>
+    private static void AddCameras(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<CameraOptions>().Bind(configuration.GetSection(CameraOptions.SectionName))
+            .Validate(o => !o.Validate().Any(), "Invalid \"Cameras\" configuration (appsettings.Local.json) – check camera ids, hosts and locations.")
+            .ValidateOnStart();
+
+        // One service account for every camera; ISAPI uses HTTP Digest, which the handler negotiates from the credential.
+        static SocketsHttpHandler CameraHandler(IServiceProvider sp)
+        {
+            var cameras = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CameraOptions>>().Value;
+            return new SocketsHttpHandler
+            {
+                Credentials = new System.Net.NetworkCredential(cameras.Username, cameras.Password),
+                PreAuthenticate = false,
+                UseProxy = false,
+                ConnectTimeout = TimeSpan.FromSeconds(4),
+            };
+        }
+
+        services.AddHttpClient(HikvisionCameraService.HttpClientName, (sp, client) =>
+            {
+                var cameras = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CameraOptions>>().Value;
+                client.Timeout = TimeSpan.FromSeconds(Math.Max(2, cameras.TimeoutSeconds));
+            })
+            .ConfigurePrimaryHttpMessageHandler(CameraHandler);
+        services.AddHttpClient(HikvisionCameraService.DownloadClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(CameraHandler);
+        services.AddHttpClient(Go2RtcClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
+        services.AddSingleton<Go2RtcClient>();
+
+        services.AddSingleton<HikvisionCameraService>();
+        services.AddSingleton<ICameraService>(sp => sp.GetRequiredService<HikvisionCameraService>());
+        services.AddHostedService<CameraNameRefresher>();
+        services.AddSingleton<ICameraAccess, CameraAccess>();
+    }
+
     /// <summary>GLPI helpdesk – API v2 as the signed-in user (OAuth2 tokens obtained at intranet login).</summary>
     private static void AddHelpdesk(IServiceCollection services, IConfiguration configuration)
     {
@@ -261,6 +302,8 @@ public static class DependencyInjection
         services.AddSingleton<IContractorLinks>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
         services.AddSingleton<IContractorTurnoverService>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
         services.AddSingleton<IContractorCaretakerService, Demo.DemoCaretakers>();
+
+        services.AddSingleton<ICameraService, Demo.DemoCameras>();
     }
 
     private static void TryAddTimeProvider(this IServiceCollection services)

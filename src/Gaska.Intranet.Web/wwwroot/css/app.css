@@ -5005,3 +5005,451 @@ a.gaska-emp-row-value:hover {
         max-width: 100% !important;
     }
 }
+
+/* =========================================================================
+   Cameras – grid of live tiles, the camera dialog (live / recordings). The player (js/camera-player.js) fills
+   .gaska-camera-view with a <video> or <img> and reports its state in data-state.
+   ========================================================================= */
+.gaska-camera-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 16px;
+}
+
+.gaska-camera-tile {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 1px solid var(--gaska-border);
+    border-radius: var(--gaska-radius);
+    background: var(--gaska-surface);
+    color: var(--gaska-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: box-shadow .15s var(--gaska-ease), border-color .15s var(--gaska-ease);
+}
+
+.gaska-camera-tile:hover {
+    border-color: var(--gaska-border-strong);
+    box-shadow: var(--gaska-shadow-hover);
+}
+
+.gaska-camera-tile:focus-visible {
+    outline: 2px solid var(--gaska-yellow);
+    outline-offset: 2px;
+}
+
+.gaska-camera-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    align-self: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+    color: var(--gaska-text-2);
+}
+
+.gaska-camera-name {
+    color: var(--gaska-text);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gaska-camera-view {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #111;
+    overflow: hidden;
+}
+
+.gaska-camera-view > video,
+.gaska-camera-view > canvas,
+.gaska-camera-view > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* State badge: loading / picture mode / error, drawn over the picture. */
+.gaska-camera-view::after {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.6;
+    color: #fff;
+    background: rgba(0, 0, 0, .6);
+    pointer-events: none;
+}
+
+/* Loading: the spinner in the middle says it – no badge. */
+.gaska-camera-view[data-state="loading"]::after { content: none; }
+.gaska-camera-view[data-state="paused"]::after { content: "Wstrzymano"; }
+.gaska-camera-view[data-state="snapshot"]::after { content: "Obraz co kilka sekund"; }
+.gaska-camera-view[data-state="error"]::after { content: "Brak obrazu"; background: rgba(198, 40, 40, .85); }
+
+.gaska-camera-view.is-large {
+    border-radius: var(--gaska-radius);
+    /* Low screens: the picture shrinks (letterboxed) instead of pushing the dialog's controls off screen. */
+    max-height: calc(100dvh - 220px);
+    min-height: 180px;
+}
+
+.gaska-camera-playback .gaska-camera-view.is-large {
+    max-height: calc(100dvh - 400px);
+}
+
+.gaska-camera-view.is-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--gaska-faint);
+    background: var(--gaska-surface-3);
+}
+
+.gaska-camera-view.is-placeholder::after { content: none; }
+
+.gaska-camera-view.is-placeholder .mud-icon-root {
+    font-size: 3rem;
+}
+
+.gaska-camera-playback-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-top: 12px;
+}
+
+.gaska-camera-day,
+.gaska-camera-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gaska-camera-day .mud-input-control,
+.gaska-camera-time .mud-input-control {
+    width: 150px;
+    margin-top: 0;
+}
+
+.gaska-camera-timeline {
+    position: relative;
+    height: 28px;
+    margin-top: 16px;
+    border: 1px solid var(--gaska-border);
+    border-radius: 6px;
+    background: var(--gaska-surface-3);
+    overflow: hidden;
+}
+
+.gaska-camera-segment {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    padding: 0;
+    border: 0;
+    background: var(--gaska-yellow);
+    cursor: pointer;
+}
+
+.gaska-camera-segment:hover,
+.gaska-camera-segment:focus-visible {
+    background: var(--gaska-yellow-dark);
+    outline: none;
+}
+
+.gaska-camera-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    z-index: 1;
+    width: 3px;
+    margin-left: -1px;
+    background: #e53935;
+    box-shadow: 0 0 0 1px var(--gaska-surface);
+    pointer-events: none;
+}
+
+.gaska-camera-hours {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: .75rem;
+    color: var(--gaska-muted);
+}
+
+.gaska-camera-segments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-camera-grid {
+        gap: 12px;
+    }
+
+    .gaska-camera-playback-controls,
+    .gaska-camera-day,
+    .gaska-camera-time {
+        width: 100%;
+    }
+
+    .gaska-camera-day .mud-input-control,
+    .gaska-camera-time .mud-input-control {
+        flex: 1;
+        width: auto;
+    }
+
+    .gaska-camera-dialog .mud-dialog-content {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+}
+
+/* Cameras – loading spinner in the middle of the picture, end of a playback, shield, playback controls. */
+.gaska-camera-view[data-state="loading"]::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    margin: -22px 0 0 -22px;
+    border: 4px solid rgba(255, 255, 255, .25);
+    border-top-color: var(--gaska-yellow);
+    border-radius: 50%;
+    animation: gaska-spin .8s linear infinite;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.gaska-camera-view.is-large[data-state="loading"]::before {
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
+    border-width: 5px;
+}
+
+.gaska-camera-view[data-state="loading"] > img {
+    filter: brightness(.6);
+}
+
+.gaska-camera-view[data-state="ended"]::after { content: "Koniec nagrania"; }
+.gaska-camera-view[data-state="stalled"]::after { content: "Kamera przestała wysyłać nagranie – wybierz czas ponownie"; background: rgba(198, 40, 40, .85); }
+
+.gaska-camera-view::after {
+    z-index: 3;
+}
+
+/* Covers the video: browsers (Opera) put their own pop-out buttons on a hovered <video>. */
+.gaska-camera-shield {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+.gaska-camera-now {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-top: 8px;
+    min-height: 36px;
+    font-size: .875rem;
+}
+
+.gaska-camera-clock {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.gaska-flex-spacer {
+    flex: 1;
+}
+
+.gaska-camera-speed .mud-button-root {
+    min-width: 44px;
+}
+
+/* The slider lies over the whole timeline: transparent track, a thin handle at the played moment. */
+.gaska-camera-timeline {
+    overflow: visible;
+}
+
+.gaska-camera-segment {
+    pointer-events: none;
+}
+
+.gaska-camera-scrubber {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    z-index: 2;
+}
+
+.gaska-camera-scrubber::-webkit-slider-runnable-track {
+    height: 100%;
+    background: transparent;
+}
+
+.gaska-camera-scrubber::-moz-range-track {
+    height: 100%;
+    background: transparent;
+}
+
+.gaska-camera-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 4px;
+    height: 36px;
+    margin-top: -4px;
+    border-radius: 2px;
+    background: #e53935;
+    box-shadow: 0 0 0 1px var(--gaska-surface);
+}
+
+.gaska-camera-scrubber::-moz-range-thumb {
+    width: 4px;
+    height: 36px;
+    border: 0;
+    border-radius: 2px;
+    background: #e53935;
+    box-shadow: 0 0 0 1px var(--gaska-surface);
+}
+
+.gaska-camera-scrubber:focus-visible {
+    outline: 2px solid var(--gaska-yellow);
+    outline-offset: 2px;
+}
+
+.gaska-camera-scrub-label {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--gaska-charcoal);
+    color: #fff;
+    font-size: .75rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 3;
+}
+
+/* The marker is the slider's handle now. */
+.gaska-camera-marker {
+    display: none;
+}
+
+.gaska-camera-hours span {
+    min-width: 0;
+    text-align: center;
+}
+
+.gaska-camera-hours span:first-child {
+    text-align: left;
+}
+
+.gaska-camera-hours span:last-child {
+    text-align: right;
+}
+
+@media (max-width: 599.98px) {
+    /* Phones: every 6 hours is readable, the 2-hour marks would run together. */
+    .gaska-camera-hours span:not(.is-major) {
+        visibility: hidden;
+    }
+
+    .gaska-camera-now {
+        font-size: .8125rem;
+    }
+
+    .gaska-camera-speed .mud-button-root {
+        min-width: 40px;
+        padding: 4px 6px;
+    }
+}
+
+/* Playback: picture, the played time and speed, the timeline right under them (like a video player), then the day /
+   hour pickers and the list. */
+.gaska-camera-playback {
+    display: flex;
+    flex-direction: column;
+}
+
+.gaska-camera-playback > * {
+    order: 4;
+}
+
+.gaska-camera-playback > .gaska-camera-view {
+    order: 0;
+}
+
+.gaska-camera-playback > .gaska-camera-now {
+    order: 1;
+}
+
+.gaska-camera-playback > .gaska-camera-timeline,
+.gaska-camera-playback > .gaska-camera-hours,
+.gaska-camera-playback > .mud-progress-linear {
+    order: 2;
+}
+
+.gaska-camera-playback > .gaska-camera-timeline {
+    margin-top: 8px;
+}
+
+.gaska-camera-playback > .gaska-camera-playback-controls {
+    order: 3;
+}
+
+@media (max-width: 599.98px) {
+    /* A finger needs a taller timeline. */
+    .gaska-camera-timeline {
+        height: 40px;
+    }
+
+    .gaska-camera-scrubber::-webkit-slider-thumb {
+        height: 48px;
+        width: 6px;
+    }
+
+    .gaska-camera-scrubber::-moz-range-thumb {
+        height: 48px;
+        width: 6px;
+    }
+}
+
+/* Full screen: the picture fills the screen, letterboxed. */
+.gaska-camera-view:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+    background: #000;
+}

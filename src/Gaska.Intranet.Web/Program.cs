@@ -46,6 +46,10 @@ try
     // the viewport, every flip moves the page, and that triggers the next flip.
     builder.Services.Configure<MudBlazor.PopoverOptions>(o => o.OverflowBehavior = MudBlazor.OverflowBehavior.FlipOnOpen);
     builder.Services.AddScoped<Gaska.Intranet.Web.Crm.CrmSession>();
+    builder.Services.AddSingleton<Gaska.Intranet.Web.Components.Pages.Cameras.CameraPlaybackTickets>();
+    builder.Services.AddHttpClient(Gaska.Intranet.Web.Components.Pages.Cameras.CameraEndpoints.StreamClientName,
+            client => client.Timeout = Timeout.InfiniteTimeSpan)
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
     builder.Services.Configure<List<Gaska.Intranet.Web.Links.QuickLink>>(builder.Configuration.GetSection("QuickLinks"));
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
@@ -87,6 +91,8 @@ try
     app.UseMiddleware<NetworkClaimMiddleware>();
     app.UseAuthorization();
     app.UseAntiforgery();
+    // Camera video sockets (/kamery/strumien, /kamery/nagranie).
+    app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 
     app.MapStaticAssets().AllowAnonymous();
     app.MapAccountEndpoints();
@@ -99,6 +105,7 @@ try
                 : Results.NotFound())
         .RequireAuthorization();
     Gaska.Intranet.Web.Components.Pages.Helpdesk.HelpdeskEndpoints.MapHelpdeskEndpoints(app);
+    Gaska.Intranet.Web.Components.Pages.Cameras.CameraEndpoints.MapCameraEndpoints(app);
     app.UseMiddleware<Gaska.Intranet.Web.Configuration.BlazorTransportMonitor>();
     app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
