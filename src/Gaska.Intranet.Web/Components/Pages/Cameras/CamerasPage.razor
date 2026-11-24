@@ -1,0 +1,167 @@
+@page "/kamery"
+@page "/kamery/{Location}"
+@attribute [ModuleAuthorize(ModuleKeys.Cameras)]
+@inject ICameraAccess CameraAccess
+@inject ICameraService Cameras
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+
+<PageTitle>Kamery · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Kamery" Subtitle="Podgląd na żywo. Kliknij kamerę, żeby ją powiększyć albo obejrzeć nagrania." />
+
+@if (_locations is null)
+{
+    <PageSkeleton Kind="PageSkeleton.SkeletonKind.List" ShowTitle="false" Rows="3" />
+}
+else if (_networkBlocked)
+{
+    <div class="gaska-empty-state">
+        <MudIcon Icon="@Icons.Material.Outlined.Lan" Style="font-size:4rem" Color="Color.Primary" />
+        <MudText Typo="Typo.h5" Class="mt-4">Kamery tylko z sieci firmowej</MudText>
+        <MudText Typo="Typo.body1" Class="mt-2 mud-text-secondary">
+            Ta zakładka jest dostępna tylko z sieci firmowej. Otwórz ją w biurze albo po połączeniu przez VPN.
+        </MudText>
+    </div>
+}
+else if (_locations.Count == 0)
+{
+    <div class="gaska-empty-state">
+        <MudIcon Icon="@Icons.Material.Outlined.VideocamOff" Style="font-size:4rem" Color="Color.Primary" />
+        <MudText Typo="Typo.h5" Class="mt-4">Brak dostępnych lokalizacji</MudText>
+        <MudText Typo="Typo.body1" Class="mt-2 mud-text-secondary">
+            Nie masz uprawnień do żadnej lokalizacji kamer. Jeśli potrzebujesz dostępu, skontaktuj się z działem IT.
+        </MudText>
+    </div>
+}
+else
+{
+    <MudTabs Elevation="0" Rounded="false" Color="Color.Default" Class="gaska-tabs-scroll gaska-camera-tabs" TabPanelsClass="pt-4"
+             ActivePanelIndex="_activeIndex" ActivePanelIndexChanged="OnTabChanged">
+        @foreach (var location in _locations)
+        {
+            var cameras = CamerasIn(location.Location);
+            <MudTabPanel Text="@location.Title" BadgeData="@(cameras.Count > 0 ? cameras.Count : null)" BadgeColor="Color.Default">
+                @if (cameras.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">W tej lokalizacji nie ma jeszcze skonfigurowanych kamer.</MudText>
+                }
+                else
+                {
+                    <div class="gaska-camera-grid">
+                        @foreach (var camera in cameras)
+                        {
+                            <button type="button" class="gaska-camera-tile" @key="camera.Id" @onclick="() => OpenAsync(camera)"
+                                    aria-label="@($"{camera.Name} – powiększ")">
+                                <CameraView Camera="camera" IsLiveVideo="Cameras.IsLiveVideo" Quality="CameraStreamQuality.Sub" Lazy="true" Paused="_dialogOpen"
+                                            ElementId="@CameraView.TileId(camera.Id)" />
+                                <span class="gaska-camera-caption">
+                                    <span class="gaska-camera-name">@camera.Name</span>
+                                    <MudIcon Icon="@Icons.Material.Outlined.OpenInFull" Size="Size.Small" />
+                                </span>
+                            </button>
+                        }
+                    </div>
+                }
+            </MudTabPanel>
+        }
+    </MudTabs>
+}
+
+@code {
+    [Parameter]
+    public string? Location { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IReadOnlyList<CameraLocationInfo>? _locations;
+    private bool _networkBlocked;
+    private int _activeIndex;
+    private bool _dialogOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        _locations = await CameraAccess.GetAllowedLocationsAsync(user);
+        // No location from here, but some from the company network ("company network only" switch on the locations).
+        _networkBlocked = _locations.Count == 0 && await CameraAccess.IsAnyLocationBlockedByNetworkAsync(user);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_locations is null || _locations.Count == 0)
+        {
+            return;
+        }
+
+        var index = _locations.ToList().FindIndex(l => l.Slug.Equals(Location ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+        _activeIndex = index < 0 ? 0 : index;
+    }
+
+    // Alphabetically, numbers by value ("Hala 2" before "Hala 10"), so cameras of one place are next to each other.
+    private static readonly StringComparer ByName = StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("pl-PL"),
+        System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.NumericOrdering);
+
+    /// <summary>
+    /// The tab's own cameras first, then those shown here as well ("AlsoIn", e.g. packing stations in their warehouse) –
+    /// each group alphabetically, so the two do not mix.
+    /// </summary>
+    private IReadOnlyList<CameraInfo> CamerasIn(CameraLocation location) =>
+        Cameras.Cameras
+            .Where(c => c.Locations.Contains(location))
+            .OrderBy(c => c.Location == location ? 0 : 1)
+            .ThenBy(c => c.Name, ByName)
+            .ToList();
+
+    /// <summary>The tab is part of the address – a link or a refresh opens the same location.</summary>
+    private void OnTabChanged(int index)
+    {
+        _activeIndex = index;
+        // MudTabs also reports index changes while its panels are disposed – at the end of prerendering (navigating then
+        // throws) and when the user leaves for another page (navigating would pull them back here).
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+        if (!RendererInfo.IsInteractive || !(path.Equals("/kamery", StringComparison.OrdinalIgnoreCase) ||
+                                             path.StartsWith("/kamery/", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        if (_locations is { } locations && index >= 0 && index < locations.Count &&
+            !locations[index].Slug.Equals(Location ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo($"/kamery/{locations[index].Slug}", replace: true);
+        }
+    }
+
+    private async Task OpenAsync(CameraInfo camera)
+    {
+        var parameters = new DialogParameters<CameraDialog> { { d => d.Camera, camera }, { d => d.HandoffFrom, CameraView.TileId(camera.Id) } };
+        var dialog = await Dialogs.ShowAsync<CameraDialog>(camera.Name, parameters, new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            CloseButton = true,
+        });
+
+        // The tiles behind the enlarged camera stop – nobody sees them, and the browser and the cameras save the work.
+        // A moment later, so the enlarged view first takes over the tile's running video (no black screen meanwhile).
+        try
+        {
+            var closed = dialog.Result;
+            if (await Task.WhenAny(closed, Task.Delay(1500)) != closed)
+            {
+                _dialogOpen = true;
+                StateHasChanged();
+            }
+
+            await closed;
+        }
+        finally
+        {
+            _dialogOpen = false;
+            StateHasChanged();
+        }
+    }
+}

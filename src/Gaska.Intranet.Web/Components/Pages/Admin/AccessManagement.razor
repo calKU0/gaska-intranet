@@ -34,6 +34,16 @@ else
                     </MudText>
                 </div>
             }
+            else if (item.Module.Key == _firstCameraKey)
+            {
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2" Class="gaska-section-heading">Kamery – lokalizacje</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Które zakładki modułu Kamery widzi dana osoba. Działa tylko razem z dostępem do modułu Kamery –
+                        sama lokalizacja bez modułu nic nie pokaże.
+                    </MudText>
+                </div>
+            }
 
             <MudPaper Elevation="0" Class="gaska-card pa-5">
                 <div class="gaska-module-head">
@@ -127,11 +137,14 @@ else
     }
 
     private string? _firstDataKey;
+    private string? _firstCameraKey;
 
     private async Task LoadAsync()
     {
         _overview = await Access.GetOverviewAsync();
-        _firstDataKey = _overview.Where(o => o.Module.Kind == ModuleKind.Data).MinBy(o => o.Module.Order)?.Module.Key;
+        _firstDataKey = _overview.Where(o => o.Module.Kind == ModuleKind.Data && o.Module.Section != ModuleCatalog.CamerasSection)
+            .MinBy(o => o.Module.Order)?.Module.Key;
+        _firstCameraKey = _overview.Where(o => o.Module.Section == ModuleCatalog.CamerasSection).MinBy(o => o.Module.Order)?.Module.Key;
     }
 
     private async Task<IEnumerable<DirectoryPrincipal>> SearchAsync(string term, CancellationToken ct) =>

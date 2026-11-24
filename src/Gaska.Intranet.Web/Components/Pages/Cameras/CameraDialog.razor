@@ -1,0 +1,522 @@
+@using System.Globalization
+@using Gaska.Intranet.Core.Security
+@implements IAsyncDisposable
+@inject ICameraAccess CameraAccess
+@inject ICameraService Cameras
+@inject CameraPlaybackTickets Tickets
+@inject TimeProvider Clock
+@inject ILogger<CameraDialog> Logger
+
+<MudDialog Class="gaska-dialog gaska-camera-dialog">
+    <DialogContent>
+        <MudTabs Elevation="0" Rounded="false" Color="Color.Default" Class="gaska-tabs-scroll" TabPanelsClass="pt-3"
+                 ActivePanelIndex="_tab" ActivePanelIndexChanged="OnTabChangedAsync">
+            <MudTabPanel Text="Na żywo" Icon="@Icons.Material.Outlined.Videocam">
+                @if (_tab == 0)
+                {
+                    <CameraView Camera="Camera" IsLiveVideo="Cameras.IsLiveVideo" Quality="CameraStreamQuality.Main" Class="is-large"
+                                HandoffFrom="@HandoffFrom" ElementId="camera-live-view" />
+                    <div class="gaska-camera-now">
+                        <span class="gaska-flex-spacer"></span>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Fullscreen"
+                                   UserAttributes="@(new Dictionary<string, object> { ["data-camera-fullscreen"] = "camera-live-view" })">Pełny ekran</MudButton>
+                    </div>
+                }
+            </MudTabPanel>
+            <MudTabPanel Text="Nagrania" Icon="@Icons.Material.Outlined.History">
+                @if (_tab == 1)
+                {
+                    <div class="gaska-camera-playback">
+                        @if (_playStart is { } start)
+                        {
+                            <CameraView @ref="_player" @key="_ticket" Camera="Camera" IsLiveVideo="Cameras.IsLiveVideo" PlaybackTicket="@_ticket"
+                                        PlaybackStart="start" Speed="_speed" Quality="CameraStreamQuality.Main" Class="is-large"
+                                        ElementId="camera-playback-view" />
+                        }
+                        else
+                        {
+                            <div class="gaska-camera-view is-large is-placeholder">
+                                <MudIcon Icon="@Icons.Material.Outlined.PlayCircle" />
+                                <span>Kliknij oś czasu albo wybierz godzinę</span>
+                            </div>
+                        }
+
+                        <div class="gaska-camera-now">
+                            <MudIconButton Icon="@(_paused ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Pause)"
+                                           Size="Size.Small" Variant="Variant.Outlined" Class="gaska-camera-toggle"
+                                           Disabled="@(_playStart is null)" OnClick="TogglePauseAsync"
+                                           UserAttributes="@(new Dictionary<string, object> { ["aria-label"] = _paused ? "Wznów" : "Zatrzymaj" })" />
+
+                            @if (_position is { } position)
+                            {
+                                <span class="gaska-camera-clock">@position.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</span>
+                            }
+                            else if (_playStart is { } begin)
+                            {
+                                <span class="mud-text-secondary">Od @begin.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</span>
+                            }
+
+                            @if (_notice is not null)
+                            {
+                                <span class="mud-text-secondary">@_notice</span>
+                            }
+
+                            <span class="gaska-flex-spacer"></span>
+
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" OverrideStyles="false" Class="gaska-camera-speed"
+                                            aria-label="Szybkość odtwarzania">
+                                @foreach (var speed in CameraPlaybackSpeeds.All)
+                                {
+                                    <MudButton Color="@(speed == _speed ? Color.Primary : Color.Default)"
+                                               Variant="@(speed == _speed ? Variant.Filled : Variant.Outlined)"
+                                               Class="@(speed == _speed ? "is-active" : null)"
+                                               OnClick="() => SetSpeedAsync(speed)" aria-pressed="@(speed == _speed ? "true" : "false")">@(speed)×</MudButton>
+                                }
+                            </MudButtonGroup>
+
+                            <MudIconButton Icon="@Icons.Material.Outlined.Fullscreen" Size="Size.Small"
+                                           Disabled="@(_playStart is null)"
+                                           UserAttributes="@(new Dictionary<string, object> { ["aria-label"] = "Pełny ekran", ["data-camera-fullscreen"] = "camera-playback-view" })" />
+
+                            @if (Cameras.IsLiveVideo)
+                            {
+                                <MudMenu Icon="@Icons.Material.Outlined.Download" Size="Size.Small" AriaLabel="Pobierz nagranie" Disabled="@(DownloadFrom is null)"
+                                         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                    <MudText Typo="Typo.caption" Class="px-4 pt-2 mud-text-secondary">
+                                        Pobierz od @DownloadFrom?.ToLocalTime().ToString("HH:mm:ss")
+                                    </MudText>
+                                    @foreach (var minutes in DownloadLengths)
+                                    {
+                                        <MudMenuItem Href="@DownloadUrl(minutes)" Target="_blank">@minutes min</MudMenuItem>
+                                    }
+                                </MudMenu>
+                            }
+                        </div>
+
+                        <div class="gaska-camera-playback-controls">
+                            <div class="gaska-camera-day">
+                                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Poprzedni dzień" OnClick="() => ChangeDayAsync(-1)" />
+                                <MudDatePicker Date="_day" DateChanged="OnDayPicked" Label="Dzień" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                               MaxDate="Today" DateFormat="dd.MM.yyyy" Class="gaska-camera-day-picker" />
+                                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Następny dzień" OnClick="() => ChangeDayAsync(1)"
+                                               Disabled="@(_day >= Today)" />
+                            </div>
+                            <div class="gaska-camera-time">
+                                <MudTimePicker Time="_time" TimeChanged="t => _time = t" Label="Od godziny" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                               AmPm="false" TimeEditMode="TimeEditMode.Normal" Editable="true" />
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow"
+                                           OnClick="PlayFromTimeAsync" Disabled="_time is null">Odtwórz</MudButton>
+                            </div>
+                        </div>
+
+                        <FormError Message="@_error" Dense="true" Variant="Variant.Text" Class="mt-2" />
+
+                        @if (_searching)
+                        {
+                            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-3" />
+                        }
+                        else if (_recordings is { } recordings)
+                        {
+                            var blocks = Blocks(recordings);
+                            <div class="gaska-camera-timeline">
+                                @foreach (var r in blocks)
+                                {
+                                    var (left, width) = Position(r);
+                                    <span class="gaska-camera-segment" style="left:@(Css(left))%;width:@(Css(width))%"></span>
+                                }
+                                @if (_position is { } now && Position(now) is { } marker)
+                                {
+                                    <span class="gaska-camera-marker" style="left:@(Css(marker))%"></span>
+                                }
+                                @* The whole bar is a slider: drag or click to any moment (also with the keyboard). *@
+                                <input type="range" class="gaska-camera-scrubber" min="0" max="@DaySeconds" step="1"
+                                       value="@_scrub" aria-label="Przewiń nagranie" aria-valuetext="@ScrubLabel"
+                                       @onpointerdown="() => _dragging = true" @onpointerup="() => _dragging = false"
+                                       @oninput="OnScrubInput" @onchange="OnScrubbedAsync" />
+                                @if (_dragging && _scrub is { } dragged)
+                                {
+                                    <span class="gaska-camera-scrub-label" style="left:@(Css(dragged * 100.0 / DaySeconds))%">@ScrubLabel</span>
+                                }
+                            </div>
+                            <div class="gaska-camera-hours" aria-hidden="true">
+                                @for (var hour = 0; hour <= 24; hour += 2)
+                                {
+                                    <span class="@(hour % 6 == 0 ? "is-major" : null)">@hour:00</span>
+                                }
+                            </div>
+
+                            @if (recordings.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-3">Brak nagrań z tego dnia.</MudText>
+                            }
+                            else if (blocks.Count > MaxListedRecordings)
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-3">
+                                    Fragmenty nagrań: @blocks.Count. Kliknij albo przeciągnij po osi czasu, żeby przewinąć.
+                                </MudText>
+                            }
+                            else
+                            {
+                                <div class="gaska-camera-segments">
+                                    @foreach (var r in blocks)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Outlined.PlayArrow"
+                                                 OnClick="() => PlayAsync(r.Start)">@Label(r)</MudChip>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CameraInfo Camera { get; set; } = default!;
+
+    /// <summary>The tile the camera was opened from – its running video shows until the full-quality stream plays.</summary>
+    [Parameter]
+    public string? HandoffFrom { get; set; }
+
+    /// <summary>Above this the fragments are only on the timeline (motion recording gives hundreds of short clips).</summary>
+    private const int MaxListedRecordings = 40;
+
+    private const int DaySeconds = 24 * 60 * 60 - 1;
+
+    private static readonly int[] DownloadLengths = [1, 5, 15, 30, 60];
+
+    private int _tab;
+    private DateTime? _day;
+    private TimeSpan? _time;
+    private IReadOnlyList<CameraRecording>? _recordings;
+    private bool _searching;
+    private string? _error;
+    private string? _notice;
+    private DateTimeOffset? _playStart;
+    private DateTimeOffset? _position;
+    private string? _ticket;
+    private int _speed = 1;
+    private bool _paused;
+    private int? _scrub;
+    private bool _dragging;
+    private CameraView? _player;
+    private PeriodicTimer? _timer;
+    private Task? _timerLoop;
+
+    private DateTime Today => Clock.GetLocalNow().Date;
+
+    protected override void OnInitialized()
+    {
+        _day = Today;
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _timerLoop = TrackPositionAsync();
+    }
+
+    /// <summary>The day's recordings are loaded the first time the tab opens.</summary>
+    private async Task OnTabChangedAsync(int tab)
+    {
+        _tab = tab;
+        if (tab == 1 && _recordings is null)
+        {
+            await SearchAsync();
+        }
+    }
+
+    /// <summary>Follows the playback: the time on screen, the marker and the slider show the moment being played.</summary>
+    private async Task TrackPositionAsync()
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync())
+            {
+                if (_tab != 1 || _playStart is not { } start || _player is null || _recordings is null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var seconds = await _player.GetPositionAsync();
+                    if (seconds is null)
+                    {
+                        continue;
+                    }
+
+                    _position = CameraPlaybackSpeeds.PositionAt(start, seconds.Value, _recordings);
+                    if (!_dragging)
+                    {
+                        _scrub = SecondsOfDay(_position.Value);
+                    }
+
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex) when (ex is not ObjectDisposedException)
+                {
+                    // One missed tick (JS call timed out, player re-attaching) is harmless – try again next second.
+                    Logger.LogDebug(ex, "Playback position of camera {Camera} not read", Camera.Id);
+                }
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task OnDayPicked(DateTime? day)
+    {
+        _day = day is null ? Today : day.Value.Date > Today ? Today : day.Value.Date;
+        await SearchAsync();
+    }
+
+    private Task ChangeDayAsync(int days) => OnDayPicked((_day ?? Today).AddDays(days));
+
+    private DateTimeOffset DayStart => LocalTime((_day ?? Today).Date);
+
+    private DateTimeOffset LocalTime(DateTime wall) => new(wall, Clock.LocalTimeZone.GetUtcOffset(wall));
+
+    private int? SecondsOfDay(DateTimeOffset time)
+    {
+        var seconds = (time - DayStart).TotalSeconds;
+        return seconds is >= 0 and <= DaySeconds ? (int)seconds : null;
+    }
+
+    private string ScrubLabel => _scrub is { } s ? TimeSpan.FromSeconds(s).ToString(@"hh\:mm\:ss") : string.Empty;
+
+    private async Task SearchAsync()
+    {
+        _error = null;
+        _notice = null;
+        _searching = true;
+        try
+        {
+            if (await CameraAccess.GetViewableCameraAsync((await AuthState).User, Camera.Id) is null)
+            {
+                _error = "Nie masz już dostępu do tej kamery.";
+                _recordings = [];
+                return;
+            }
+
+            var from = DayStart;
+            _recordings = await Cameras.SearchRecordingsAsync(Camera.Id, from, from.AddDays(1));
+        }
+        catch (CameraUnavailableException ex)
+        {
+            Logger.LogWarning(ex, "Recording search failed for camera {Camera}", Camera.Id);
+            _error = "Kamera nie odpowiada – nie udało się pobrać listy nagrań.";
+            _recordings = [];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Anything unexpected stays in this window – it must not end the user's whole session (circuit).
+            Logger.LogError(ex, "Recording search crashed for camera {Camera}", Camera.Id);
+            _error = "Nie udało się pobrać listy nagrań.";
+            _recordings = [];
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private Task PlayFromTimeAsync() =>
+        _time is { } time ? PlayAsync(LocalTime((_day ?? Today).Date + time)) : Task.CompletedTask;
+
+    private void OnScrubInput(ChangeEventArgs e)
+    {
+        _dragging = true;
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
+        {
+            _scrub = seconds;
+        }
+    }
+
+    private async Task OnScrubbedAsync(ChangeEventArgs e)
+    {
+        _dragging = false;
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
+        {
+            await PlayAsync(DayStart.AddSeconds(seconds));
+        }
+    }
+
+    /// <summary>
+    /// A new speed goes on from the moment on screen: the camera changes the speed of the running playback and the
+    /// player follows – no new connection. Only when that is not possible does the playback restart from the position.
+    /// </summary>
+    private async Task SetSpeedAsync(int speed)
+    {
+        var previous = _speed;
+        _speed = speed;
+        if (_playStart is null || _player is null || speed == previous || _paused)
+        {
+            return; // A paused playback resumes at the chosen speed.
+        }
+
+        if (!Cameras.IsLiveVideo)
+        {
+            await _player.SetRateAsync(speed);
+            return;
+        }
+
+        var sid = (await AuthState).User.GetSid();
+        if (_ticket is { } ticket && Tickets.Find(ticket, sid) is { } request)
+        {
+            request.Speed = speed;
+            try
+            {
+                if (request.Stream is { } stream && await Cameras.SetPlaybackSpeedAsync(stream, speed))
+                {
+                    await _player.SetRateAsync(speed);
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Fall back to restarting the playback from the position.
+                Logger.LogWarning(ex, "In-place speed change of camera {Camera} failed", Camera.Id);
+            }
+        }
+
+        if ((_position ?? _playStart) is { } at)
+        {
+            await PlayAsync(at, keepNotice: true);
+        }
+    }
+
+    private async Task PlayAsync(DateTimeOffset requested, bool keepNotice = false)
+    {
+        _error = null;
+        if (!keepNotice)
+        {
+            _notice = null;
+        }
+
+        if (requested >= Clock.GetUtcNow())
+        {
+            _error = "Ta godzina jeszcze nie minęła.";
+            return;
+        }
+
+        var user = (await AuthState).User;
+        if (await CameraAccess.GetViewableCameraAsync(user, Camera.Id) is null)
+        {
+            _error = "Nie masz już dostępu do tej kamery.";
+            return;
+        }
+
+        // A camera refuses a playback where nothing is recorded – start at the next recording instead.
+        var start = requested;
+        if (_recordings is { Count: > 0 } recordings)
+        {
+            if (CameraPlaybackSpeeds.StartAt(requested, recordings) is not { } next)
+            {
+                _error = "Po tej godzinie nie ma już nagrań z tego dnia.";
+                return;
+            }
+
+            if (next - requested > TimeSpan.FromSeconds(5))
+            {
+                _notice = $"O {requested.ToLocalTime():HH:mm:ss} nie ma nagrania – odtwarzam od {next.ToLocalTime():HH:mm:ss}.";
+            }
+
+            start = next;
+        }
+
+        _paused = false;
+        _playStart = start;
+        _position = null;
+        _scrub = SecondsOfDay(start);
+        _time = start.ToLocalTime().TimeOfDay;
+        _ticket = Cameras.IsLiveVideo
+            ? Tickets.Create(user.GetSid(), Camera.Id, start, _speed)
+            : $"demo-{start.ToUnixTimeSeconds()}-{_speed}";
+    }
+
+    /// <summary>
+    /// Pause holds the picture on screen and ends the camera stream (a camera keeps sending otherwise); play goes on
+    /// from the moment shown, at the chosen speed.
+    /// </summary>
+    private async Task TogglePauseAsync()
+    {
+        if (_playStart is null || _player is null)
+        {
+            return;
+        }
+
+        if (!_paused)
+        {
+            _paused = true;
+            await _player.HoldAsync();
+            return;
+        }
+
+        if ((_position ?? _playStart) is { } at)
+        {
+            await PlayAsync(at, keepNotice: true);
+        }
+    }
+
+    /// <summary>Downloads start where the playback is (or at the chosen recording).</summary>
+    private DateTimeOffset? DownloadFrom => _position ?? _playStart;
+
+    private string DownloadUrl(int minutes) =>
+        DownloadFrom is { } from ? CameraEndpoints.DownloadUrl(Camera.Id, from, from.AddMinutes(minutes)) : "#";
+
+    /// <summary>Recordings less than a minute apart are one block on the timeline and in the list.</summary>
+    private static IReadOnlyList<CameraRecording> Blocks(IReadOnlyList<CameraRecording> recordings)
+    {
+        var blocks = new List<CameraRecording>();
+        foreach (var r in recordings.OrderBy(r => r.Start))
+        {
+            if (blocks.Count > 0 && r.Start - blocks[^1].End <= TimeSpan.FromMinutes(1))
+            {
+                blocks[^1] = blocks[^1] with { End = r.End > blocks[^1].End ? r.End : blocks[^1].End };
+            }
+            else
+            {
+                blocks.Add(r);
+            }
+        }
+
+        return blocks;
+    }
+
+    private (double Left, double Width) Position(CameraRecording r)
+    {
+        var dayStart = DayStart;
+        var dayLength = (dayStart.AddDays(1) - dayStart).TotalMinutes;
+        var left = Math.Clamp((r.Start - dayStart).TotalMinutes / dayLength * 100, 0, 100);
+        var right = Math.Clamp((r.End - dayStart).TotalMinutes / dayLength * 100, 0, 100);
+        return (Math.Round(left, 3), Math.Round(Math.Max(right - left, 0.4), 3));
+    }
+
+    private double? Position(DateTimeOffset time)
+    {
+        var dayStart = DayStart;
+        var value = (time - dayStart).TotalMinutes / (dayStart.AddDays(1) - dayStart).TotalMinutes * 100;
+        return value is >= 0 and <= 100 ? Math.Round(value, 3) : null;
+    }
+
+    private static string Css(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string Label(CameraRecording r) =>
+        $"{r.Start.ToLocalTime():HH:mm}–{r.End.ToLocalTime():HH:mm}";
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        if (_timerLoop is not null)
+        {
+            await _timerLoop;
+        }
+    }
+}
