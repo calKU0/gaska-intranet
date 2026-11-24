@@ -1,9 +1,29 @@
 <div class="gaska-page-header @(InlineActions ? "gaska-page-header--inline" : null)">
     <div>
-        <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title">@Title</MudText>
+        @if (TitleSuffix is null)
+        {
+            <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title">@Title</MudText>
+        }
+        else
+        {
+            <div class="gaska-copyable gaska-page-title-row">
+                <MudText Typo="Typo.h4" HtmlTag="h1" Class="gaska-page-title">@Title</MudText>
+                @TitleSuffix
+            </div>
+        }
         @if (!string.IsNullOrWhiteSpace(Subtitle))
         {
-            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@Subtitle</MudText>
+            if (SubtitleSuffix is null)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@Subtitle</MudText>
+            }
+            else
+            {
+                <div class="gaska-copyable gaska-page-subtitle-row mt-1">
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">@Subtitle</MudText>
+                    @SubtitleSuffix
+                </div>
+            }
         }
     </div>
     @if (Actions is not null)
@@ -21,6 +41,14 @@
 
     [Parameter]
     public RenderFragment? Actions { get; set; }
+
+    /// <summary>Shown right after the title (e.g. a copy button).</summary>
+    [Parameter]
+    public RenderFragment? TitleSuffix { get; set; }
+
+    /// <summary>Shown right after the subtitle (e.g. a copy button).</summary>
+    [Parameter]
+    public RenderFragment? SubtitleSuffix { get; set; }
 
     /// <summary>
     /// Small actions (e.g. a refresh icon) stay on the title's row on phones instead of taking a full-width row of their own.

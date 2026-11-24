@@ -1,12 +1,30 @@
 @if (ContactFormatter.ToTelUri(Number) is { } tel)
 {
-    <a href="@tel" class="gaska-phone">
-        <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
-        @ContactFormatter.FormatPhoneForDisplay(Number)
-    </a>
+    var shown = ContactFormatter.FormatPhoneForDisplay(Number);
+    @if (Copy)
+    {
+        <span class="gaska-copyable">
+            <a href="@tel" class="gaska-phone">
+                <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
+                @shown
+            </a>
+            <CopyButton Value="@shown" What="numer telefonu" />
+        </span>
+    }
+    else
+    {
+        <a href="@tel" class="gaska-phone">
+            <MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" />
+            @shown
+        </a>
+    }
 }
 
 @code {
     [Parameter]
     public string? Number { get; set; }
+
+    /// <summary>Adds a copy-to-clipboard button after the number.</summary>
+    [Parameter]
+    public bool Copy { get; set; }
 }

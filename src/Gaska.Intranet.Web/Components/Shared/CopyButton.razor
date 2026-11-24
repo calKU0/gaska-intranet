@@ -1,0 +1,79 @@
+@* Small "copy" icon next to a value (phone, e-mail, NIP…). The click never reaches the row / card underneath,
+   so it can sit inside clickable grid rows. After copying the icon turns into a tick for a moment. *@
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+@if (!string.IsNullOrWhiteSpace(Value))
+{
+    @* A native title instead of MudTooltip: on phones a MudTooltip stayed on screen after the tap. *@
+    <span class="gaska-copy @Class" @onclick:stopPropagation="true">
+        <MudIconButton Icon="@(_copied ? Icons.Material.Filled.Check : Icons.Material.Outlined.ContentCopy)"
+                       Size="Size.Small" Class="@(_copied ? "gaska-copy-btn is-copied" : "gaska-copy-btn")"
+                       title="@($"Kopiuj {What}")" aria-label="@($"Kopiuj {What}")" OnClick="CopyAsync" />
+    </span>
+}
+
+@code {
+    /// <summary>Text placed on the clipboard (e.g. the phone number as written, without formatting spaces).</summary>
+    [Parameter, EditorRequired]
+    public string? Value { get; set; }
+
+    /// <summary>What is being copied, in the accusative: "numer telefonu", "e-mail", "NIP".</summary>
+    [Parameter]
+    public string What { get; set; } = "do schowka";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private const string SnackbarKey = "gaska-copied";
+
+    private bool _copied;
+    private CancellationTokenSource? _reset;
+
+    private async Task CopyAsync()
+    {
+        var text = Value!.Trim();
+        bool ok;
+        try
+        {
+            ok = await JS.InvokeAsync<bool>("gaskaClipboard.copy", text);
+        }
+        catch (JSException)
+        {
+            ok = false;
+        }
+
+        if (!ok)
+        {
+            Snackbar.Add("Nie udało się skopiować – zaznacz tekst i skopiuj go ręcznie.", Severity.Warning);
+            return;
+        }
+
+        // One "copied" message at a time – a quick series of copies replaces it instead of stacking.
+        Snackbar.RemoveByKey(SnackbarKey);
+        Snackbar.Add($"Skopiowano: {text}", Severity.Normal, o =>
+        {
+            o.VisibleStateDuration = 1500;
+            o.ShowCloseIcon = false;
+            o.Icon = Icons.Material.Outlined.ContentCopy;
+        }, SnackbarKey);
+
+        _copied = true;
+        StateHasChanged(); // the handler keeps running for the tick's duration – show the tick now
+        _reset?.Cancel();
+        _reset = new CancellationTokenSource();
+        var token = _reset.Token;
+        try
+        {
+            await Task.Delay(1500, token);
+            _copied = false;
+        }
+        catch (TaskCanceledException)
+        {
+            // a newer click restarted the timer
+        }
+    }
+
+    public void Dispose() => _reset?.Cancel();
+}

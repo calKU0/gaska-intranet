@@ -4714,3 +4714,294 @@ button.gaska-metric:focus-visible {
     .components-reconnect-resume-failed) .gaska-reconnect-when-show {
     display: none;
 }
+
+/* ---------- Copy-to-clipboard buttons (CopyButton.razor) ---------- */
+.gaska-copyable {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.gaska-copyable > a,
+.gaska-copyable > span:not(.gaska-copy) {
+    min-width: 0;
+}
+
+.gaska-copy {
+    display: inline-flex;
+    flex: none;
+}
+
+.mud-icon-button.gaska-copy-btn {
+    padding: 5px;
+    color: var(--gaska-faint);
+    transition: color .15s ease, background-color .15s ease;
+}
+
+.mud-icon-button.gaska-copy-btn .mud-icon-root {
+    font-size: 1rem;
+}
+
+.mud-icon-button.gaska-copy-btn:hover,
+.mud-icon-button.gaska-copy-btn:focus-visible,
+.mud-table-row:hover .mud-icon-button.gaska-copy-btn {
+    color: var(--gaska-yellow-text);
+}
+
+.mud-icon-button.gaska-copy-btn.is-copied {
+    color: var(--gaska-success-text) !important;
+}
+
+/* Under the name in the phone list: a smaller icon, the row stays compact. */
+.gaska-copy--inline .mud-icon-button.gaska-copy-btn {
+    padding: 3px;
+}
+
+/* Inside label / value lists the value and its button sit together (the dd's gap is meant for separate values). */
+.gaska-details dd:has(.gaska-copy) {
+    align-items: center;
+}
+
+.gaska-details dd > .gaska-copy--dd {
+    margin-left: -10px;
+}
+
+.gaska-page-title-row,
+.gaska-page-subtitle-row {
+    display: flex;
+}
+
+.gaska-page-title-row .gaska-page-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Touch screens: a bigger target than the 16px icon. */
+@media (pointer: coarse) {
+    .mud-icon-button.gaska-copy-btn {
+        padding: 8px;
+        margin: -3px 0;
+        color: var(--gaska-muted);
+    }
+
+    .gaska-copy--inline .mud-icon-button.gaska-copy-btn {
+        padding: 6px;
+        margin: -6px 0;
+    }
+}
+
+/* ---------- Employee card (EmployeeDialog.razor) ---------- */
+.gaska-employee-dialog .mud-dialog-title {
+    padding: 20px 56px 12px 20px;
+}
+
+.gaska-emp-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+.mud-avatar.gaska-emp-avatar {
+    width: 64px;
+    height: 64px;
+    flex: none;
+    font-size: 1.35rem !important;
+    border: 3px solid var(--gaska-yellow);
+}
+
+.gaska-emp-who {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.gaska-emp-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.gaska-emp-job {
+    font-size: .88rem;
+    color: var(--gaska-text-2);
+    line-height: 1.3;
+}
+
+.gaska-emp-dept {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 2px 10px 2px 8px;
+    border-radius: 999px;
+    background: var(--gaska-surface-3);
+    color: var(--gaska-graphite);
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.gaska-emp-dept .mud-icon-root {
+    font-size: 1rem;
+}
+
+.gaska-employee-dialog .mud-dialog-content {
+    padding: 4px 20px 16px;
+}
+
+.gaska-emp-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.gaska-emp-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 6px;
+    border-radius: var(--gaska-radius);
+    background: var(--gaska-surface-3);
+    color: var(--gaska-text);
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color .15s ease, transform .1s ease;
+}
+
+.gaska-emp-action:hover {
+    background: var(--gaska-border);
+}
+
+.gaska-emp-action:active {
+    transform: scale(.97);
+}
+
+.gaska-emp-action.is-primary {
+    background: var(--gaska-yellow);
+    color: var(--gaska-charcoal);
+}
+
+.gaska-emp-action.is-primary:hover {
+    background: var(--gaska-yellow-dark);
+}
+
+.gaska-emp-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--gaska-border);
+    border-radius: var(--gaska-radius);
+    overflow: hidden;
+}
+
+.gaska-emp-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 6px 10px 12px;
+    min-height: 56px;
+}
+
+.gaska-emp-row + .gaska-emp-row {
+    border-top: 1px solid var(--gaska-border);
+}
+
+.gaska-emp-row-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--gaska-yellow-soft);
+    color: var(--gaska-yellow-text);
+}
+
+.gaska-emp-row-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.gaska-emp-row-label {
+    font-size: .72rem;
+    color: var(--gaska-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+}
+
+.gaska-emp-row-value {
+    font-size: .95rem;
+    font-weight: 500;
+    color: var(--gaska-text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+a.gaska-emp-row-value:hover {
+    color: var(--gaska-yellow-dark);
+    text-decoration: underline;
+}
+
+.gaska-emp-ext {
+    font-variant-numeric: tabular-nums;
+}
+
+.gaska-emp-row .mud-icon-button.gaska-copy-btn {
+    padding: 8px;
+}
+
+.gaska-emp-row .mud-icon-button.gaska-copy-btn .mud-icon-root {
+    font-size: 1.15rem;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-employee-dialog .mud-dialog-title {
+        padding: 18px 52px 10px 16px;
+    }
+
+    .gaska-employee-dialog .mud-dialog-content {
+        padding: 4px 16px 20px;
+    }
+}
+
+/* Employee list: the e-mail under the name stays on one line (cut with "…") – the card has the full address. */
+.gaska-emp-list-email .gaska-copyable {
+    max-width: 100%;
+}
+
+.gaska-ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 599.98px) {
+    .gaska-emp-list-email {
+        max-width: calc(100vw - 260px);
+    }
+
+    .gaska-emp-list-email .gaska-copyable {
+        display: flex;
+    }
+}
+
+@media (max-width: 599.98px) {
+    /* Bottom sheets span the full width and sit on the screen's bottom edge (no 8px gap around them). */
+    .mud-dialog-container .mud-dialog.gaska-dialog.gaska-sheet {
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}

@@ -30,6 +30,8 @@ else
     <MudBreadcrumbs Items="_breadcrumbs" Class="px-0 pt-0" />
 
     <PageHeader Title="@_contractor.ShortName" Subtitle="@_contractor.FullName">
+        <TitleSuffix><CopyButton Value="@_contractor.ShortName" What="akronim" /></TitleSuffix>
+        <SubtitleSuffix><CopyButton Value="@_contractor.FullName" What="nazwę" /></SubtitleSuffix>
         <Actions>
             @if (_operator is not null)
             {
@@ -91,9 +93,9 @@ else
                 <MudText Typo="Typo.subtitle2" Class="gaska-section-title">Dane firmy</MudText>
                 <dl class="gaska-details">
                     <dt>NIP</dt>
-                    <dd>@Value(_contractor.Nip)</dd>
+                    <dd>@Value(_contractor.Nip)<CopyButton Value="@_contractor.Nip" What="NIP" Class="gaska-copy--dd" /></dd>
                     <dt>REGON</dt>
-                    <dd>@Value(_contractor.Regon)</dd>
+                    <dd>@Value(_contractor.Regon)<CopyButton Value="@_contractor.Regon" What="REGON" Class="gaska-copy--dd" /></dd>
                     <dt>Adres</dt>
                     <dd class="gaska-dd-block">
                         @Value(_contractor.Address)<br />
@@ -109,9 +111,9 @@ else
                     </dd>
                     <dt>Telefon</dt>
                     <dd>
-                        <PhoneLink Number="@_contractor.Phone1" />
-                        <PhoneLink Number="@_contractor.Phone2" />
-                        <PhoneLink Number="@_contractor.Mobile" />
+                        <PhoneLink Number="@_contractor.Phone1" Copy="true" />
+                        <PhoneLink Number="@_contractor.Phone2" Copy="true" />
+                        <PhoneLink Number="@_contractor.Mobile" Copy="true" />
                         @if (_contractor.Phone1 is null && _contractor.Phone2 is null && _contractor.Mobile is null)
                         {
                             <span class="gaska-muted">—</span>
@@ -121,7 +123,10 @@ else
                     <dd>
                         @if (_contractor.Email is { } email)
                         {
-                            <a href="mailto:@email" class="gaska-link">@email</a>
+                            <span class="gaska-copyable">
+                                <a href="mailto:@email" class="gaska-link gaska-break">@email</a>
+                                <CopyButton Value="@email" What="adres e-mail" />
+                            </span>
                         }
                         else
                         {
@@ -204,11 +209,14 @@ else
                                         <div class="gaska-person-title">@contact.Position</div>
                                     }
                                     <div class="gaska-contact-links">
-                                        <PhoneLink Number="@contact.Mobile" />
-                                        <PhoneLink Number="@contact.Phone1" />
+                                        <PhoneLink Number="@contact.Mobile" Copy="true" />
+                                        <PhoneLink Number="@contact.Phone1" Copy="true" />
                                         @if (contact.Email is { } email)
                                         {
-                                            <a href="mailto:@email" class="gaska-link">@email</a>
+                                            <span class="gaska-copyable">
+                                                <a href="mailto:@email" class="gaska-link gaska-break">@email</a>
+                                                <CopyButton Value="@email" What="adres e-mail" />
+                                            </span>
                                         }
                                     </div>
                                 </div>

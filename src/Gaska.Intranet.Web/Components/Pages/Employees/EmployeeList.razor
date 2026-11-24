@@ -64,7 +64,12 @@
                             </div>
                             @if (!string.IsNullOrWhiteSpace(context.Item.Email))
                             {
-                                <div class="gaska-person-title gaska-sm-only gaska-break">@context.Item.Email</div>
+                                <div class="gaska-person-title gaska-sm-only gaska-emp-list-email">
+                                    <span class="gaska-copyable">
+                                        <span class="gaska-ellipsis">@context.Item.Email</span>
+                                        <CopyButton Value="@context.Item.Email" What="adres e-mail" Class="gaska-copy--inline gaska-hide-xs" />
+                                    </span>
+                                </div>
                             }
                         </div>
                     </div>
@@ -80,10 +85,14 @@
                 <CellTemplate>
                     @if (ContactFormatter.ToTelUri(context.Item.MobilePhone) is { } tel)
                     {
-                        <a href="@tel" class="gaska-phone">
-                            <MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" />
-                            @ContactFormatter.FormatPhoneForDisplay(context.Item.MobilePhone)
-                        </a>
+                        var phone = ContactFormatter.FormatPhoneForDisplay(context.Item.MobilePhone);
+                        <span class="gaska-copyable">
+                            <a href="@tel" class="gaska-phone" @onclick:stopPropagation="true">
+                                <MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" />
+                                @phone
+                            </a>
+                            <CopyButton Value="@phone" What="numer telefonu" />
+                        </span>
                     }
                     else
                     {
@@ -111,7 +120,10 @@
                 <CellTemplate>
                     @if (!string.IsNullOrWhiteSpace(context.Item.Email))
                     {
-                        <a href="mailto:@context.Item.Email" class="gaska-link">@context.Item.Email</a>
+                        <span class="gaska-copyable">
+                            <a href="mailto:@context.Item.Email" class="gaska-link gaska-break" @onclick:stopPropagation="true">@context.Item.Email</a>
+                            <CopyButton Value="@context.Item.Email" What="adres e-mail" />
+                        </span>
                     }
                     else
                     {

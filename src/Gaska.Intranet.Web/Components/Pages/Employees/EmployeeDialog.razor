@@ -1,79 +1,110 @@
-@* Details of one address-book entry – opened by tapping a row (on phones the list shows only the essentials). *@
+@* Details of one address-book entry – opened by tapping a row (on phones the list shows only the essentials).
+   Laid out like a phone's contact card: who it is, quick actions, then the contact rows with copy buttons. *@
 
 <MudDialog Class="gaska-dialog gaska-sheet gaska-employee-dialog">
     <TitleContent>
-        <div class="gaska-person">
-            <MudAvatar Class="gaska-person-avatar">@Employee.Initials</MudAvatar>
-            <div>
-                <div class="gaska-person-name">@Employee.FullName</div>
+        <div class="gaska-emp-head">
+            <MudAvatar Class="gaska-person-avatar gaska-emp-avatar">@Employee.Initials</MudAvatar>
+            <div class="gaska-emp-who">
+                <div class="gaska-emp-name">@Employee.FullName</div>
                 @if (!string.IsNullOrWhiteSpace(Employee.JobTitle))
                 {
-                    <div class="gaska-person-title">@Employee.JobTitle</div>
+                    <div class="gaska-emp-job">@Employee.JobTitle</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Employee.Department))
+                {
+                    <span class="gaska-emp-dept">
+                        <MudIcon Icon="@Icons.Material.Outlined.Groups" Size="Size.Small" />
+                        @Employee.Department
+                    </span>
                 }
             </div>
         </div>
     </TitleContent>
     <DialogContent>
-        <dl class="gaska-details">
-            <dt>Dział</dt>
-            <dd>@Or(Employee.Department)</dd>
-
-            <dt>Komórka</dt>
-            <dd>
-                @if (ContactFormatter.ToTelUri(Employee.MobilePhone) is { } tel)
+        @if (_tel is not null || _email is not null)
+        {
+            <div class="gaska-emp-actions">
+                @if (_tel is not null)
                 {
-                    <a href="@tel" class="gaska-phone">
-                        <MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" />
-                        @ContactFormatter.FormatPhoneForDisplay(Employee.MobilePhone)
+                    <a href="@_tel" class="gaska-emp-action is-primary">
+                        <MudIcon Icon="@Icons.Material.Outlined.Phone" />
+                        <span>Zadzwoń</span>
+                    </a>
+                    <a href="@($"sms:{ContactFormatter.NormalizePhoneForSms(Employee.MobilePhone) ?? Employee.MobilePhone}")" class="gaska-emp-action">
+                        <MudIcon Icon="@Icons.Material.Outlined.Sms" />
+                        <span>SMS</span>
                     </a>
                 }
-                else
+                @if (_email is not null)
                 {
-                    <span class="gaska-muted">—</span>
+                    <a href="@($"mailto:{_email}")" class="gaska-emp-action">
+                        <MudIcon Icon="@Icons.Material.Outlined.Email" />
+                        <span>E-mail</span>
+                    </a>
                 }
-            </dd>
+            </div>
+        }
 
-            <dt>Nr wewnętrzny</dt>
-            <dd>
-                @if (!string.IsNullOrWhiteSpace(Employee.Extension))
-                {
-                    <span class="gaska-extension">@Employee.Extension</span>
-                }
-                else
-                {
-                    <span class="gaska-muted">—</span>
-                }
-            </dd>
+        <ul class="gaska-emp-rows">
+            <li class="gaska-emp-row">
+                <span class="gaska-emp-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Smartphone" Size="Size.Small" /></span>
+                <div class="gaska-emp-row-text">
+                    <span class="gaska-emp-row-label">Telefon komórkowy</span>
+                    @if (_tel is not null)
+                    {
+                        <a href="@_tel" class="gaska-emp-row-value">@_phone</a>
+                    }
+                    else
+                    {
+                        <span class="gaska-emp-row-value gaska-muted">brak</span>
+                    }
+                </div>
+                <CopyButton Value="@(_tel is null ? null : _phone)" What="numer telefonu" />
+            </li>
 
-            <dt>E-mail</dt>
-            <dd class="gaska-dd-block">
-                @if (!string.IsNullOrWhiteSpace(Employee.Email))
-                {
-                    <a href="mailto:@Employee.Email" class="gaska-link gaska-break">@Employee.Email</a>
-                }
-                else
-                {
-                    <span class="gaska-muted">—</span>
-                }
-            </dd>
+            <li class="gaska-emp-row">
+                <span class="gaska-emp-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Phone" Size="Size.Small" /></span>
+                <div class="gaska-emp-row-text">
+                    <span class="gaska-emp-row-label">Numer wewnętrzny</span>
+                    @if (!string.IsNullOrWhiteSpace(Employee.Extension))
+                    {
+                        <span class="gaska-emp-row-value gaska-emp-ext">@Employee.Extension</span>
+                    }
+                    else
+                    {
+                        <span class="gaska-emp-row-value gaska-muted">brak</span>
+                    }
+                </div>
+                <CopyButton Value="@Employee.Extension" What="numer wewnętrzny" />
+            </li>
 
-            <dt>Login</dt>
-            <dd>@Employee.AccountName</dd>
-        </dl>
+            <li class="gaska-emp-row">
+                <span class="gaska-emp-row-icon"><MudIcon Icon="@Icons.Material.Outlined.AlternateEmail" Size="Size.Small" /></span>
+                <div class="gaska-emp-row-text">
+                    <span class="gaska-emp-row-label">E-mail</span>
+                    @if (_email is not null)
+                    {
+                        <a href="@($"mailto:{_email}")" class="gaska-emp-row-value gaska-break">@_email</a>
+                    }
+                    else
+                    {
+                        <span class="gaska-emp-row-value gaska-muted">brak</span>
+                    }
+                </div>
+                <CopyButton Value="@_email" What="adres e-mail" />
+            </li>
+
+            <li class="gaska-emp-row">
+                <span class="gaska-emp-row-icon"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
+                <div class="gaska-emp-row-text">
+                    <span class="gaska-emp-row-label">Login</span>
+                    <span class="gaska-emp-row-value">@Employee.AccountName</span>
+                </div>
+                <CopyButton Value="@Employee.AccountName" What="login" />
+            </li>
+        </ul>
     </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="() => MudDialog.Close()">Zamknij</MudButton>
-        @if (!string.IsNullOrWhiteSpace(Employee.Email))
-        {
-            <MudButton Href="@($"mailto:{Employee.Email}")" Variant="Variant.Outlined" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Outlined.Email">E-mail</MudButton>
-        }
-        @if (ContactFormatter.ToTelUri(Employee.MobilePhone) is { } call)
-        {
-            <MudButton Href="@call" Variant="Variant.Filled" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Outlined.Phone">Zadzwoń</MudButton>
-        }
-    </DialogActions>
 </MudDialog>
 
 @code {
@@ -83,5 +114,14 @@
     [Parameter, EditorRequired]
     public Employee Employee { get; set; } = default!;
 
-    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    private string? _tel;
+    private string? _phone;
+    private string? _email;
+
+    protected override void OnParametersSet()
+    {
+        _tel = ContactFormatter.ToTelUri(Employee.MobilePhone);
+        _phone = ContactFormatter.FormatPhoneForDisplay(Employee.MobilePhone);
+        _email = string.IsNullOrWhiteSpace(Employee.Email) ? null : Employee.Email.Trim();
+    }
 }
