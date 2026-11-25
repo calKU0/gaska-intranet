@@ -158,8 +158,8 @@ internal sealed class GlpiLegacyUploader(
 
             try
             {
-                using var profiles = Request(HttpMethod.Get, "Profile/?range=0-200", session);
-                foreach (var profile in (await SendAsync(http, profiles, "Profile", ct) as JsonArray)?.OfType<JsonObject>() ?? [])
+                // The technician profile usually may not read profiles – an administrator profile of the account may.
+                foreach (var profile in await ReadAsAnyProfileAsync(http, session, "Profile", "Profile/?range=0-200", ct))
                 {
                     if (string.Equals(profile["interface"]?.ToString(), "helpdesk", StringComparison.OrdinalIgnoreCase)
                         && IntOf(profile["tickettemplates_id"]) is > 0 and var id)
@@ -168,10 +168,12 @@ internal sealed class GlpiLegacyUploader(
                     }
                 }
             }
-            catch (HelpdeskException ex)
+            catch (HelpdeskException)
             {
-                // Reading profiles needs the right to see them – the entity's template is the general rule anyway.
-                logger.LogInformation(ex, "GLPI profiles could not be read for ticket templates");
+                // No profile of the account may see profiles – the entity's template is the general rule anyway.
+                logger.LogInformation(
+                    "GLPI profiles could not be read for ticket templates (no profile of the service account has the right " +
+                    "to read profiles) – only the root entity's template is used");
             }
 
             var fields = new HashSet<int>();
@@ -230,52 +232,62 @@ internal sealed class GlpiLegacyUploader(
         var session = await InitSessionAsync(http, ct);
         try
         {
-            var active = IntOf((await ActiveProfileAsync(http, session, ct))?["id"]);
-            using var mine = Request(HttpMethod.Get, "getMyProfiles", session);
-            var profiles = ((await SendAsync(http, mine, "getMyProfiles", ct) as JsonObject)?["myprofiles"] as JsonArray)?
-                .OfType<JsonObject>()
-                .Select(p => IntOf(p["id"]))
-                .Where(id => id > 0)
-                .OrderByDescending(id => id == _dictionaryProfile)
-                .ThenByDescending(id => id == active)
-                .ToList() ?? [active];
-
-            HelpdeskException? refused = null;
-            foreach (var profile in profiles)
-            {
-                try
-                {
-                    if (profile != active)
-                    {
-                        using var change = Request(HttpMethod.Post, "changeActiveProfile", session);
-                        change.Content = Json(new JsonObject { ["profiles_id"] = profile });
-                        await SendAsync(http, change, "changeActiveProfile", ct);
-                        active = profile;
-                    }
-
-                    using var entities = Request(HttpMethod.Post, "changeActiveEntities", session);
-                    entities.Content = Json(new JsonObject { ["entities_id"] = "all", ["is_recursive"] = true });
-                    await SendAsync(http, entities, "changeActiveEntities", ct);
-
-                    using var request = Request(HttpMethod.Get, $"{itemType}/?range=0-999", session);
-                    var items = (await SendAsync(http, request, itemType, ct) as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
-                    _dictionaryProfile = profile;
-                    return items;
-                }
-                catch (HelpdeskException ex)
-                {
-                    // This profile may not read the dictionary – the next one may.
-                    refused = ex;
-                }
-            }
-
-            logger.LogWarning(refused, "No GLPI profile of the service account can read {ItemType}", itemType);
-            throw new HelpdeskException($"Konto serwisowe Helpdesku nie ma uprawnień do odczytu słownika ({itemType}).", refused);
+            return await ReadAsAnyProfileAsync(http, session, itemType, $"{itemType}/?range=0-999", ct);
         }
         finally
         {
             await KillSessionAsync(http, session);
         }
+    }
+
+    /// <summary>
+    /// Reads a list with the first profile of the service account allowed to (the one that worked before first, then the
+    /// active one). Which profile may read what depends on the GLPI setup. Reading only; nothing is changed with a
+    /// stronger profile. The session stays on the profile that succeeded.
+    /// </summary>
+    private async Task<List<JsonObject>> ReadAsAnyProfileAsync(HttpClient http, string session, string itemType, string path, CancellationToken ct)
+    {
+        var active = IntOf((await ActiveProfileAsync(http, session, ct))?["id"]);
+        using var mine = Request(HttpMethod.Get, "getMyProfiles", session);
+        var profiles = ((await SendAsync(http, mine, "getMyProfiles", ct) as JsonObject)?["myprofiles"] as JsonArray)?
+            .OfType<JsonObject>()
+            .Select(p => IntOf(p["id"]))
+            .Where(id => id > 0)
+            .OrderByDescending(id => id == _dictionaryProfile)
+            .ThenByDescending(id => id == active)
+            .ToList() ?? [active];
+
+        HelpdeskException? refused = null;
+        foreach (var profile in profiles)
+        {
+            try
+            {
+                if (profile != active)
+                {
+                    using var change = Request(HttpMethod.Post, "changeActiveProfile", session);
+                    change.Content = Json(new JsonObject { ["profiles_id"] = profile });
+                    await SendAsync(http, change, "changeActiveProfile", ct);
+                    active = profile;
+                }
+
+                using var entities = Request(HttpMethod.Post, "changeActiveEntities", session);
+                entities.Content = Json(new JsonObject { ["entities_id"] = "all", ["is_recursive"] = true });
+                await SendAsync(http, entities, "changeActiveEntities", ct);
+
+                // A refusal here is expected for weaker profiles – logged quietly, the next profile may succeed.
+                using var request = Request(HttpMethod.Get, path, session);
+                var items = (await SendAsync(http, request, itemType, ct, expectRefusal: true) as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
+                _dictionaryProfile = profile;
+                return items;
+            }
+            catch (HelpdeskException ex)
+            {
+                refused = ex;
+            }
+        }
+
+        logger.LogWarning("No GLPI profile of the service account can read {ItemType}: {Reason}", itemType, refused?.Message);
+        throw new HelpdeskException($"Konto serwisowe Helpdesku nie ma uprawnień do odczytu ({itemType}).", refused);
     }
 
     /// <summary>The full path of a tree dictionary entry ("Sprzęt > Drukarki"), else its own name.</summary>
@@ -486,7 +498,8 @@ internal sealed class GlpiLegacyUploader(
         return request;
     }
 
-    private async Task<JsonNode?> SendAsync(HttpClient http, HttpRequestMessage request, string what, CancellationToken ct)
+    /// <param name="expectRefusal">A refusal is a normal outcome (trying profiles one by one) – logged at Debug only.</param>
+    private async Task<JsonNode?> SendAsync(HttpClient http, HttpRequestMessage request, string what, CancellationToken ct, bool expectRefusal = false)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(Options.WriteTimeoutSeconds));
@@ -497,7 +510,7 @@ internal sealed class GlpiLegacyUploader(
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            throw new HelpdeskException("Helpdesk (GLPI) nie odpowiedział przy wysyłaniu załącznika.", ex);
+            throw new HelpdeskException("Helpdesk (GLPI) nie odpowiedział.", ex);
         }
 
         using (response)
@@ -506,8 +519,12 @@ internal sealed class GlpiLegacyUploader(
             if (!response.IsSuccessStatusCode)
             {
                 // The legacy API answers errors as ["ERROR_CODE", "message"].
-                logger.LogWarning("GLPI legacy API {What} → {Status}: {Body}", what, (int)response.StatusCode, text.Length > 500 ? text[..500] : text);
-                throw new HelpdeskException("Helpdesk (GLPI) odrzucił załącznik: " + (LegacyError(text) ?? $"błąd {(int)response.StatusCode}"));
+                logger.Log(expectRefusal ? LogLevel.Debug : LogLevel.Warning, "GLPI legacy API {What} → {Status}: {Body}",
+                    what, (int)response.StatusCode, text.Length > 500 ? text[..500] : text);
+                var reason = LegacyError(text) ?? $"błąd {(int)response.StatusCode}";
+                throw new HelpdeskException(what.StartsWith("Document", StringComparison.Ordinal)
+                    ? "Helpdesk (GLPI) odrzucił załącznik: " + reason
+                    : "Helpdesk (GLPI) odrzucił żądanie: " + reason);
             }
 
             try
@@ -516,7 +533,7 @@ internal sealed class GlpiLegacyUploader(
             }
             catch (JsonException ex)
             {
-                throw new HelpdeskException("Helpdesk (GLPI) zwrócił niepoprawną odpowiedź przy załączniku.", ex);
+                throw new HelpdeskException("Helpdesk (GLPI) zwrócił niepoprawną odpowiedź.", ex);
             }
         }
     }
