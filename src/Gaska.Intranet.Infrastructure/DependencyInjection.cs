@@ -239,6 +239,14 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
         services.AddSingleton<Go2RtcClient>();
 
+        // The camera list lives in the database (managed in Kamery → settings), loaded before the first request.
+        services.AddSingleton<ICameraStore, DbCameraStore>();
+        services.AddSingleton<CameraCatalog>();
+        services.AddHostedService<CameraCatalogLoader>();
+        services.AddSingleton<ICameraDeviceSettings, HikvisionDeviceSettings>();
+        services.AddSingleton<ICameraAdmin, CameraAdminService>();
+        services.AddSingleton<ICameraOrder, DbCameraOrder>();
+
         services.AddSingleton<HikvisionCameraService>();
         services.AddSingleton<ICameraService>(sp => sp.GetRequiredService<HikvisionCameraService>());
         services.AddHostedService<CameraNameRefresher>();
@@ -303,6 +311,9 @@ public static class DependencyInjection
         services.AddSingleton<IContractorTurnoverService>(sp => sp.GetRequiredService<Demo.DemoAnalytics>());
         services.AddSingleton<IContractorCaretakerService, Demo.DemoCaretakers>();
 
+        // Sample cameras kept in memory (managed like real ones, changes last until a restart), no camera is contacted.
+        services.AddSingleton<ICameraStore, Demo.DemoCameraStore>();
+        services.AddSingleton<ICameraDeviceSettings, Demo.DemoCameraStore>(sp => (Demo.DemoCameraStore)sp.GetRequiredService<ICameraStore>());
         services.AddSingleton<ICameraService, Demo.DemoCameras>();
     }
 

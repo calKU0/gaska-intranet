@@ -123,3 +123,30 @@ internal sealed class DashboardWidgetConfiguration : IEntityTypeConfiguration<Da
         b.Property(x => x.Width).HasConversion<string>().HasMaxLength(16);
     }
 }
+
+internal sealed class CameraRecordConfiguration : IEntityTypeConfiguration<Gaska.Intranet.Infrastructure.Cameras.CameraRecord>
+{
+    public void Configure(EntityTypeBuilder<Gaska.Intranet.Infrastructure.Cameras.CameraRecord> b)
+    {
+        b.ToTable("Cameras");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasMaxLength(64);
+        b.Property(x => x.Host).HasMaxLength(255).IsRequired();
+        b.Property(x => x.Location).HasMaxLength(32);
+        b.Property(x => x.AlsoIn).HasMaxLength(256);
+        b.Property(x => x.DeviceName).HasMaxLength(128);
+        b.Property(x => x.OsdName).HasMaxLength(128);
+        b.Property(x => x.UpdatedBy).HasMaxLength(128);
+    }
+}
+
+internal sealed class CameraViewOrderConfiguration : IEntityTypeConfiguration<Gaska.Intranet.Infrastructure.Cameras.CameraViewOrder>
+{
+    public void Configure(EntityTypeBuilder<Gaska.Intranet.Infrastructure.Cameras.CameraViewOrder> b)
+    {
+        b.ToTable("CameraViewOrders");
+        b.HasKey(x => new { x.UserSid, x.Location });
+        b.Property(x => x.UserSid).HasMaxLength(184);
+        b.Property(x => x.Location).HasMaxLength(32);
+    }
+}

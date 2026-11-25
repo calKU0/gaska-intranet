@@ -206,6 +206,7 @@
     private string? _ticket;
     private int _speed = 1;
     private bool _paused;
+    private int _speedAtPause = 1;
     private int? _scrub;
     private bool _dragging;
     private CameraView? _player;
@@ -238,7 +239,8 @@
         {
             while (await _timer!.WaitForNextTickAsync())
             {
-                if (_tab != 1 || _playStart is not { } start || _player is null || _recordings is null)
+                // Paused: the position stays at the moment shown – play goes on from there.
+                if (_tab != 1 || _paused || _playStart is not { } start || _player is null || _recordings is null)
                 {
                     continue;
                 }
@@ -442,8 +444,8 @@
     }
 
     /// <summary>
-    /// Pause holds the picture on screen and ends the camera stream (a camera keeps sending otherwise); play goes on
-    /// from the moment shown, at the chosen speed.
+    /// Pause stops the picture but keeps the camera stream for a while (it buffers ahead), so play goes on at once. After a
+    /// long pause the stream is closed and play reconnects from the moment shown, at the chosen speed.
     /// </summary>
     private async Task TogglePauseAsync()
     {
@@ -455,7 +457,29 @@
         if (!_paused)
         {
             _paused = true;
-            await _player.HoldAsync();
+            _speedAtPause = _speed;
+            await _player.PauseAsync();
+            // The exact moment on screen – a reconnect after a long pause starts there.
+            if (_playStart is { } start && _recordings is not null && await _player.GetPositionAsync() is { } seconds)
+            {
+                _position = CameraPlaybackSpeeds.PositionAt(start, seconds, _recordings);
+            }
+
+            return;
+        }
+
+        // Short pause: the stream is still open – the video goes on from its buffer, no reconnecting.
+        if (await _player.ResumeAsync())
+        {
+            _paused = false;
+            // A speed picked during the pause applies now.
+            if (_speed != _speedAtPause)
+            {
+                var speed = _speed;
+                _speed = _speedAtPause;
+                await SetSpeedAsync(speed);
+            }
+
             return;
         }
 

@@ -29,73 +29,43 @@ internal static class HikvisionIsapi
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
-    /// <summary>Factory names nobody chose ("Camera 01", "IP CAMERA", "IPdome") – not worth showing.</summary>
-    public static bool IsDefaultName(string? name) =>
-        string.IsNullOrWhiteSpace(name) ||
-        System.Text.RegularExpressions.Regex.IsMatch(name.Trim(), @"^(camera\s*\d+\W*|ip\s*camera(\s*\d+)?|ipdome|embedded net dvr)$",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
     /// <summary>
-    /// Text as written by a camera turned back into Polish: cameras store ć, ś, ź (and capital Ń, Ó) as an apostrophe
-    /// plus the letter ("Wej'scie"), and drop the marks of ą, ę, ł, ż altogether – <paramref name="words"/> restores whole
-    /// words ("Pietro" → "Piętro"), compared without Polish letters.
+    /// The camera's own XML (as read with GET) with one element changed – what a PUT sends back, so every other setting
+    /// stays as it was. Null when the element is missing.
     /// </summary>
-    public static string ToPolish(string text, IReadOnlyDictionary<string, string>? words = null)
+    public static string? ReplaceElement(string xml, string name, string value)
     {
-        var result = System.Text.RegularExpressions.Regex.Replace(text, "'([csznoCSZNO])", m => m.Groups[1].Value switch
+        var document = XDocument.Parse(xml);
+        var element = document.Descendants().FirstOrDefault(e => e.Name.LocalName == name);
+        if (element is null)
         {
-            "c" => "ć", "s" => "ś", "z" => "ź", "n" => "ń", "o" => "ó",
-            "C" => "Ć", "S" => "Ś", "Z" => "Ź", "N" => "Ń", _ => "Ó",
-        });
-
-        if (words is null || words.Count == 0)
-        {
-            return result;
+            return null;
         }
 
-        var byPlain = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, value) in words)
-        {
-            byPlain[WithoutPolishLetters(key)] = value;
-        }
-
-        return System.Text.RegularExpressions.Regex.Replace(result, @"\p{L}+", m =>
-        {
-            if (!byPlain.TryGetValue(WithoutPolishLetters(m.Value), out var word))
-            {
-                return m.Value;
-            }
-
-            // Keep the camera's capitalisation: "TYL" → "TYŁ", "tyl" → "tył", "Tyl" → "Tył".
-            return m.Value.All(char.IsUpper) && m.Value.Length > 1 ? word.ToUpperInvariant()
-                : char.IsLower(m.Value[0]) ? word.ToLowerInvariant()
-                : char.ToUpperInvariant(word[0]) + word[1..];
-        });
+        element.Value = value;
+        var declaration = document.Declaration?.ToString();
+        return declaration is null ? document.ToString(SaveOptions.DisableFormatting)
+            : declaration + document.ToString(SaveOptions.DisableFormatting);
     }
 
-    private static string WithoutPolishLetters(string text)
+    /// <summary>ISAPI answer to a PUT: null when it succeeded, else the camera's reason ("Invalid Content" …).</summary>
+    public static string? ReadFailure(string? responseXml)
     {
-        var builder = new StringBuilder(text.Length);
-        foreach (var c in text)
+        if (string.IsNullOrWhiteSpace(responseXml))
         {
-            builder.Append(c switch
-            {
-                'ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z',
-                'Ą' => 'A', 'Ć' => 'C', 'Ę' => 'E', 'Ł' => 'L', 'Ń' => 'N', 'Ó' => 'O', 'Ś' => 'S', 'Ź' => 'Z', 'Ż' => 'Z',
-                _ => c,
-            });
+            return null;
         }
 
-        return builder.ToString();
+        try
+        {
+            var code = ReadElement(responseXml, "statusCode");
+            return code is null or "1" ? null : ReadElement(responseXml, "subStatusCode") ?? ReadElement(responseXml, "statusString") ?? $"status {code}";
+        }
+        catch (System.Xml.XmlException)
+        {
+            return null;
+        }
     }
-
-    /// <summary>The first name that is not a factory default (device name, then OSD name); null when none.</summary>
-    public static string? PickName(string? preferred, string? fallback) =>
-        !IsDefaultName(preferred) ? Tidy(preferred!) : !IsDefaultName(fallback) ? Tidy(fallback!) : null;
-
-    // Some models do not take spaces in names – "Stanowisko_1116" reads better as "Stanowisko 1116".
-    private static string Tidy(string name) =>
-        System.Text.RegularExpressions.Regex.Replace(name.Replace('_', ' '), @"\s+", " ").Trim();
 
     /// <summary>
     /// Device times are written with a "Z" suffix – real UTC on current firmware, local wall-clock time on some older

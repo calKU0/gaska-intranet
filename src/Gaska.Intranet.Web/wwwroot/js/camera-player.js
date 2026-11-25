@@ -11,6 +11,10 @@ const LIVE_EDGE_SECONDS = 1.5;
 const KEEP_BUFFER_SECONDS = 8;
 const STALL_TIMEOUT_MS = 12000;
 const PLAYBACK_STALL_TIMEOUT_MS = 20000;
+// A paused playback keeps its stream and buffers ahead (play goes on at once) – but not forever: after this long, or
+// with this much video waiting, the stream closes and play reconnects from the paused moment.
+const PAUSE_KEEP_MS = 120000;
+const PAUSE_MAX_AHEAD_SECONDS = 600;
 
 const players = new WeakMap();
 
@@ -66,6 +70,16 @@ export async function fullscreen(element) {
 /** Pauses a playback on the picture shown and ends its stream. */
 export function hold(element) {
     players.get(element)?.hold();
+}
+
+/** Pauses a playback, keeping its stream (see PAUSE_KEEP_MS). */
+export function pause(element) {
+    players.get(element)?.pausePlayback();
+}
+
+/** Plays a paused playback on from its buffer; false when the stream is gone (the page then reconnects). */
+export function resume(element) {
+    return players.get(element)?.resumePlayback() ?? false;
 }
 
 export function setRate(element, rate) {
@@ -204,6 +218,7 @@ class Player {
 
     stop() {
         this.running = false;
+        clearInterval(this.pauseTimer);
         clearTimeout(this.retryTimer);
         clearTimeout(this.snapshotTimer);
         clearInterval(this.stallTimer);
@@ -236,6 +251,11 @@ class Player {
     }
 
     mediaSeconds() {
+        // Paused: the moment on screen (the video itself is unloaded – its clock would read 0).
+        if (this.heldSeconds != null) {
+            return this.heldSeconds;
+        }
+
         if (this.usesWallClock()) {
             return this.startedAt ? (this.mediaBase ?? 0) + (Date.now() - this.startedAt) / 1000 * this.opts.rate : null;
         }
@@ -247,7 +267,64 @@ class Player {
         return Math.max(0, this.video.currentTime - this.mediaStart);
     }
 
+    pausePlayback() {
+        if (!this.running || this.finished) {
+            this.hold();
+            return;
+        }
+
+        this.heldSeconds = this.mediaSeconds();
+        this.softPaused = true;
+        if (this.usesWallClock()) {
+            this.mediaBase = this.heldSeconds ?? 0;
+            this.startedAt = null;
+            clearTimeout(this.snapshotTimer);
+        }
+
+        this.video?.pause();
+        this.el.dataset.state = "paused";
+        const since = Date.now();
+        clearInterval(this.pauseTimer);
+        this.pauseTimer = setInterval(() => {
+            const video = this.video;
+            const ahead = video && video.buffered.length ? video.buffered.end(video.buffered.length - 1) - video.currentTime : 0;
+            if (Date.now() - since > PAUSE_KEEP_MS || ahead > PAUSE_MAX_AHEAD_SECONDS) {
+                this.closePausedStream();
+            }
+        }, 2000);
+    }
+
+    resumePlayback() {
+        if (!this.softPaused || !this.running || this.finished) {
+            return false;
+        }
+
+        clearInterval(this.pauseTimer);
+        this.softPaused = false;
+        this.heldSeconds = null;
+        this.el.dataset.state = "live";
+        if (this.usesWallClock()) {
+            this.startedAt = Date.now();
+            if (this.mode === "snapshot") {
+                this.startSnapshots();
+            }
+        } else {
+            this.video?.play().catch(() => { /* muted autoplay is allowed */ });
+        }
+
+        return true;
+    }
+
+    /** A long pause (or the stream ended meanwhile): keep the picture, drop the stream – play reconnects. */
+    closePausedStream() {
+        clearInterval(this.pauseTimer);
+        this.softPaused = false;
+        this.hold();
+    }
+
     hold() {
+        this.heldSeconds = this.mediaSeconds();
+
         // The position stays where it is (a stopped clock for the demo pictures).
         if (this.usesWallClock()) {
             this.mediaBase = this.mediaSeconds() ?? 0;
@@ -312,6 +389,11 @@ class Player {
                 return;
             }
 
+            if (this.softPaused) {
+                this.closePausedStream();
+                return;
+            }
+
             // A playback is not restarted from its beginning: once it played, the end of the stream is its end.
             if (this.playback && this.received) {
                 this.finish(this.stalled ? "stalled" : "ended");
@@ -373,6 +455,11 @@ class Player {
         };
         video.onerror = video.onended = () => {
             if (!this.running || this.mode !== "http") {
+                return;
+            }
+
+            if (this.softPaused) {
+                this.closePausedStream();
                 return;
             }
 

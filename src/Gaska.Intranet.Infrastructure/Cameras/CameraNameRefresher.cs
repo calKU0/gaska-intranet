@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 namespace Gaska.Intranet.Infrastructure.Cameras;
 
 /// <summary>
-/// Reads the camera names from the cameras' web panels at startup and then every few hours, so a name changed on a
-/// camera shows up in the intranet without editing the configuration.
+/// Reads the camera names from the cameras' web panels at startup and then every few hours, so a name changed directly on
+/// a camera shows up in the intranet too.
 /// </summary>
-internal sealed class CameraNameRefresher(HikvisionCameraService cameras, ILogger<CameraNameRefresher> logger) : BackgroundService
+internal sealed class CameraNameRefresher(Gaska.Intranet.Core.Cameras.ICameraAdmin cameras, ILogger<CameraNameRefresher> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
 
@@ -18,7 +18,7 @@ internal sealed class CameraNameRefresher(HikvisionCameraService cameras, ILogge
         {
             try
             {
-                await cameras.RefreshNamesAsync(stoppingToken);
+                await cameras.RefreshFromDevicesAsync(stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

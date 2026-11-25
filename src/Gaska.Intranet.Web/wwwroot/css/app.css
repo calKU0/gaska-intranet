@@ -5017,16 +5017,11 @@ a.gaska-emp-row-value:hover {
 }
 
 .gaska-camera-tile {
-    display: flex;
-    flex-direction: column;
-    padding: 0;
+    position: relative;
     border: 1px solid var(--gaska-border);
     border-radius: var(--gaska-radius);
     background: var(--gaska-surface);
     color: var(--gaska-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
     overflow: hidden;
     transition: box-shadow .15s var(--gaska-ease), border-color .15s var(--gaska-ease);
 }
@@ -5036,9 +5031,23 @@ a.gaska-emp-row-value:hover {
     box-shadow: var(--gaska-shadow-hover);
 }
 
-.gaska-camera-tile:focus-visible {
+.gaska-camera-open {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.gaska-camera-open:focus-visible,
+.gaska-camera-drag:focus-visible {
     outline: 2px solid var(--gaska-yellow);
-    outline-offset: 2px;
+    outline-offset: -2px;
 }
 
 .gaska-camera-caption {
@@ -5047,8 +5056,90 @@ a.gaska-emp-row-value:hover {
     justify-content: space-between;
     align-self: stretch;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 10px 52px 10px 12px; /* room for the drag handle */
     color: var(--gaska-text-2);
+}
+
+/* Drag handle: the tile follows the pointer, a yellow bar shows where it lands (js/camera-sort.js). */
+.gaska-camera-drag {
+    position: absolute;
+    right: 6px;
+    bottom: 3px;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--gaska-text-2);
+    cursor: grab;
+    touch-action: none;
+}
+
+.gaska-camera-drag:hover {
+    background: var(--gaska-hover, rgba(127, 127, 127, .14));
+    color: var(--gaska-text);
+}
+
+.gaska-camera-sorting,
+.gaska-camera-sorting * {
+    cursor: grabbing !important;
+    user-select: none;
+}
+
+.gaska-camera-tile.is-dragging {
+    z-index: 5;
+    opacity: .9;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+    transition: none;
+}
+
+.gaska-camera-tile.drop-before::after,
+.gaska-camera-tile.drop-after::after {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    background: var(--gaska-yellow);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.gaska-camera-tile.drop-x::after { top: 0; bottom: 0; width: 4px; }
+.gaska-camera-tile.drop-x.drop-before::after { left: 0; }
+.gaska-camera-tile.drop-x.drop-after::after { right: 0; }
+.gaska-camera-tile.drop-y::after { left: 0; right: 0; height: 4px; }
+.gaska-camera-tile.drop-y.drop-before::after { top: 0; }
+.gaska-camera-tile.drop-y.drop-after::after { bottom: 0; }
+
+/* Camera counts on the location tabs: inline after the name, so they never overlap the next tab (scrolling tabs on phones). */
+.gaska-camera-tabs .mud-tab-badge,
+.gaska-camera-tabs .mud-tab-badge .mud-badge-wrapper {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    inset: auto;
+    transform: none;
+}
+
+.gaska-camera-tabs .mud-tab-badge .mud-badge {
+    position: static;
+    inset: auto;
+    transform: none;
+    margin-left: 6px;
+}
+
+.gaska-camera-settings-filter {
+    max-width: 220px;
+}
+
+.gaska-camera-order-note {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: -8px 0 8px;
 }
 
 .gaska-camera-name {

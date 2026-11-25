@@ -42,6 +42,9 @@ public static class AuditEvents
     public const string AccessRevoked = "admin.access_revoked";
     public const string CameraPlayback = "cameras.playback";
     public const string CameraDownload = "cameras.download";
+    public const string CameraAdded = "admin.camera_added";
+    public const string CameraChanged = "admin.camera_changed";
+    public const string CameraRemoved = "admin.camera_removed";
 }
 
 /// <summary>Audit log entry (logins, permission changes).</summary>

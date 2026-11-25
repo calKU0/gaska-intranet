@@ -33,22 +33,11 @@ public sealed class CameraOptions
     /// <summary>Camera HTTP (ISAPI) request limit.</summary>
     public int TimeoutSeconds { get; set; } = 8;
 
-    public List<CameraDefinition> Cameras { get; set; } = [];
-
     /// <summary>
-    /// Polish words for camera names. Cameras keep only some Polish letters (ą, ę, ł, ż become a, e, l, z), so names read
-    /// from a camera get whole words restored, e.g. "Pietro" → "Piętro". The key is compared without Polish letters and
-    /// case. Entries from the configuration are added to these.
+    /// Initial camera list: imported into the database once, when the intranet's camera list is still empty. Afterwards the
+    /// cameras are managed in the intranet (Kamery → settings) and this list is not read – it can be removed.
     /// </summary>
-    public Dictionary<string, string> PolishWords { get; set; } = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Pietro"] = "Piętro", ["Pietra"] = "Piętra", ["Tyl"] = "Tył", ["Przod"] = "Przód", ["Dol"] = "Dół",
-        ["Gora"] = "Góra", ["Przyjecia"] = "Przyjęcia", ["Przyjecie"] = "Przyjęcie", ["Wejscie"] = "Wejście",
-        ["Wyjscie"] = "Wyjście", ["Zewnetrzne"] = "Zewnętrzne", ["Zewnatrz"] = "Zewnątrz", ["Ksiegowosc"] = "Księgowość",
-        ["Zdjecia"] = "Zdjęcia", ["Stodola"] = "Stodoła", ["Ogrod"] = "Ogród", ["Scianka"] = "Ścianka",
-        ["Sciana"] = "Ściana", ["Wysylka"] = "Wysyłka", ["Polnoc"] = "Północ", ["Poludnie"] = "Południe",
-        ["Wschod"] = "Wschód", ["Zachod"] = "Zachód", ["Lazienka"] = "Łazienka",
-    };
+    public List<CameraDefinition> Cameras { get; set; } = [];
 
     /// <summary>Configuration errors (shown at startup).</summary>
     public IEnumerable<string> Validate()
@@ -109,9 +98,6 @@ public sealed class CameraDefinition
     /// </summary>
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Name shown in the intranet. Optional – empty: the camera's own name (OSD "Camera Name" in its web panel).</summary>
-    public string Name { get; set; } = string.Empty;
-
     /// <summary>Location tab; empty (null) – the "Nieprzypisane" tab.</summary>
     public CameraLocation? Location { get; set; }
 
@@ -143,4 +129,20 @@ public sealed class CameraDefinition
 
     /// <summary>Sub stream for the grid (Hikvision "02"); set to false when the camera's sub stream is disabled.</summary>
     public bool HasSubStream { get; set; } = true;
+
+    /// <summary>
+    /// The camera's own name ("Device Name" in its web panel) – the name shown in the intranet. Read from the camera,
+    /// written to it when changed in the intranet.
+    /// </summary>
+    public string? DeviceName { get; set; }
+
+    /// <summary>OSD text last read from / written to the camera.</summary>
+    public string? OsdName { get; set; }
+
+    public CameraDefinition Copy()
+    {
+        var copy = (CameraDefinition)MemberwiseClone();
+        copy.AlsoIn = [.. AlsoIn];
+        return copy;
+    }
 }

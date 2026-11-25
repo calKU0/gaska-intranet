@@ -25,7 +25,7 @@ public sealed class CameraAccessTests : IDisposable
     {
         _modules = new ModuleAccessService(_db, new Catalog(), new MemoryCache(new MemoryCacheOptions()), new NullAudit(),
             Options.Create(new AccessPolicyOptions { AdminOnlyFromInternalNetwork = true }), TimeProvider.System);
-        _access = new CameraAccess(_modules, new DemoCameras(TimeProvider.System));
+        _access = new CameraAccess(_modules, new DemoCameras(TimeProvider.System, new CameraCatalog(new DemoCameraStore())));
     }
 
     [Fact]

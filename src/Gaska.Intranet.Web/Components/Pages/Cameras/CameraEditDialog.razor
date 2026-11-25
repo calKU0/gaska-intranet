@@ -1,0 +1,187 @@
+@* Adding or editing a camera (administrators). The name and the OSD text are written to the camera itself on saving. *@
+@inject ICameraAdmin Admin
+
+<MudDialog Class="gaska-camera-edit">
+    <DialogContent>
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Połączenie</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="8">
+                <MudTextField @bind-Value="_form.Host" Label="Adres kamery" Placeholder="np. 10.0.0.43" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Required="true" Immediate="true" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField @bind-Value="_form.Channel" Label="Kanał" Min="1" Max="256" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 HelperText="1 dla kamery" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField @bind-Value="_form.HttpPort" Label="Port HTTP" Min="1" Max="65535" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField @bind-Value="_form.RtspPort" Label="Port RTSP" Min="1" Max="65535" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6" sm="4" Class="d-flex align-center">
+                <MudSwitch @bind-Value="_form.HasSubStream" Color="Color.Primary" Label="Strumień pomocniczy" />
+            </MudItem>
+        </MudGrid>
+
+        <div class="d-flex align-center gap-2 mt-2">
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.NetworkCheck"
+                       OnClick="CheckAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_form.Host))">Sprawdź kamerę</MudButton>
+            @if (_device is { } device)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    @(device.Model ?? "Kamera") · nazwa: @(device.DeviceName ?? "—") · OSD: @(device.OsdName ?? "—")
+                </MudText>
+            }
+        </div>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-5 mb-1">Nazwa i lokalizacja</MudText>
+        <MudTextField @bind-Value="_form.Name" Label="Nazwa kamery" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"
+                      Immediate="true" MaxLength="@ICameraAdmin.MaxCameraTextLength" Counter="@ICameraAdmin.MaxCameraTextLength"
+                      HelperText="@NameHint" />
+
+        <MudGrid Spacing="2" Class="mt-1">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="CameraLocation" Value="@(_form.Location ?? CameraLocation.Unassigned)" ValueChanged="v => _form.Location = v"
+                           Label="Lokalizacja (zakładka)" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var location in CameraLocations.All)
+                    {
+                        <MudSelectItem T="CameraLocation" Value="@location.Location">
+                            @(location.Location == CameraLocation.Unassigned ? "Nieprzypisana" : location.Title)
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="CameraLocation" MultiSelection="true" SelectedValues="_form.AlsoIn" SelectedValuesChanged="v => _form.AlsoIn = [.. v]"
+                           Label="Także w zakładkach" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           MultiSelectionTextFunc="@(list => string.Join(", ", list.Select(v => CameraLocations.Get(Enum.Parse<CameraLocation>(v!)).Title)))">
+                    @foreach (var location in CameraLocations.All.Where(l => l.Location != CameraLocation.Unassigned && l.Location != _form.Location))
+                    {
+                        <MudSelectItem T="CameraLocation" Value="@location.Location">@location.Title</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-5 mb-1">Tekst na obrazie (OSD)</MudText>
+        <MudSwitch T="bool" Value="_changeOsd" ValueChanged="ToggleOsd" Color="Color.Primary"
+                   Label="@(_changeOsd ? "Zmień tekst na obrazie kamery" : $"Bez zmian ({(_device?.OsdName ?? Camera?.OsdName ?? "jak na kamerze")})")" />
+        @if (_changeOsd)
+        {
+            <MudTextField @bind-Value="_osd" Label="Tekst OSD" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+                          MaxLength="@ICameraAdmin.MaxCameraTextLength" Counter="@ICameraAdmin.MaxCameraTextLength"
+                          HelperText="@($"Bez polskich liter – na obrazie: {CameraText(_osd)}")" />
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-4">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()" Disabled="_busy">Anuluj</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_form.Name))">
+            @(_busy ? "Zapisuję…" : Camera is null ? "Dodaj" : "Zapisz")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    /// <summary>The camera to edit; null – a new one.</summary>
+    [Parameter]
+    public CameraSetup? Camera { get; set; }
+
+    private CameraSetupForm _form = new();
+    private CameraDeviceInfo? _device;
+    private bool _changeOsd;
+    private string? _osd;
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _form = Camera is null ? new CameraSetupForm() : CameraSetupForm.From(Camera);
+        _form.Osd = null;
+        _osd = Camera?.OsdName;
+    }
+
+    private static string CameraText(string? text) => ICameraAdmin.ToCameraText(text);
+
+    /// <summary>The name is the camera's own "Device Name": what it is now and what the camera gets on saving.</summary>
+    private string NameHint
+    {
+        get
+        {
+            var now = _device?.DeviceName ?? Camera?.DeviceName;
+            var next = CameraText(_form.Name);
+            return next.Length == 0 ? "Nazwa urządzenia na kamerze – bez polskich liter"
+                : now is null || now == next ? "Nazwa urządzenia na kamerze – bez polskich liter"
+                : $"Zmieni się na kamerze: {now} → {next}";
+        }
+    }
+
+    private void ToggleOsd(bool value)
+    {
+        _changeOsd = value;
+        if (value && string.IsNullOrWhiteSpace(_osd))
+        {
+            _osd = CameraText(_form.Name);
+        }
+    }
+
+    private async Task CheckAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _device = await Admin.ReadDeviceAsync(_form.Host, _form.HttpPort, _form.Channel);
+            if (Camera is null && _device.SuggestedName is { } suggested)
+            {
+                _form.Name = suggested;
+            }
+
+            if (!_changeOsd)
+            {
+                _osd = _device.OsdName;
+            }
+        }
+        catch (CameraAdminException ex)
+        {
+            _device = null;
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _form.Osd = _changeOsd ? _osd ?? string.Empty : null;
+            var user = (await AuthState).User.Identity?.Name ?? "?";
+            var saved = await Admin.SaveAsync(Camera?.Id, _form, user);
+            MudDialog.Close(DialogResult.Ok(saved));
+        }
+        catch (CameraAdminException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

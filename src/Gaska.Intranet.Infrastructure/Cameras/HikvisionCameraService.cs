@@ -15,6 +15,7 @@ internal sealed class HikvisionCameraService(
     Go2RtcClient go2rtc,
     IMemoryCache cache,
     IOptions<CameraOptions> options,
+    CameraCatalog catalog,
     TimeProvider clock,
     ILogger<HikvisionCameraService> logger) : ICameraService
 {
@@ -34,64 +35,21 @@ internal sealed class HikvisionCameraService(
     private const string PlaybackSourceOptions = "#backchannel=0#timeout=30";
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, RtspRangeRelay> _relays = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _deviceNames = new(StringComparer.OrdinalIgnoreCase);
 
     private CameraOptions Options => options.Value;
 
     public bool IsLiveVideo => true;
 
-    /// <summary>Configured cameras; those without a location are in the "Nieprzypisane" tab.</summary>
+    /// <summary>The cameras of the intranet's list; those without a location are in the "Nieprzypisane" tab.</summary>
     public IReadOnlyList<CameraInfo> Cameras =>
-        Options.Cameras
+        catalog.Cameras
             .Where(c => !string.IsNullOrWhiteSpace(c.Host))
             .Select(c => new CameraInfo(c.EffectiveId, DisplayName(c), c.Locations))
             .ToList();
 
     public CameraInfo? Find(string cameraId) => Cameras.FirstOrDefault(c => string.Equals(c.Id, cameraId, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The configured name, else the camera's own name (read by <see cref="RefreshNamesAsync"/>), else the address.</summary>
-    private string DisplayName(CameraDefinition camera) =>
-        !string.IsNullOrWhiteSpace(camera.Name) ? camera.Name.Trim()
-        : _deviceNames.TryGetValue(camera.EffectiveId, out var name) ? name
-        : camera.Host;
-
-    /// <summary>
-    /// Reads the names set in the cameras' web panels ("Device Name", else the OSD "Camera Name") for cameras without a
-    /// configured name. Cameras that do not answer keep their previous name.
-    /// </summary>
-    public async Task RefreshNamesAsync(CancellationToken ct)
-    {
-        var cameras = Options.Cameras.Where(c => string.IsNullOrWhiteSpace(c.Name) && !string.IsNullOrWhiteSpace(c.Host)).ToList();
-        await Parallel.ForEachAsync(cameras, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct }, async (camera, token) =>
-        {
-            try
-            {
-                var device = await GetTextAsync(camera, HikvisionIsapi.DeviceInfoPath, token);
-                var deviceName = device is null ? null : HikvisionIsapi.ReadElement(device, "deviceName");
-                string? channelName = null;
-                if (HikvisionIsapi.IsDefaultName(deviceName))
-                {
-                    var channel = await GetTextAsync(camera, HikvisionIsapi.ChannelPath(camera.Channel), token);
-                    channelName = channel is null ? null : HikvisionIsapi.ReadElement(channel, "name");
-                }
-
-                if (HikvisionIsapi.PickName(deviceName, channelName) is { } name)
-                {
-                    _deviceNames[camera.EffectiveId] = HikvisionIsapi.ToPolish(name, Options.PolishWords);
-                }
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Xml.XmlException && !token.IsCancellationRequested)
-            {
-                logger.LogDebug(ex, "Camera {Camera} name not read", camera.EffectiveId);
-            }
-        });
-    }
-
-    private async Task<string?> GetTextAsync(CameraDefinition camera, string path, CancellationToken ct)
-    {
-        using var response = await Http().GetAsync(CameraUri(camera, path), ct);
-        return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct) : null;
-    }
+    private string DisplayName(CameraDefinition camera) => CameraCatalog.DisplayName(camera);
 
     public async Task<CameraImage?> GetSnapshotAsync(string cameraId, DateTimeOffset? recordedAt = null, CancellationToken ct = default,
         CameraStreamQuality quality = CameraStreamQuality.Main)
@@ -443,9 +401,7 @@ internal sealed class HikvisionCameraService(
         }
     }
 
-    private CameraDefinition? Definition(string cameraId) =>
-        Options.Cameras.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.Host) &&
-                                            string.Equals(c.EffectiveId, cameraId, StringComparison.OrdinalIgnoreCase));
+    private CameraDefinition? Definition(string cameraId) => catalog.Find(cameraId) is { } c && !string.IsNullOrWhiteSpace(c.Host) ? c : null;
 
     private HttpClient Http() => httpFactory.CreateClient(HttpClientName);
 

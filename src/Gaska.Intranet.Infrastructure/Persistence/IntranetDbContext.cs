@@ -2,6 +2,7 @@ using Gaska.Intranet.Core.Access;
 using Gaska.Intranet.Core.Analytics;
 using Gaska.Intranet.Core.Auditing;
 using Gaska.Intranet.Core.Security;
+using Gaska.Intranet.Infrastructure.Cameras;
 using Gaska.Intranet.Infrastructure.Helpdesk;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,8 @@ public class IntranetDbContext(DbContextOptions<IntranetDbContext> options)
     public DbSet<GlpiConnection> GlpiConnections => Set<GlpiConnection>();
     public DbSet<Dashboard> Dashboards => Set<Dashboard>();
     public DbSet<DashboardWidget> DashboardWidgets => Set<DashboardWidget>();
+    public DbSet<CameraRecord> Cameras => Set<CameraRecord>();
+    public DbSet<CameraViewOrder> CameraViewOrders => Set<CameraViewOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

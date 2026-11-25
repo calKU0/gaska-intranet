@@ -363,6 +363,83 @@ namespace Gaska.Intranet.Infrastructure.Persistence.Migrations
                     b.ToTable("UserAuthenticators", "intranet");
                 });
 
+            modelBuilder.Entity("Gaska.Intranet.Infrastructure.Cameras.CameraRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("AlsoIn")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("HasSubStream")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Host")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("HttpPort")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("OsdName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("RtspPort")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Cameras", "intranet");
+                });
+
+            modelBuilder.Entity("Gaska.Intranet.Infrastructure.Cameras.CameraViewOrder", b =>
+                {
+                    b.Property<string>("UserSid")
+                        .HasMaxLength(184)
+                        .HasColumnType("nvarchar(184)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CameraIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserSid", "Location");
+
+                    b.ToTable("CameraViewOrders", "intranet");
+                });
+
             modelBuilder.Entity("Gaska.Intranet.Infrastructure.Helpdesk.GlpiConnection", b =>
                 {
                     b.Property<string>("UserSid")

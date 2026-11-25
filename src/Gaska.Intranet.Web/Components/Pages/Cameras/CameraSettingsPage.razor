@@ -1,0 +1,201 @@
+@page "/kamery/ustawienia"
+@attribute [Authorize(Roles = IntranetClaims.AdministratorRole)]
+@inject ICameraAdmin Admin
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<CameraSettingsPage> Logger
+
+<PageTitle>Zarządzanie kamerami · Gąska Intranet</PageTitle>
+
+<PageHeader Title="Zarządzanie kamerami"
+            Subtitle="Nazwa to nazwa urządzenia na kamerze. Zmiana nazwy i tekstu na obrazie (OSD) zapisuje się od razu na kamerze.">
+    <Actions>
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ArrowBack" Href="/kamery">Kamery</MudButton>
+        <MudTooltip Text="Odczytaj nazwy zmienione bezpośrednio na kamerach">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Sync" OnClick="RefreshAsync" Disabled="_refreshing">
+                @(_refreshing ? "Odczytuję…" : "Odczytaj z kamer")
+            </MudButton>
+        </MudTooltip>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => EditAsync(null)">
+            Dodaj kamerę
+        </MudButton>
+    </Actions>
+</PageHeader>
+
+<MudPaper Class="gaska-card pa-0" Elevation="0">
+    <div class="gaska-toolbar">
+        <MudTextField @bind-Value="_search" Placeholder="Szukaj: nazwa, adres, OSD…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="150" Clearable="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="gaska-search" />
+        <MudSelect T="CameraLocation?" @bind-Value="_location" Label="Lokalizacja" Variant="Variant.Outlined" Margin="Margin.Dense"
+                   Clearable="true" Class="gaska-camera-settings-filter">
+            @foreach (var location in CameraLocations.All)
+            {
+                <MudSelectItem T="CameraLocation?" Value="@location.Location">@location.Title</MudSelectItem>
+            }
+        </MudSelect>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary ml-auto">@Filtered.Count() z @_cameras.Count</MudText>
+    </div>
+
+    <MudDataGrid T="CameraSetup" SortMode="SortMode.Single" ShowColumnOptions="false" Items="Filtered" Loading="_loading" Dense="true" Hover="true"
+                 Elevation="0" RowsPerPage="100" Breakpoint="Breakpoint.None" Class="gaska-grid" Culture="@GaskaTheme.Polish">
+        <Columns>
+            <PropertyColumn Property="c => c.Name" Title="Nazwa" Comparer="ByName">
+                <CellTemplate>
+                    <span class="gaska-person-name">@context.Item.Name</span>
+                    <div class="gaska-person-title gaska-xs-only">@context.Item.Host · @LocationText(context.Item)</div>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="c => c.Location" Title="Lokalizacja" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>
+                    <div class="d-flex flex-wrap gap-1">
+                        @if (context.Item.Location is { } main)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@CameraLocations.Get(main).Title</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Nieprzypisana</MudChip>
+                        }
+                        @foreach (var also in context.Item.AlsoIn)
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text">+ @CameraLocations.Get(also).Title</MudChip>
+                        }
+                    </div>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="c => c.Host" Title="Adres" HeaderClass="gaska-hide-xs" CellClass="gaska-hide-xs">
+                <CellTemplate>
+                    <span class="gaska-mono">@context.Item.Host</span>
+                    @if (context.Item.HttpPort != 80 || context.Item.Channel != 1)
+                    {
+                        <div class="gaska-person-title">port @context.Item.HttpPort · kanał @context.Item.Channel</div>
+                    }
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="c => c.OsdName" Title="OSD" HeaderClass="gaska-hide-md" CellClass="gaska-hide-md">
+                <CellTemplate><span class="gaska-person-title">@(context.Item.OsdName ?? "—")</span></CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn T="CameraSetup" Sortable="false" CellClass="d-flex justify-end gap-1">
+                <CellTemplate>
+                    <MudTooltip Text="Edytuj">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => EditAsync(context.Item)"
+                                       UserAttributes="@(new Dictionary<string, object> { ["aria-label"] = $"Edytuj {context.Item.Name}" })" />
+                    </MudTooltip>
+                    <MudTooltip Text="Usuń z intranetu">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context.Item)"
+                                       UserAttributes="@(new Dictionary<string, object> { ["aria-label"] = $"Usuń {context.Item.Name}" })" />
+                    </MudTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <LoadingContent>
+            <GridSkeleton />
+        </LoadingContent>
+        <NoRecordsContent>
+            <MudText Class="pa-6 mud-text-secondary">@(_cameras.Count == 0 ? "Nie ma jeszcze żadnej kamery – dodaj pierwszą." : "Żadna kamera nie pasuje do filtra.")</MudText>
+        </NoRecordsContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private IReadOnlyList<CameraSetup> _cameras = [];
+    private string? _search;
+    private CameraLocation? _location;
+    private bool _loading = true;
+    private bool _refreshing;
+    private string _currentUser = "?";
+
+    private static readonly IComparer<object> ByName = Comparer<object>.Create((a, b) =>
+        string.Compare(a?.ToString(), b?.ToString(), System.Globalization.CultureInfo.GetCultureInfo("pl-PL"),
+            System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.NumericOrdering));
+
+    private IEnumerable<CameraSetup> Filtered =>
+        _cameras
+            .Where(c => _location is not { } l || (l == CameraLocation.Unassigned ? c.Location is null : c.Location == l || c.AlsoIn.Contains(l)))
+            .Where(c => TextSearch.Matches(_search, c.Name, c.Host, c.DeviceName, c.OsdName, c.Id));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUser = (await AuthState).User.Identity?.Name ?? "?";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _cameras = (await Admin.ListAsync())
+            .OrderBy(c => c.Name, StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("pl-PL"),
+                System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.NumericOrdering))
+            .ToList();
+        _loading = false;
+    }
+
+    private static string LocationText(CameraSetup camera) =>
+        camera.Location is { } l ? CameraLocations.Get(l).Title : "Nieprzypisana";
+
+    private async Task EditAsync(CameraSetup? camera)
+    {
+        var parameters = new DialogParameters<CameraEditDialog> { { d => d.Camera, camera } };
+        var dialog = await Dialogs.ShowAsync<CameraEditDialog>(camera is null ? "Nowa kamera" : camera.Name, parameters, new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            CloseButton = true,
+        });
+
+        if (await dialog.Result is { Canceled: false, Data: CameraSetup saved })
+        {
+            await LoadAsync();
+            Snackbar.Add(camera is null ? $"Dodano kamerę {saved.Name}." : $"Zapisano kamerę {saved.Name}.", Severity.Success);
+        }
+    }
+
+    private async Task DeleteAsync(CameraSetup camera)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Usunąć kamerę?",
+            $"Kamera {camera.Name} ({camera.Host}) zniknie z intranetu. Sama kamera i jej nagrania się nie zmienią – możesz ją później dodać ponownie.",
+            yesText: "Usuń", cancelText: "Anuluj");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await Admin.DeleteAsync(camera.Id, _currentUser);
+            await LoadAsync();
+            Snackbar.Add($"Usunięto kamerę {camera.Name}.", Severity.Info);
+        }
+        catch (CameraAdminException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        try
+        {
+            await Admin.RefreshFromDevicesAsync();
+            await LoadAsync();
+            Snackbar.Add("Odczytano nazwy z kamer.", Severity.Info);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Reading camera names failed");
+            Snackbar.Add("Nie udało się odczytać nazw z kamer.", Severity.Warning);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+}

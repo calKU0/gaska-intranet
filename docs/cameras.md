@@ -27,6 +27,29 @@ browser ──HTTPS / WSS──▶ intranet (IIS) ──ISAPI (HTTP Digest)─�
   join them into one file. Each download is written to the audit log.
 - **Snapshots** (`/ISAPI/Streaming/channels/101/picture`) are the tile poster and the fallback when video fails.
 
+## Camera list and management
+
+The camera list is kept in the intranet database (`intranet.Cameras`) and managed by administrators on
+**Kamery → ⚙ (Zarządzanie kamerami)**, `/kamery/ustawienia`:
+
+- add a camera (address, ports, channel; *Sprawdź kamerę* reads its model, device name and OSD), remove it (only from the
+  intranet – the camera is not changed), assign the main location and further tabs;
+- rename it – the name shown in the intranet **is** the camera's *Device Name* (also a factory one such as "IP CAMERA");
+  a new name is written to the camera (without Polish letters, at most 32 characters). Optionally change the *OSD* text
+  on the picture (*Video/Audio → OSD → Camera Name*).
+  The camera is changed first; if it refuses (offline, account without the rights to change settings), nothing is saved.
+  The service account therefore needs the right to change parameters (e.g. *Remote: Parameters Settings*) for renaming;
+  viewing works without it.
+- *Odczytaj z kamer* (and a background job every 6 hours) reads the names again – a name changed directly in a camera's
+  web panel shows up in the intranet.
+
+Every change is written to the audit log. Each user can reorder the tiles of a tab (drag handle or arrow keys); the
+order is per user and per tab (`intranet.CameraViewOrders`), cameras added later follow in the default order.
+
+**From `appsettings` to the database:** on the first start with an empty camera table, the `Cameras:Cameras` list from
+`appsettings.Local.json` is imported once. After that the configuration list is ignored (a log line says so) and can be
+removed – `appsettings.Local.json` keeps only the service account, go2rtc address and the other settings below.
+
 ## Permissions
 
 - **Kamery** (`cameras`) – the page itself.
@@ -86,14 +109,12 @@ locations; it applies to everyone, administrators included. Every playback is wr
   ```json
   "Cameras": {
     "Username": "<service account>",
-    "Password": "<password>",
-    "Cameras": [
-      { "Host": "<camera address>", "Location": "Office" },
-      { "Id": "magazyn-a-rampa", "Name": "Rampa", "Host": "<camera address>", "Location": "WarehouseA" },
-      { "Host": "<camera address>" }
-    ]
+    "Password": "<password>"
   }
   ```
+
+  Cameras are added in the intranet (see *Camera list and management*). An existing list can be given once as
+  `"Cameras": [ … ]` with the fields below – it is imported on the first start and not read afterwards.
 
   | Field | Meaning |
   |---|---|
@@ -108,11 +129,8 @@ locations; it applies to everyone, administrators included. Every playback is wr
   Other settings: `Go2RtcUrl` (`http://127.0.0.1:1984`), `DeviceTimeZone`
   (`UTC`), `TimeoutSeconds` (8).
 
-  Polish letters: cameras keep ć, ś, ź as an apostrophe plus the letter ("Wej'scie") and turn ą, ę, ł, ż into plain
-  letters. Names read from the cameras are turned back into Polish – the apostrophe form directly, the lost letters by
-  whole words from `PolishWords` (built-in list: Piętro, Tył, Dół, Przyjęcia, Wejście, Zewnętrzne, Księgowość …;
-  entries in the configuration are added, e.g. `"PolishWords": { "Kotlownia": "Kotłownia" }`). OSD text on the picture
-  is plain ASCII. Invalid camera entries stop the application at startup with a message.
+  Names are shown as the cameras keep them – cameras do not take Polish letters, so camera names and OSD texts are
+  written without them (the management panel does that by itself). Invalid camera entries stop the application at startup with a message.
 - Grant the permissions in **Administracja → Uprawnienia** (module *Kamery* and the locations) and switch on
   "company network only" on the *Kamery* module if the cameras must not be watched from outside the company.
 

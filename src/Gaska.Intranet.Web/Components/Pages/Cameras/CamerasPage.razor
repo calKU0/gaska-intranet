@@ -5,10 +5,25 @@
 @inject ICameraService Cameras
 @inject IDialogService Dialogs
 @inject NavigationManager Navigation
+@inject ICameraOrder Order
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject ILogger<CamerasPage> Logger
+@implements IAsyncDisposable
 
 <PageTitle>Kamery · Gąska Intranet</PageTitle>
 
-<PageHeader Title="Kamery" Subtitle="Podgląd na żywo. Kliknij kamerę, żeby ją powiększyć albo obejrzeć nagrania." />
+<PageHeader Title="Kamery" Subtitle="Podgląd na żywo. Kliknij kamerę, żeby ją powiększyć albo obejrzeć nagrania." InlineActions="true">
+    <Actions>
+        @if (_isAdministrator)
+        {
+            <MudTooltip Text="Zarządzanie kamerami">
+                <MudIconButton Icon="@Icons.Material.Outlined.Settings" Href="/kamery/ustawienia"
+                               UserAttributes="@(new Dictionary<string, object> { ["aria-label"] = "Zarządzanie kamerami" })" />
+            </MudTooltip>
+        }
+    </Actions>
+</PageHeader>
 
 @if (_locations is null)
 {
@@ -48,18 +63,34 @@ else
                 }
                 else
                 {
-                    <div class="gaska-camera-grid">
+                    @if (_orders.ContainsKey(location.Location))
+                    {
+                        <div class="gaska-camera-order-note">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Twoja kolejność kamer</MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.RestartAlt"
+                                       OnClick="() => ResetOrderAsync(location.Location)">Przywróć domyślną</MudButton>
+                        </div>
+                    }
+
+                    @* Drag a tile by its handle (or move it with the arrow keys) – each user's own order, per tab. *@
+                    <div class="gaska-camera-grid" data-camera-location="@location.Location">
                         @foreach (var camera in cameras)
                         {
-                            <button type="button" class="gaska-camera-tile" @key="camera.Id" @onclick="() => OpenAsync(camera)"
-                                    aria-label="@($"{camera.Name} – powiększ")">
-                                <CameraView Camera="camera" IsLiveVideo="Cameras.IsLiveVideo" Quality="CameraStreamQuality.Sub" Lazy="true" Paused="_dialogOpen"
-                                            ElementId="@CameraView.TileId(camera.Id)" />
-                                <span class="gaska-camera-caption">
-                                    <span class="gaska-camera-name">@camera.Name</span>
-                                    <MudIcon Icon="@Icons.Material.Outlined.OpenInFull" Size="Size.Small" />
-                                </span>
-                            </button>
+                            <div class="gaska-camera-tile" @key="camera.Id" data-camera-id="@camera.Id">
+                                <button type="button" class="gaska-camera-open" @onclick="() => OpenAsync(camera)"
+                                        aria-label="@($"{camera.Name} – powiększ")">
+                                    <CameraView Camera="camera" IsLiveVideo="Cameras.IsLiveVideo" Quality="CameraStreamQuality.Sub" Lazy="true" Paused="_dialogOpen"
+                                                ElementId="@CameraView.TileId(camera.Id)" />
+                                    <span class="gaska-camera-caption">
+                                        <span class="gaska-camera-name">@camera.Name</span>
+                                        <MudIcon Icon="@Icons.Material.Outlined.OpenInFull" Size="Size.Small" />
+                                    </span>
+                                </button>
+                                <button type="button" class="gaska-camera-drag" data-camera-drag title="Przeciągnij, żeby zmienić kolejność"
+                                        aria-label="@($"Zmień miejsce kamery {camera.Name} – strzałki przesuwają ją w lewo i w prawo")">
+                                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" />
+                                </button>
+                            </div>
                         }
                     </div>
                 }
@@ -79,11 +110,27 @@ else
     private bool _networkBlocked;
     private int _activeIndex;
     private bool _dialogOpen;
+    private bool _isAdministrator;
+    private string _sid = string.Empty;
+    private Dictionary<CameraLocation, IReadOnlyList<string>> _orders = [];
+    private IJSObjectReference? _sortModule;
+    private DotNetObjectReference<CamerasPage>? _selfRef;
 
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState).User;
+        _isAdministrator = user.IsAdministrator();
+        _sid = user.GetSid();
         _locations = await CameraAccess.GetAllowedLocationsAsync(user);
+        try
+        {
+            _orders = new Dictionary<CameraLocation, IReadOnlyList<string>>(await Order.GetAsync(_sid));
+        }
+        catch (Exception ex)
+        {
+            // The default order is fine when the saved one cannot be read.
+            Logger.LogWarning(ex, "Camera order of the user not read");
+        }
         // No location from here, but some from the company network ("company network only" switch on the locations).
         _networkBlocked = _locations.Count == 0 && await CameraAccess.IsAnyLocationBlockedByNetworkAsync(user);
     }
@@ -104,15 +151,93 @@ else
         System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.NumericOrdering);
 
     /// <summary>
-    /// The tab's own cameras first, then those shown here as well ("AlsoIn", e.g. packing stations in their warehouse) –
-    /// each group alphabetically, so the two do not mix.
+    /// The user's own order of the tab, if they set one. Otherwise the tab's own cameras first, then those shown here as
+    /// well ("AlsoIn", e.g. packing stations in their warehouse) – each group alphabetically, so the two do not mix.
     /// </summary>
-    private IReadOnlyList<CameraInfo> CamerasIn(CameraLocation location) =>
-        Cameras.Cameras
+    private IReadOnlyList<CameraInfo> CamerasIn(CameraLocation location)
+    {
+        var defaultOrder = Cameras.Cameras
             .Where(c => c.Locations.Contains(location))
             .OrderBy(c => c.Location == location ? 0 : 1)
             .ThenBy(c => c.Name, ByName)
             .ToList();
+        return CameraOrdering.Apply(defaultOrder, _orders.GetValueOrDefault(location), c => c.Id);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            _sortModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/camera-sort.js");
+            await _sortModule.InvokeVoidAsync("init", _selfRef);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or TaskCanceledException)
+        {
+        }
+    }
+
+    /// <summary>A tile dropped (or moved with the keyboard) at <paramref name="index"/> of its tab.</summary>
+    [JSInvokable]
+    public async Task MoveCameraAsync(string location, string cameraId, int index)
+    {
+        if (!Enum.TryParse<CameraLocation>(location, out var tab))
+        {
+            return;
+        }
+
+        var ids = CamerasIn(tab).Select(c => c.Id).ToList();
+        var moved = CameraOrdering.Move(ids, cameraId, index);
+        if (moved.SequenceEqual(ids))
+        {
+            return;
+        }
+
+        _orders[tab] = moved;
+        StateHasChanged();
+        await SaveOrderAsync(tab, moved);
+    }
+
+    private async Task ResetOrderAsync(CameraLocation location)
+    {
+        _orders.Remove(location);
+        await SaveOrderAsync(location, []);
+    }
+
+    private async Task SaveOrderAsync(CameraLocation location, IReadOnlyList<string> ids)
+    {
+        try
+        {
+            await Order.SaveAsync(_sid, location, ids);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Camera order not saved");
+            Snackbar.Add("Nie udało się zapisać kolejności kamer.", Severity.Warning);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_sortModule is not null)
+            {
+                await _sortModule.InvokeVoidAsync("dispose");
+                await _sortModule.DisposeAsync();
+            }
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or TaskCanceledException or ObjectDisposedException)
+        {
+        }
+
+        _selfRef?.Dispose();
+    }
 
     /// <summary>The tab is part of the address – a link or a refresh opens the same location.</summary>
     private void OnTabChanged(int index)

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using Gaska.Intranet.Core.Cameras;
+using Gaska.Intranet.Infrastructure.Cameras;
 
 namespace Gaska.Intranet.Infrastructure.Demo;
 
@@ -9,9 +10,10 @@ namespace Gaska.Intranet.Infrastructure.Demo;
 /// Demo cameras (Development + Demo:Enabled): a few cameras per location with generated pictures (name + clock) and
 /// sample recordings – screenshots for the user manual and UI work without real cameras or go2rtc.
 /// </summary>
-internal sealed class DemoCameras(TimeProvider clock) : ICameraService
+internal sealed class DemoCameras(TimeProvider clock, CameraCatalog catalog) : ICameraService
 {
-    private static readonly IReadOnlyList<CameraInfo> All =
+    /// <summary>The sample list – the starting point of the demo camera list (<see cref="DemoCameraStore"/>).</summary>
+    internal static readonly IReadOnlyList<CameraInfo> Samples =
     [
         new("biuro-recepcja", "Recepcja", CameraLocation.Office),
         new("biuro-korytarz", "Korytarz – piętro 1", CameraLocation.Office),
@@ -36,9 +38,10 @@ internal sealed class DemoCameras(TimeProvider clock) : ICameraService
 
     public bool IsLiveVideo => false;
 
-    public IReadOnlyList<CameraInfo> Cameras => All;
+    public IReadOnlyList<CameraInfo> Cameras =>
+        catalog.Cameras.Select(c => new CameraInfo(c.EffectiveId, CameraCatalog.DisplayName(c), c.Locations)).ToList();
 
-    public CameraInfo? Find(string cameraId) => All.FirstOrDefault(c => string.Equals(c.Id, cameraId, StringComparison.OrdinalIgnoreCase));
+    public CameraInfo? Find(string cameraId) => Cameras.FirstOrDefault(c => string.Equals(c.Id, cameraId, StringComparison.OrdinalIgnoreCase));
 
     public Task<CameraImage?> GetSnapshotAsync(string cameraId, DateTimeOffset? recordedAt = null, CancellationToken ct = default,
         CameraStreamQuality quality = CameraStreamQuality.Main)
@@ -164,4 +167,74 @@ internal sealed class DemoCameras(TimeProvider clock) : ICameraService
             </svg>
             """;
     }
+}
+
+/// <summary>
+/// Demo mode: the camera list in memory, starting with <see cref="DemoCameras.Samples"/>; "writing to a camera" only
+/// remembers the text. Nothing survives a restart.
+/// </summary>
+internal sealed class DemoCameraStore : ICameraStore, ICameraDeviceSettings
+{
+    private readonly object _lock = new();
+    private readonly List<CameraDefinition> _cameras = DemoCameras.Samples.Select(c => new CameraDefinition
+    {
+        Id = c.Id,
+        Host = c.Id + ".demo",
+        Location = c.Location == CameraLocation.Unassigned ? null : c.Location,
+        DeviceName = ICameraAdmin.ToCameraText(c.Name),
+        OsdName = ICameraAdmin.ToCameraText(c.Name),
+    }).ToList();
+
+    public Task<List<CameraDefinition>> LoadAsync(CancellationToken ct)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_cameras.Select(c => c.Copy()).ToList());
+        }
+    }
+
+    public Task SaveAsync(CameraDefinition camera, string? changedBy, CancellationToken ct)
+    {
+        lock (_lock)
+        {
+            var index = _cameras.FindIndex(c => string.Equals(c.EffectiveId, camera.EffectiveId, StringComparison.OrdinalIgnoreCase));
+            var copy = camera.Copy();
+            copy.Id = camera.EffectiveId;
+            if (index < 0)
+            {
+                _cameras.Add(copy);
+            }
+            else
+            {
+                _cameras[index] = copy;
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(string id, CancellationToken ct)
+    {
+        lock (_lock)
+        {
+            _cameras.RemoveAll(c => string.Equals(c.EffectiveId, id, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<CameraDeviceInfo> ReadAsync(CameraDefinition camera, CancellationToken ct)
+    {
+        lock (_lock)
+        {
+            var known = _cameras.FirstOrDefault(c => string.Equals(c.Host, camera.Host, StringComparison.OrdinalIgnoreCase) && c.Channel == camera.Channel);
+            return Task.FromResult(known is null
+                ? new CameraDeviceInfo("IP CAMERA", "Camera 01", "DS-DEMO", "DEMO" + Math.Abs(camera.Host.GetHashCode() % 100000))
+                : new CameraDeviceInfo(known.DeviceName, known.OsdName, "DS-DEMO", "DEMO" + Math.Abs(known.Host.GetHashCode() % 100000)));
+        }
+    }
+
+    public Task SetDeviceNameAsync(CameraDefinition camera, string name, CancellationToken ct) => Task.CompletedTask;
+
+    public Task SetOsdAsync(CameraDefinition camera, string text, CancellationToken ct) => Task.CompletedTask;
 }
